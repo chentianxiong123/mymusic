@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"homecast/internal/service/music"
+	"homecast/service/music"
 )
 
 // searchViewMP 小程序搜索结果视图（复用 searchView 数据）

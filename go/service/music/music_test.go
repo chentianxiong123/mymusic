@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"homecast/internal/bilibili"
+	"homecast/bilibili"
 )
 
 // TestParseDurationSec 时长解析纯函数：m:ss / h:mm:ss / 纯秒 / 非法 → 0

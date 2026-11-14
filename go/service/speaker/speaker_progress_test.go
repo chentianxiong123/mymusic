@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"homecast/internal/bilibili"
-	"homecast/internal/service/token"
-	"homecast/internal/speaker"
+	"homecast/bilibili"
+	"homecast/service/token"
+	"homecast/xiaoai"
 )
 
 // viewBody B 站 view 响应（含 title/duration）
@@ -61,9 +61,9 @@ func newTestSpeaker(t *testing.T, withClient bool) *SpeakerService {
 		t.Cleanup(srv.Close)
 		client = bilibili.NewClient(srv.URL, "TestUA/1.0", "https://ref.example.com", 5*time.Second)
 	}
-	s := NewSpeakerService(&speaker.SpeakerAuth{}, client, token.NewTokenStore())
+	s := NewSpeakerService(&xiaoai.SpeakerAuth{}, client, token.NewTokenStore())
 	s.mu.Lock()
-	s.devices["did1"] = speaker.SpeakerDevice{DID: "did1", DeviceID: "dev-1", Name: "测试音箱", Hardware: "lx05a"}
+	s.devices["did1"] = xiaoai.SpeakerDevice{DID: "did1", DeviceID: "dev-1", Name: "测试音箱", Hardware: "lx05a"}
 	s.mu.Unlock()
 	return s
 }

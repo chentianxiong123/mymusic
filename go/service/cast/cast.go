@@ -13,9 +13,9 @@ import (
 
 	"github.com/huin/goupnp/dcps/av1"
 
-	"homecast/internal/service/token"
-	"homecast/internal/bilibili"
-	"homecast/internal/dlna"
+	"homecast/service/token"
+	"homecast/bilibili"
+	"homecast/dlna"
 )
 
 // Episode 集条目（对齐 Python VideoEpisode JSON）

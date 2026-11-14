@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"homecast/internal/service/conv"
+	"homecast/service/conv"
 )
 
 // CacheTable audio_cache 表名

@@ -2,8 +2,8 @@ package server
 
 import (
 	"homecast/internal/api"
-	"homecast/internal/service/lyric"
-	"homecast/internal/service/widget"
+	"homecast/service/lyric"
+	"homecast/service/widget"
 )
 
 // lyricSource 适配器：把"bvid → 歌词行 + offset"封装成 widget.LyricSource。

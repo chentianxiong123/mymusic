@@ -1,5 +1,5 @@
 // Package speaker 音箱域：小米音箱推送/本地模拟进度/自动连播（xiaomusic 方法论，零小米云轮询）。
-// 全链路：入口 internal/api/speaker.go · hx/speaker.go；前端 speaker_*.html ×4 + speaker.js；表：无
+// 全链路：入口 internal/api/xiaoai.go · hx/xiaoai.go；前端 speaker_*.html ×4 + xiaoai.js；表：无
 package speaker
 
 import (
@@ -11,18 +11,18 @@ import (
 	"sync"
 	"time"
 
-	"homecast/internal/service/token"
-	"homecast/internal/bilibili"
-	"homecast/internal/speaker"
+	"homecast/service/token"
+	"homecast/bilibili"
+	"homecast/xiaoai"
 )
 
 // SpeakerService 音箱服务（对齐 Python speaker_service.py + device_manager.py）
 type SpeakerService struct {
-	Auth   *speaker.SpeakerAuth
+	Auth   *xiaoai.SpeakerAuth
 	client *bilibili.Client
 	tokens *token.TokenStore
 	mu     sync.Mutex
-	devices  map[string]speaker.SpeakerDevice
+	devices  map[string]xiaoai.SpeakerDevice
 	playing  map[string]string // did -> url（统一端点 URL）
 	blocked  map[string]bool   // did -> 断源（暂停/停止）：其拉流请求被拒
 	progress map[string]*SpeakerProgress // did -> 本地模拟进度（零小米云轮询）
@@ -94,7 +94,7 @@ func (p *SpeakerProgress) State() string {
 }
 
 // NewSpeakerService 构造
-func NewSpeakerService(auth *speaker.SpeakerAuth, client *bilibili.Client, tokens *token.TokenStore) *SpeakerService {
+func NewSpeakerService(auth *xiaoai.SpeakerAuth, client *bilibili.Client, tokens *token.TokenStore) *SpeakerService {
 	port := os.Getenv("HC_PORT")
 	if port == "" {
 		port = "28976"
@@ -103,7 +103,7 @@ func NewSpeakerService(auth *speaker.SpeakerAuth, client *bilibili.Client, token
 		Auth:    auth,
 		client:  client,
 		tokens:  tokens,
-		devices: map[string]speaker.SpeakerDevice{},
+		devices: map[string]xiaoai.SpeakerDevice{},
 		playing: map[string]string{},
 		blocked: map[string]bool{},
 		progress: map[string]*SpeakerProgress{},
@@ -117,7 +117,7 @@ func NewSpeakerService(auth *speaker.SpeakerAuth, client *bilibili.Client, token
 }
 
 // ListDevices 设备列表（无则尝试刷新）
-func (s *SpeakerService) ListDevices() []speaker.SpeakerDevice {
+func (s *SpeakerService) ListDevices() []xiaoai.SpeakerDevice {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.devices) == 0 {
@@ -127,7 +127,7 @@ func (s *SpeakerService) ListDevices() []speaker.SpeakerDevice {
 			}
 		}
 	}
-	out := make([]speaker.SpeakerDevice, 0, len(s.devices))
+	out := make([]xiaoai.SpeakerDevice, 0, len(s.devices))
 	for _, d := range s.devices {
 		out = append(out, d)
 	}
@@ -135,13 +135,13 @@ func (s *SpeakerService) ListDevices() []speaker.SpeakerDevice {
 }
 
 // RefreshDevices 强制刷新
-func (s *SpeakerService) RefreshDevices() ([]speaker.SpeakerDevice, error) {
+func (s *SpeakerService) RefreshDevices() ([]xiaoai.SpeakerDevice, error) {
 	devs, err := s.Auth.ListDevices()
 	if err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
-	s.devices = map[string]speaker.SpeakerDevice{}
+	s.devices = map[string]xiaoai.SpeakerDevice{}
 	for _, d := range devs {
 		s.devices[d.DID] = d
 	}
@@ -149,7 +149,7 @@ func (s *SpeakerService) RefreshDevices() ([]speaker.SpeakerDevice, error) {
 	return devs, nil
 }
 
-func (s *SpeakerService) getDevice(did string) (speaker.SpeakerDevice, bool) {
+func (s *SpeakerService) getDevice(did string) (xiaoai.SpeakerDevice, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if d, ok := s.devices[did]; ok {
@@ -162,11 +162,11 @@ func (s *SpeakerService) getDevice(did string) (speaker.SpeakerDevice, bool) {
 			return d, true
 		}
 	}
-	return speaker.SpeakerDevice{}, false
+	return xiaoai.SpeakerDevice{}, false
 }
 
 // GetDevice 导出（API 层用）
-func (s *SpeakerService) GetDevice(did string) (speaker.SpeakerDevice, bool) {
+func (s *SpeakerService) GetDevice(did string) (xiaoai.SpeakerDevice, bool) {
 	return s.getDevice(did)
 }
 

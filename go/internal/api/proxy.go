@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"homecast/internal/service/token"
+	"homecast/service/token"
 )
 
 // ProxyHandler token 化流转发（仅电视/DLNA 投屏视频用）。

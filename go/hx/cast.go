@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"homecast/internal/service/cast"
+	"homecast/service/cast"
 )
 
 // CastPage GET /hx/cast → 投屏页（设备列表 + 音箱区）

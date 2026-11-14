@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"sync"
 
-	"homecast/internal/service/playback"
+	"homecast/service/playback"
 )
 
 // SpeakerOutput 绑定某台音箱（did），实现 playback.Output

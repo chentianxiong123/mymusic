@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"homecast/internal/service/fav"
-	"homecast/internal/store"
+	"homecast/service/fav"
+	"homecast/store"
 )
 
 // newTestFavHandler 测试用 fav 栈（临时 db）

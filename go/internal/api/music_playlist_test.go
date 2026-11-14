@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"homecast/internal/bilibili"
-	"homecast/internal/service/music"
-	"homecast/internal/service/playlist"
-	"homecast/internal/store"
+	"homecast/bilibili"
+	"homecast/service/music"
+	"homecast/service/playlist"
+	"homecast/store"
 )
 
 // openTestDB 临时 SQLite（api 包共用）

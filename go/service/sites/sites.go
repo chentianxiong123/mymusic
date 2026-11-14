@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-	"homecast/internal/service/cast"
+	"homecast/service/cast"
 )
 
 // Site 嗅探站点（对齐 Python Site）

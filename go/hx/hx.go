@@ -10,11 +10,11 @@ import (
 	"io/fs"
 	"net/http"
 
-	"homecast/internal/service/cast"
-	"homecast/internal/service/fav"
-	"homecast/internal/service/music"
-	spk "homecast/internal/service/speaker"
-	"homecast/internal/speaker"
+	"homecast/service/cast"
+	"homecast/service/fav"
+	"homecast/service/music"
+	spk "homecast/service/speaker"
+	"homecast/xiaoai"
 	"homecast/web"
 )
 
@@ -24,7 +24,7 @@ type H struct {
 	Fav     *fav.FavService
 	Cast    *cast.CastService
 	Speaker *spk.SpeakerService
-	QR      *speaker.QRLogin
+	QR      *xiaoai.QRLogin
 	Tpl     *template.Template
 	// NextBVID 当前歌的下一首 bvid（自动连播用）。由 server 注入核心队列 SSOT，
 	// 投送/切歌时 next 一律从核心算——不依赖前端传参（前端传=不可靠，会断链）

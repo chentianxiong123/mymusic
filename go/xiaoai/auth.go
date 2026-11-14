@@ -1,10 +1,10 @@
-// Package speaker 小米小爱音箱（对齐 Python speaker/auth.py + device_manager.py）
+// Package xiaoai 小米小爱音箱（对齐 Python speaker/auth.py + device_manager.py）
 //
 // 登录方式：
 //  1. 账号密码（miservice-go 原生）
 //  2. 已有 token 恢复（~/.config/homecast/speaker.json，miservice.Tokens JSON）
 //  3. 二维码登录（qrcode.go，走 account.xiaomi.com 长轮询）
-package speaker
+package xiaoai
 
 import (
 	"crypto/sha1"

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"homecast/internal/service/widget"
+	"homecast/service/widget"
 )
 
 // WidgetHandler 桌面歌词挂件状态端点

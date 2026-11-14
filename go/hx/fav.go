@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"homecast/internal/service/fav"
+	"homecast/service/fav"
 )
 
 // favPageData 收藏夹页数据

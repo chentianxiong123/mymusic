@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"homecast/internal/service/cast"
-	"homecast/internal/service/sites"
+	"homecast/service/cast"
+	"homecast/service/sites"
 )
 
 // SitesHandler 站点管理端点

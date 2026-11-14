@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"homecast/internal/service/cast"
-	"homecast/internal/service/fav"
-	"homecast/internal/service/token"
-	"homecast/internal/store"
+	"homecast/service/cast"
+	"homecast/service/fav"
+	"homecast/service/token"
+	"homecast/store"
 	"homecast/web"
 )
 

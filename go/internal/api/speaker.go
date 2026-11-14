@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	spk "homecast/internal/service/speaker"
-	"homecast/internal/speaker"
+	spk "homecast/service/speaker"
+	"homecast/xiaoai"
 
 	"github.com/lsongdev/miservice-go/miservice"
 )
@@ -18,7 +18,7 @@ import (
 // SpeakerHandler 音箱端点
 type SpeakerHandler struct {
 	Svc *spk.SpeakerService
-	QR  *speaker.QRLogin
+	QR  *xiaoai.QRLogin
 }
 
 // Events GET /api/v1/speaker/events —— SSE 单流：订阅服务端唯一 tick 推送的所有音响进度。

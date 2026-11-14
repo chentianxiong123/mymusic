@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"homecast/internal/store"
+	"homecast/store"
 )
 
 func newTestPlaylist(t *testing.T) *PlaylistService {

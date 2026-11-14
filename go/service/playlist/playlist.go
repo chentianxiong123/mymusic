@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	"homecast/internal/bilibili"
+	"homecast/bilibili"
 )
 
 // PlaylistItem 播放列表条目（对齐前端 MusicItem）

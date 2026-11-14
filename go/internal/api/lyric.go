@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"homecast/internal/service/lyric"
-	"homecast/internal/service/lyriccache"
-	"homecast/internal/service/music"
+	"homecast/service/lyric"
+	"homecast/service/lyriccache"
+	"homecast/service/music"
 )
 
 // LyricHandler 歌词端点（网易云源）

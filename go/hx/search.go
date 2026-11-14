@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"homecast/internal/service/music"
+	"homecast/service/music"
 )
 
 // searchView 搜索结果视图数据（页面看到什么，这里就是什么）

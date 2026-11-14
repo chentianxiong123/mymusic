@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"homecast/internal/store"
+	"homecast/store"
 )
 
 func newTestLyricStore(t *testing.T) *LyricStore {

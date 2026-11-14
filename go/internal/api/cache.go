@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"homecast/internal/service/cache"
-	"homecast/internal/service/lyriccache"
+	"homecast/service/cache"
+	"homecast/service/lyriccache"
 )
 
 // CacheHandler 音频缓存端点

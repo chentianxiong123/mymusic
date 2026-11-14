@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"homecast/internal/service/cast"
+	"homecast/service/cast"
 )
 
 // CastHandler 投屏端点

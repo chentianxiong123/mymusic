@@ -12,22 +12,22 @@ import (
 
 	"homecast/hx"
 	"homecast/internal/api"
-	"homecast/internal/bilibili"
-	"homecast/internal/service/cache"
-	"homecast/internal/service/cast"
-	"homecast/internal/service/fav"
-	"homecast/internal/service/lyric"
-	"homecast/internal/service/lyriccache"
-	"homecast/internal/service/music"
-	"homecast/internal/service/playback"
-	"homecast/internal/service/playlist"
-	"homecast/internal/service/sites"
-	spk "homecast/internal/service/speaker"
-	"homecast/internal/service/token"
-	"homecast/internal/service/transcode"
-	"homecast/internal/service/widget"
-	"homecast/internal/speaker"
-	"homecast/internal/store"
+	"homecast/bilibili"
+	"homecast/service/cache"
+	"homecast/service/cast"
+	"homecast/service/fav"
+	"homecast/service/lyric"
+	"homecast/service/lyriccache"
+	"homecast/service/music"
+	"homecast/service/playback"
+	"homecast/service/playlist"
+	"homecast/service/sites"
+	spk "homecast/service/speaker"
+	"homecast/service/token"
+	"homecast/service/transcode"
+	"homecast/service/widget"
+	"homecast/xiaoai"
+	"homecast/store"
 	"homecast/web"
 )
 
@@ -103,12 +103,12 @@ func New() http.Handler {
 	}
 	playlistHandler := &api.PlaylistHandler{Playlist: playlist.NewPlaylistService(client, db)}
 	tokenStore := token.NewTokenStore()
-	speakerSvc := spk.NewSpeakerService(speaker.NewSpeakerAuth(), client, tokenStore)
+	speakerSvc := spk.NewSpeakerService(xiaoai.NewSpeakerAuth(), client, tokenStore)
 	musicHandler.Gate = speakerSvc // 音箱断源闸门：暂停/停止 → 拒绝其拉流（统一供给端点）
 	castSvc := cast.NewCastService(client, tokenStore)
 	castHandler := &api.CastHandler{Cast: castSvc}
 	proxyHandler := &api.ProxyHandler{Tokens: tokenStore}
-	speakerQR := speaker.NewQRLogin()
+	speakerQR := xiaoai.NewQRLogin()
 	speakerHandler := &api.SpeakerHandler{Svc: speakerSvc, QR: speakerQR}
 	sitesHandler := &api.SitesHandler{Sites: sites.NewSitesService("")}
 	widgetState := widget.NewWidgetState() // 先建 state（source 需引用 state 取 title）

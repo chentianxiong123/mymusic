@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"homecast/internal/service/conv"
+	"homecast/service/conv"
 )
 
 // Table mp3 缓存元数据表（独立于源 m4s 的 audio_cache；键 bvid+quality）

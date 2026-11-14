@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"homecast/internal/service/playback"
+	"homecast/service/playback"
 )
 
 // StateHandler 统一播放状态端点（SSOT：后端唯一状态源）

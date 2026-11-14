@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"homecast/internal/store"
+	"homecast/store"
 )
 
 func newTestFav(t *testing.T) *FavService {

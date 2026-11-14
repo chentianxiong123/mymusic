@@ -11,8 +11,8 @@ import (
 
 	"github.com/lsongdev/miservice-go/miservice"
 
-	spk "homecast/internal/service/speaker"
-	"homecast/internal/speaker"
+	spk "homecast/service/speaker"
+	"homecast/xiaoai"
 )
 
 // atoiSafe 表单整数字段容错（面向过程零件）
@@ -41,7 +41,7 @@ func (h *H) SpeakerSection(w http.ResponseWriter, r *http.Request) {
 // speakerPanelData 已登录面板数据
 type speakerPanelData struct {
 	UserID  string
-	Devices []speaker.SpeakerDevice
+	Devices []xiaoai.SpeakerDevice
 }
 
 // SpeakerQRStart POST /hx/speaker/qr-start → 生成二维码片段（图 + 挂起轮询）
@@ -177,7 +177,7 @@ func (h *H) SpeakerRefresh(w http.ResponseWriter, r *http.Request) {
 	h.Tpl.ExecuteTemplate(w, "speaker_devices.html", &speakerPanelData{Devices: devices})
 }
 
-// applyQRToken QR token → Auth 登录（与 api/speaker.go 同逻辑）
+// applyQRToken QR token → Auth 登录（与 api/xiaoai.go 同逻辑）
 func (h *H) applyQRToken() {
 	uid, pwd, ssec, stok, ok := h.QR.BuildTokens()
 	if !ok {

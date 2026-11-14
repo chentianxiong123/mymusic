@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"homecast/internal/service/conv"
+	"homecast/service/conv"
 )
 
 // CacheTable lyric_cache 表名

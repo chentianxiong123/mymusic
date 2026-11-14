@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"homecast/internal/bilibili"
-	"homecast/internal/service/cache"
-	"homecast/internal/service/fmp4"
-	"homecast/internal/service/music"
-	"homecast/internal/service/transcode"
+	"homecast/bilibili"
+	"homecast/service/cache"
+	"homecast/service/fmp4"
+	"homecast/service/music"
+	"homecast/service/transcode"
 )
 
 // StreamGate 音频供给闸门：播放端（音箱）暂停/停止时，其后续拉流请求被断（断源）。

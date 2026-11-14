@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"homecast/internal/service/fav"
+	"homecast/service/fav"
 )
 
 // FavHandler 收藏夹端点（GET/POST/DELETE /api/v1/fav/*）

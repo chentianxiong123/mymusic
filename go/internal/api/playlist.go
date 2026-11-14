@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"homecast/internal/service/playlist"
+	"homecast/service/playlist"
 )
 
 // PlaylistHandler 播放列表端点
