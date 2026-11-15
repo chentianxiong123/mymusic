@@ -315,19 +315,7 @@ func (a *app) lyrCandCol(c *ui.Context) {
 					})
 				})
 			}
-			// 侧面补齐控制面：上一首 / 播放 / 下一首（复用 dock 控件；歌词页缺播放控制）
-			ui.Row(c).AlignSelf(ui.Stretch).Height(48).AlignItems(ui.Center).Justify(ui.Center).Gap(12).
-				Margin(0, 0, 0, 0).Children(func() {
-				if iconButton2(c, icPrev, 34, clrMuted).Clicked() {
-					go a.prev()
-				}
-				if playCircle(c, a.playing, 46).Clicked() {
-					a.togglePlay()
-				}
-				if iconButton2(c, icNext, 34, clrMuted).Clicked() {
-					go a.next()
-				}
-			})
+
 		})
 	})
 }
@@ -426,6 +414,20 @@ func (a *app) lyrToolCol(c *ui.Context) {
 			box := ui.Box(c).Fill().Radius(14).Background(clrCardGlass).PaddingX(6).PaddingY(10)
 			box.Children(fn)
 		}
+		// 竖排播放控制卡（用户要求控制面竖排，放右侧工具列）
+		toolCard(func() {
+			ui.Column(c).AlignSelf(ui.Center).Gap(8).Children(func() {
+				if iconButton2(c, icPrev, 32, clrMuted).Clicked() {
+					go a.prev()
+				}
+				if playCircle(c, a.playing, 42).Clicked() {
+					a.togglePlay()
+				}
+				if iconButton2(c, icNext, 32, clrMuted).Clicked() {
+					go a.next()
+				}
+			})
+		})
 		toolCard(func() {
 			ui.Column(c).AlignSelf(ui.Center).Gap(6).Children(func() {
 				ui.Text(c, "字号").FontSize(11).TextColor(clrMuted)
