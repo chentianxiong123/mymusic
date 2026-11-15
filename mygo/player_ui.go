@@ -211,71 +211,130 @@ func (a *app) nowPlaying(c *ui.Context) {
 
 		// 主体：上（封面+信息）下（歌词），Absolute 定位在中间区域
 		ui.Column(c).Absolute().Left(a.resp(56, 24)).Top(20).Right(a.resp(56, 24)).Bottom(20).Gap(a.resp(28, 16)).Children(func() {
-			// 上：左封面 + 右信息/控制
-			ui.Row(c).Gap(a.resp(52, 24)).AlignItems(ui.Center).Children(func() {
-				// 左：大封面 + 光晕
-				cover := ui.Box(c).Size(a.resp(250, 170), a.resp(250, 170)).Radius(a.resp(24, 18))
-				cover.Draw(func(p *ui.Painter, r ui.Rect) {
-					p.Shadow(r, 24, 0, 8, 40, 0, ui.RGBA(0x8b, 0x5c, 0xf6, 0.35))
-					p.FillRadii(r, [4]float32{24, 24, 24, 24}, clrCard)
-					p.Clip(r, 24, func() {
-						if img, ok := a.covers[a.current.bvid]; ok {
-							p.Image(img, r, ui.Cover)
-						} else {
-							p.FillGradient(r, grad(), 24)
-						}
-					})
-				})
+			// 上：左封面 + 右信息/控制（窄档<760 上下堆叠：封面居中上，信息下，对齐主线手机单栏）
+			if a.narrow() {
+				// 窄档结构：封面居中 + 信息/控制堆叠（对齐主线手机单栏）
 				a.loadCover(a.current.bvid, a.current.pic)
-
-				// 右：信息 + 进度 + 控制 + 音量
-				ui.Column(c).Grow(1).Gap(14).Children(func() {
-					ui.Text(c, a.current.title).FontSize(a.resp(26, 20)).Bold().TextColor(clrText).MaxLines(2)
-					ui.Text(c, a.current.author).FontSize(a.resp(15, 13)).TextColor(clrMuted)
-
-					// 大进度条（可 seek）
-					ui.Spacer(c).Height(10)
-					a.progressBarSized(c, a.progress, 8, true).Grow(1)
-					ui.Row(c).AlignSelf(ui.Stretch).Children(func() {
-						ui.Text(c, a.posText).FontSize(13).TextColor(clrMuted)
-						ui.Spacer(c).Grow(1)
-						ui.Text(c, a.durText).FontSize(13).TextColor(clrMuted)
+				a.narrowInfo(c)
+			} else {
+				ui.Row(c).Gap(a.resp(52, 24)).AlignItems(ui.Center).Children(func() {
+					// 左：大封面 + 光晕
+					cover := ui.Box(c).Size(a.resp(250, 170), a.resp(250, 170)).Radius(a.resp(24, 18))
+					cover.Draw(func(p *ui.Painter, r ui.Rect) {
+						p.Shadow(r, 24, 0, 8, 40, 0, ui.RGBA(0x8b, 0x5c, 0xf6, 0.35))
+						p.FillRadii(r, [4]float32{24, 24, 24, 24}, clrCard)
+						p.Clip(r, 24, func() {
+							if img, ok := a.covers[a.current.bvid]; ok {
+								p.Image(img, r, ui.Cover)
+							} else {
+								p.FillGradient(r, grad(), 24)
+							}
+						})
 					})
+					a.loadCover(a.current.bvid, a.current.pic)
 
-					// 控制行：循环 上一首 播放 下一首 收藏
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(a.resp(18, 12)).Children(func() {
-						ui.Spacer(c).Grow(1)
-						if iconButton2(c, icRepeat, a.resp(40, 34), accent(a.loopMode > 0)).Clicked() {
-							a.toggleLoop()
-						}
-						if iconButton2(c, icPrev, a.resp(44, 38), clrMuted).Clicked() {
-							go a.prev()
-						}
-						if playCircle(c, a.playing, a.resp(72, 58)).Clicked() {
-							a.togglePlay()
-						}
-						if iconButton2(c, icNext, a.resp(44, 38), clrMuted).Clicked() {
-							go a.next()
-						}
-						if iconButton2(c, icHeart, a.resp(40, 34), accent(a.isFav())).Clicked() {
-							a.toggleFav()
-						}
-						ui.Spacer(c).Grow(1)
-					})
+					// 右：信息 + 进度 + 控制 + 音量
+					ui.Column(c).Grow(1).Gap(14).Children(func() {
+						ui.Text(c, a.current.title).FontSize(a.resp(26, 20)).Bold().TextColor(clrText).MaxLines(2)
+						ui.Text(c, a.current.author).FontSize(a.resp(15, 13)).TextColor(clrMuted)
 
-					// 音量 + 音质
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
-						icon(c, icVol, 18, clrMuted)
-						a.volumeBar(c, a.resp(200, 130))
-						ui.Spacer(c).Grow(1)
-						ui.Text(c, "192k").FontSize(13).TextColor(clrMuted)
-						ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
+						// 大进度条（可 seek）
+						ui.Spacer(c).Height(10)
+						a.progressBarSized(c, a.progress, 8, true).Grow(1)
+						ui.Row(c).AlignSelf(ui.Stretch).Children(func() {
+							ui.Text(c, a.posText).FontSize(13).TextColor(clrMuted)
+							ui.Spacer(c).Grow(1)
+							ui.Text(c, a.durText).FontSize(13).TextColor(clrMuted)
+						})
+
+						// 控制行：循环 上一首 播放 下一首 收藏
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(a.resp(18, 12)).Children(func() {
+							ui.Spacer(c).Grow(1)
+							if iconButton2(c, icRepeat, a.resp(40, 34), accent(a.loopMode > 0)).Clicked() {
+								a.toggleLoop()
+							}
+							if iconButton2(c, icPrev, a.resp(44, 38), clrMuted).Clicked() {
+								go a.prev()
+							}
+							if playCircle(c, a.playing, a.resp(72, 58)).Clicked() {
+								a.togglePlay()
+							}
+							if iconButton2(c, icNext, a.resp(44, 38), clrMuted).Clicked() {
+								go a.next()
+							}
+							if iconButton2(c, icHeart, a.resp(40, 34), accent(a.isFav())).Clicked() {
+								a.toggleFav()
+							}
+							ui.Spacer(c).Grow(1)
+						})
+
+						// 音量 + 音质
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+							icon(c, icVol, 18, clrMuted)
+							a.volumeBar(c, a.resp(200, 130))
+							ui.Spacer(c).Grow(1)
+							ui.Text(c, "192k").FontSize(13).TextColor(clrMuted)
+							ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
+						})
 					})
 				})
-			})
+			}
 
 			// 下：歌词
 			a.lyricStrip(c)
+		})
+	})
+}
+
+// narrowInfo 窄档（<760）的播放面板：封面居中 + 下方信息/控制堆叠。
+func (a *app) narrowInfo(c *ui.Context) {
+	ui.Row(c).AlignSelf(ui.Center).Children(func() {
+		cn := ui.Box(c).Size(150, 150).Radius(18)
+		cn.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Shadow(r, 24, 0, 8, 40, 0, ui.RGBA(0x8b, 0x5c, 0xf6, 0.35))
+			p.FillRadii(r, [4]float32{24, 24, 24, 24}, clrCard)
+			if img, ok := a.covers[a.current.bvid]; ok {
+				p.Clip(r, 18, func() { p.Image(img, r, ui.Cover) })
+			} else {
+				p.Clip(r, 18, func() { p.FillGradient(r, grad(), 18) })
+			}
+		})
+	})
+	ui.Column(c).AlignSelf(ui.Stretch).Gap(a.resp(14, 12)).Children(func() {
+		ui.Column(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, a.current.title).FontSize(20).Bold().TextColor(clrText).MaxLines(2).AlignSelf(ui.Center)
+			ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted)
+		})
+		a.progressBarSized(c, a.progress, 6, true).Grow(1)
+		ui.Row(c).AlignSelf(ui.Stretch).Children(func() {
+			ui.Text(c, a.posText).FontSize(12).TextColor(clrMuted)
+			ui.Spacer(c).Grow(1)
+			ui.Text(c, a.durText).FontSize(12).TextColor(clrMuted)
+		})
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(14).Children(func() {
+			ui.Spacer(c).Grow(1)
+			if iconButton2(c, icRepeat, 32, accent(a.loopMode > 0)).Clicked() {
+				a.toggleLoop()
+			}
+			if iconButton2(c, icPrev, 36, clrMuted).Clicked() {
+				go a.prev()
+			}
+			if playCircle(c, a.playing, 54).Clicked() {
+				a.togglePlay()
+			}
+			if iconButton2(c, icNext, 36, clrMuted).Clicked() {
+				go a.next()
+			}
+			if iconButton2(c, icHeart, 32, accent(a.isFav())).Clicked() {
+				a.toggleFav()
+			}
+			ui.Spacer(c).Grow(1)
+		})
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
+			icon(c, icVol, 16, clrMuted)
+			a.volumeBar(c, 110)
+			ui.Spacer(c).Grow(1)
+			ui.Text(c, "192k").FontSize(12).TextColor(clrMuted)
 		})
 	})
 }

@@ -72,14 +72,42 @@ type app struct {
 	lastVolume   float64
 	captionShown bool
 
-	// 分辨率适配：窗口宽度感知（compact 断点 < 860）
+	// 响应式：导航抽屉（对齐主线 nav.js side-nav-panel：汉堡 toggle/点外关/选后收）
+	navOpen bool
+
+	// 分辨率适配：三档断点（对齐主线 Tailwind sm/md 语义）
 	winW int
 	winH int
 }
 
-// compact 紧凑模式：窗口窄时缩小字号/间距/封面，对齐主线 sm: 断点语义。
+// tier 布局档位（对齐主线 Tailwind 断点语义）：
+//
+//	narrow(<768)  = 主线 md: 以下 → 移动导航（汉堡+侧滑面板，主线 md:hidden 同款）
+//	compact(768-1024) = 主线 sm/md → 桌面导航紧凑（列表/间距收紧）
+//	normal(>=1024) = 主线 lg  → 桌面完整
+//
+// 主线 style.css 断点模式：默认=移动，sm:(≥640)=桌面，md:(≥768)=完整导航。
+func (a *app) tier() int {
+	if a.winW <= 0 {
+		return 2 // 窗口未知 → 按正常渲染
+	}
+	if a.winW < 768 {
+		return 0
+	}
+	if a.winW < 1024 {
+		return 1
+	}
+	return 2
+}
+
+// compact 紧凑模式（tier<=1，兼容旧断点语义）：缩小字号/间距/封面。
 func (a *app) compact() bool {
-	return a.winW > 0 && a.winW < 860
+	return a.tier() <= 1
+}
+
+// narrow 窄模式（tier==0，对齐主线手机档 sm）：结构切换（导航图标化/隐藏次要控件）。
+func (a *app) narrow() bool {
+	return a.tier() == 0
 }
 
 // resp 响应式尺寸：正常值 / 紧凑值按当前窗口宽度选。
@@ -123,45 +151,133 @@ func (a *app) view(c *ui.Context) {
 	}
 }
 
-// navBar 顶部导航：logo + 导航 tab（复刻 wails3 的信息架构）。
+// navBar 顶部导航——结构随档位切换（对齐主线：桌面完整导航 vs md:hidden 汉堡+侧滑面板）。
 func (a *app) navBar(c *ui.Context) {
-	px := a.resp(20, 10)
-	navGap := a.resp(6, 2)
-	ui.Row(c).AlignSelf(ui.Stretch).Height(64).PaddingX(px).Gap(navGap).AlignItems(ui.Center).Children(func() {
-		icon(c, icMusic, a.resp(24, 20), clrText)
-		ui.Spacer(c).Width(a.resp(10, 4))
-		if navTab(c, icList, "队列", a.activeTab == "queue").Clicked() {
-			a.setTab("queue")
-		}
-		if navTab(c, icSearch, "搜索", a.activeTab == "search").Clicked() {
-			a.setTab("search")
-		}
-		if navTab(c, icFav, "收藏", a.activeTab == "fav").Clicked() {
-			a.setTab("fav")
-		}
-		if navTab(c, icCast, "投屏", a.activeTab == "cast").Clicked() {
-			a.setTab("cast")
-		}
-		if navTab(c, icSet, "设置", a.activeTab == "settings").Clicked() {
-			a.setTab("settings")
-		}
-		ui.Spacer(c).Grow(1)
-		ly := icList
-		if a.lyricShown {
-			ly = icList
-		}
-		if iconButton2(c, ly, a.resp(32, 28), clrMuted).Clicked() {
-			a.toggleLyric()
-		}
-	})
+	if a.narrow() {
+		a.navBarMobile(c)
+	} else {
+		a.navBarDesktop(c)
+	}
 	ui.Box(c).AlignSelf(ui.Stretch).Height(1).Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Fill(r, clrCard, 0)
 	})
+	if a.navOpen {
+		a.navPanel(c)
+	}
 }
 
-// navTab 导航项：当前高亮为紫渐变胶囊；hover 淡高亮。
-func navTab(c *ui.Context, s *ui.SVG, label string, active bool) ui.Element {
+// navBarDesktop 桌面导航（主线 hidden md:flex 同款）：logo + 5 tab 整行。
+func (a *app) navBarDesktop(c *ui.Context) {
+	px := a.resp(20, 12)
+	navGap := a.resp(6, 3)
+	ui.Row(c).AlignSelf(ui.Stretch).Height(64).PaddingX(px).Gap(navGap).AlignItems(ui.Center).Children(func() {
+		icon(c, icMusic, a.resp(24, 20), clrText)
+		ui.Spacer(c).Width(a.resp(10, 4))
+		if navTab(c, icList, "队列", a.activeTab == "queue", false).Clicked() {
+			a.setTab("queue")
+		}
+		if navTab(c, icSearch, "搜索", a.activeTab == "search", false).Clicked() {
+			a.setTab("search")
+		}
+		if navTab(c, icFav, "收藏", a.activeTab == "fav", false).Clicked() {
+			a.setTab("fav")
+		}
+		if navTab(c, icCast, "投屏", a.activeTab == "cast", false).Clicked() {
+			a.setTab("cast")
+		}
+		if navTab(c, icSet, "设置", a.activeTab == "settings", false).Clicked() {
+			a.setTab("settings")
+		}
+		ui.Spacer(c).Grow(1)
+		if iconButton2(c, icList, a.resp(32, 28), clrMuted).Clicked() {
+			a.toggleLyric()
+		}
+	})
+}
+
+// navBarMobile 移动导航（主线 md:hidden 同款）：logo + 汉堡按钮，无 tab 行。
+func (a *app) navBarMobile(c *ui.Context) {
+	ui.Row(c).AlignSelf(ui.Stretch).Height(56).PaddingX(12).Gap(10).AlignItems(ui.Center).Children(func() {
+		icon(c, icMusic, 20, clrText)
+		ui.Text(c, "myMusic").FontSize(15).Bold().TextColor(clrText)
+		ui.Spacer(c).Grow(1)
+		if iconButton2(c, icList, 34, clrMuted).Clicked() {
+			a.navOpen = !a.navOpen
+			a.win.Invalidate()
+		}
+	})
+}
+
+// navPanel 侧滑导航面板（主线 side-nav-panel 同款）：点背景关闭，选 tab 后收起。
+func (a *app) navPanel(c *ui.Context) {
+	ui.Overlay(c, func() {
+		// 点外部关闭（透明遮罩，对齐 nav.js 的 click-outside）
+		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+		bg.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.35), 0)
+		})
+		if bg.Clicked() {
+			a.navOpen = false
+		}
+		// 面板：左上浮层（w-48 风格）
+		panel := ui.Box(c).Absolute().Left(12).Top(64).Width(200).Radius(16).PaddingX(10).PaddingY(10).Background(clrCard)
+		panel.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Shadow(r, 16, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.45))
+		})
+		panel.Children(func() {
+			ui.Column(c).Gap(4).Children(func() {
+				items := []struct {
+					tab   string
+					label string
+					icon  *ui.SVG
+				}{
+					{"queue", "队列", icList},
+					{"search", "搜索", icSearch},
+					{"fav", "收藏夹", icFav},
+					{"cast", "投屏", icCast},
+					{"settings", "设置", icSet},
+				}
+				for _, it := range items {
+					it := it
+					a.navPanelRow(c, it.icon, it.label, a.activeTab == it.tab, func() {
+						a.setTab(it.tab)
+						a.navOpen = false
+					})
+				}
+			})
+		})
+	})
+}
+
+// navPanelRow 侧滑面板里的一个导航项。
+func (a *app) navPanelRow(c *ui.Context, s *ui.SVG, label string, active bool, onPick func()) {
+	box := ui.Box(c).Fill().Height(42).Radius(10).PaddingX(12)
+	if active {
+		box.Background(clrField)
+	} else if box.Hovered() {
+		box.Background(clrField)
+	}
+	box.Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+			col := clrMuted
+			if active {
+				col = clrPink
+			}
+			icon(c, s, 18, col)
+			ui.Text(c, label).FontSize(14).TextColor(col)
+		})
+	})
+	if box.Clicked() {
+		onPick()
+	}
+}
+
+// navTab 导航项：当前高亮为紫渐变胶囊；hover 淡高亮。iconOnly 时只显示图标。
+func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) ui.Element {
 	box := ui.Box(c).Height(40).Radius(20).PaddingX(16)
+	if iconOnly {
+		box = ui.Box(c).Size(40, 40).Radius(20)
+	}
 	if active {
 		box.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.FillGradient(r, grad(), r.H/2)
@@ -182,7 +298,9 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool) ui.Element {
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			icon(c, s, 18, col)
-			ui.Text(c, label).FontSize(15).TextColor(col)
+			if !iconOnly {
+				ui.Text(c, label).FontSize(15).TextColor(col)
+			}
 		})
 	})
 	return box
@@ -262,8 +380,11 @@ func (a *app) playerBar(c *ui.Context) {
 		}
 		// 字幕条（对齐主线：当前歌词行 + 关闭）
 		a.lyricCaption(c)
-		// 上排：音质 + 循环模式 + 静音 + 音量（紧凑时整行最小化；音质 192k 保留）
+		// 上排：音质 + 循环模式 + 静音 + 音量（对齐主线 dock-tools：移动端居中、≥640 右对齐）
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(igap).Children(func() {
+			if a.compact() {
+				ui.Spacer(c).Grow(1)
+			}
 			ui.Text(c, "192k").FontSize(13).TextColor(clrMuted)
 			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {
 				a.toggleLoop()
@@ -271,11 +392,16 @@ func (a *app) playerBar(c *ui.Context) {
 			if !a.compact() {
 				ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
 			}
-			ui.Spacer(c).Grow(1)
+			if !a.compact() {
+				ui.Spacer(c).Grow(1)
+			}
 			if iconButton2(c, icVol, a.resp(24, 20), accent(a.muted)).Clicked() {
 				a.toggleMute()
 			}
 			a.volumeBar(c, a.resp(120, 84))
+			if !a.compact() {
+				ui.Spacer(c).Grow(1)
+			}
 		})
 		// 进度行：时间 + 滑块 + 时长
 		ui.Row(c).AlignSelf(ui.Stretch).Gap(igap).AlignItems(ui.Center).Children(func() {
@@ -348,8 +474,8 @@ func main() {
 			Title:     "mymusic-mygo",
 			Width:     980,
 			Height:    680,
-			MinWidth:  720,
-			MinHeight: 520,
+			MinWidth:  500,
+			MinHeight: 480,
 			Content:   ui.View(a.view),
 		})
 		// 分辨率适配：窗口尺寸变化时更新宽度感知（断点切换 compact），仅重绘不重建
@@ -358,7 +484,7 @@ func main() {
 		a.win.OnResize(func() {
 			if nb := a.win.Bounds(); nb.Width != a.winW || nb.Height != a.winH {
 				a.winW, a.winH = nb.Width, nb.Height
-				log.Printf("[resize] %dx%d compact=%v", a.winW, a.winH, a.compact())
+				log.Printf("[resize] %dx%d tier=%d(%s)", a.winW, a.winH, a.tier(), map[int]string{0: "narrow", 1: "compact", 2: "normal"}[a.tier()])
 				a.win.Invalidate()
 			}
 		})
