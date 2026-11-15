@@ -6,8 +6,12 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"homecast/service/lyric"
 
 	"mymusic-mygo/bilibili"
 )
@@ -179,23 +183,30 @@ func (a *app) volumeBar(c *ui.Context, width float32) ui.Element {
 	return box
 }
 
-// nowPlaying 正在播放覆盖面板：大封面 + 信息 + 大进度条(可 seek) + 控制 + 音量 + 歌词。
-// 点击背景关闭。
+// nowPlaying 正在播放歌词页：对齐主线 lyric-panel 竖屏歌词面板结构
+// （三栏：候选栏 + 中栏歌词/进度 + 工具列；背景封面模糊/纯色；<768 候选/工具收抽屉，歌词全宽）。
 func (a *app) nowPlaying(c *ui.Context) {
 	ui.Overlay(c, func() {
-		// 背景占满（Overlay 里必须 Absolute 定位）
 		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
 		bg.Draw(func(p *ui.Painter, r ui.Rect) {
-			// 深色背景 + 顶部淡光晕
-			p.Fill(r, ui.RGBA(0x0e, 0x0f, 0x14, 0.97), 0)
+			// 背景：封面模糊（默认）/ 纯色（对齐主线 ly-bg-cover / ly-bg-solid）
+			if a.lyricBg == 0 {
+				if img, ok := a.covers[a.current.bvid]; ok {
+					p.Image(img, r, ui.Cover)
+					p.Fill(r, ui.RGBA(0x0a, 0x0b, 0x10, 0.72), 0)
+				} else {
+					p.Fill(r, ui.RGBA(0x0e, 0x0f, 0x14, 0.97), 0)
+				}
+			} else {
+				p.Fill(r, ui.RGBA(0x0e, 0x0f, 0x14, 0.985), 0)
+			}
 			p.FillGradient(ui.Rect{X: r.X, Y: r.Y, W: r.W, H: 170},
-				ui.LinearGradient{From: ui.RGBA(0x8b, 0x5c, 0xf6, 0.16), To: ui.RGBA(0xec, 0x48, 0x99, 0.0), Angle: 270}, 170)
+				ui.LinearGradient{From: ui.RGBA(0x8b, 0x5c, 0xf6, 0.14), To: ui.RGBA(0xec, 0x48, 0x99, 0.0), Angle: 270}, 170)
 		})
 		if bg.Clicked() {
 			a.showPlayer = false
 		}
-
-		// 关闭按钮（右上）
+		// 关闭按钮（对齐主线 ly-close：右上角）
 		ui.Row(c).Absolute().Top(18).Right(20).Children(func() {
 			if iconButton(c, "✕").Clicked() {
 				a.showPlayer = false
@@ -209,154 +220,230 @@ func (a *app) nowPlaying(c *ui.Context) {
 			return
 		}
 
-		// 主体：上（封面+信息）下（歌词），Absolute 定位在中间区域
-		ui.Column(c).Absolute().Left(a.resp(56, 24)).Top(20).Right(a.resp(56, 24)).Bottom(20).Gap(a.resp(28, 16)).Children(func() {
-			// 上：左封面 + 右信息/控制（窄档<760 上下堆叠：封面居中上，信息下，对齐主线手机单栏）
+		// 未加载歌词 → 触发异步加载（对齐主线 auto-search 当前歌名）
+		if len(a.lyricLines) == 0 && !a.lyricLoading {
+			go a.loadLyricAsync(a.current.bvid)
+		}
+
+		// 主内容：max-w-6xl 居中三栏（对齐主线 lyric-panel h-full max-w-6xl mx-auto flex gap）
+		ui.Row(c).Absolute().Left(0).Top(64).Right(0).Bottom(0).PaddingX(a.resp(24, 10)).PaddingY(a.resp(12, 6)).Gap(a.resp(16, 8)).Children(func() {
+			// 「窄档」：歌词全宽单栏（候选/工具收进左右抽屉按钮，对齐主线 sm:hidden）
 			if a.narrow() {
-				// 窄档结构：封面居中 + 信息/控制堆叠（对齐主线手机单栏）
-				a.loadCover(a.current.bvid, a.current.pic)
-				a.narrowInfo(c)
-			} else {
-				ui.Row(c).Gap(a.resp(52, 24)).AlignItems(ui.Center).Children(func() {
-					// 左：大封面 + 光晕
-					cover := ui.Box(c).Size(a.resp(250, 170), a.resp(250, 170)).Radius(a.resp(24, 18))
-					cover.Draw(func(p *ui.Painter, r ui.Rect) {
-						p.Shadow(r, 24, 0, 8, 40, 0, ui.RGBA(0x8b, 0x5c, 0xf6, 0.35))
-						p.FillRadii(r, [4]float32{24, 24, 24, 24}, clrCard)
-						p.Clip(r, 24, func() {
-							if img, ok := a.covers[a.current.bvid]; ok {
-								p.Image(img, r, ui.Cover)
-							} else {
-								p.FillGradient(r, grad(), 24)
-							}
-						})
-					})
-					a.loadCover(a.current.bvid, a.current.pic)
-
-					// 右：信息 + 进度 + 控制 + 音量
-					ui.Column(c).Grow(1).Gap(14).Children(func() {
-						ui.Text(c, a.current.title).FontSize(a.resp(26, 20)).Bold().TextColor(clrText).MaxLines(2)
-						ui.Text(c, a.current.author).FontSize(a.resp(15, 13)).TextColor(clrMuted)
-
-						// 大进度条（可 seek）
-						ui.Spacer(c).Height(10)
-						a.progressBarSized(c, a.progress, 8, true).Grow(1)
-						ui.Row(c).AlignSelf(ui.Stretch).Children(func() {
-							ui.Text(c, a.posText).FontSize(13).TextColor(clrMuted)
-							ui.Spacer(c).Grow(1)
-							ui.Text(c, a.durText).FontSize(13).TextColor(clrMuted)
-						})
-
-						// 控制行：循环 上一首 播放 下一首 收藏
-						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(a.resp(18, 12)).Children(func() {
-							ui.Spacer(c).Grow(1)
-							if iconButton2(c, icRepeat, a.resp(40, 34), accent(a.loopMode > 0)).Clicked() {
-								a.toggleLoop()
-							}
-							if iconButton2(c, icPrev, a.resp(44, 38), clrMuted).Clicked() {
-								go a.prev()
-							}
-							if playCircle(c, a.playing, a.resp(72, 58)).Clicked() {
-								a.togglePlay()
-							}
-							if iconButton2(c, icNext, a.resp(44, 38), clrMuted).Clicked() {
-								go a.next()
-							}
-							if iconButton2(c, icHeart, a.resp(40, 34), accent(a.isFav())).Clicked() {
-								a.toggleFav()
-							}
-							ui.Spacer(c).Grow(1)
-						})
-
-						// 音量 + 音质
-						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
-							icon(c, icVol, 18, clrMuted)
-							a.volumeBar(c, a.resp(200, 130))
-							ui.Spacer(c).Grow(1)
-							ui.Text(c, a.qualityLabel()).FontSize(13).TextColor(clrMuted)
-							ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
-						})
-					})
-				})
+				a.narrowLyricPanel(c)
+				return
 			}
-
-			// 下：歌词
-			a.lyricStrip(c)
+			// 桌面三栏
+			a.lyrCandCol(c)   // 左：候选
+			a.lyrCenterCol(c) // 中：信息 + KTV 歌词 + 进度
+			a.lyrToolCol(c)   // 右：工具
 		})
 	})
 }
 
-// narrowInfo 窄档（<760）的播放面板：封面居中 + 下方信息/控制堆叠。
-func (a *app) narrowInfo(c *ui.Context) {
-	ui.Row(c).AlignSelf(ui.Center).Children(func() {
-		cn := ui.Box(c).Size(150, 150).Radius(18)
-		cn.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.Shadow(r, 24, 0, 8, 40, 0, ui.RGBA(0x8b, 0x5c, 0xf6, 0.35))
-			p.FillRadii(r, [4]float32{24, 24, 24, 24}, clrCard)
-			if img, ok := a.covers[a.current.bvid]; ok {
-				p.Clip(r, 18, func() { p.Image(img, r, ui.Cover) })
-			} else {
-				p.Clip(r, 18, func() { p.FillGradient(r, grad(), 18) })
+// lyrCandCol 左栏：歌词候选（对齐主线 ly-cand-drawer：w-64 列表，点选换源）。
+func (a *app) lyrCandCol(c *ui.Context) {
+	box := ui.Box(c).Width(a.resp(240, 200)).Fill().Radius(16).Background(clrCard).PaddingX(10).PaddingY(8)
+	box.Children(func() {
+		ui.Column(c).Gap(6).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "歌词候选").FontSize(13).Bold().TextColor(clrPink)
+				ui.Spacer(c).Grow(1)
+				ui.Text(c, a.current.title).FontSize(11).TextColor(clrMuted).MaxLines(1).MaxWidth(120)
+			})
+			if len(a.lyricCands) == 0 {
+				ui.Text(c, LaodingTag()).FontSize(12).TextColor(clrMuted).PaddingY(20)
+				return
 			}
+			ui.Scroll(c).Grow(1).Gap(4).Children(func() {
+				ui.Column(c).Gap(4).Children(func() {
+					for _, cand := range a.lyricCands {
+						on := a.lyricSID == cand.ID
+						row := ui.Box(c).Fill().Height(52).Radius(10).PaddingX(10)
+						if on {
+							row.Draw(func(p *ui.Painter, r ui.Rect) {
+								p.FillGradient(r, grad(), 10)
+								p.Fill(r, ui.RGBA(0x0e, 0x0f, 0x14, 0.5), 10)
+							})
+						} else if row.Hovered() {
+							row.Background(clrField)
+						}
+						row.Children(func() {
+							ui.Column(c).Grow(1).Gap(2).Children(func() {
+								name := cand.Name
+								ui.Text(c, name).FontSize(13).Bold().TextColor(clrText).MaxLines(1)
+								ui.Text(c, cand.Artist).FontSize(11).TextColor(clrMuted).MaxLines(1)
+							})
+							if cand.Duration > 0 {
+								ui.Text(c, fmt.Sprintf("%d:%02d", cand.Duration/60, cand.Duration%60)).FontSize(11).TextColor(clrMuted)
+							}
+						})
+						if row.Clicked() {
+							go a.pickLyricSID(a.current.bvid, cand.ID)
+						}
+					}
+				})
+			})
 		})
 	})
-	ui.Column(c).AlignSelf(ui.Stretch).Gap(a.resp(14, 12)).Children(func() {
-		ui.Column(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, a.current.title).FontSize(20).Bold().TextColor(clrText).MaxLines(2).AlignSelf(ui.Center)
-			ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted)
+}
+
+// LaodingTag 加载中文态。
+func LaodingTag() string { return "搜索中…" }
+
+// lyrCenterCol 中栏：歌曲信息 + KTV 歌词列表 + 底部进度条（对齐主线 lyric-panel 中栏）。
+func (a *app) lyrCenterCol(c *ui.Context) {
+	ui.Column(c).Grow(1).Fill().Gap(10).Children(func() {
+		// 顶部：封面 + 标题/歌手（对齐主线 ly-cover/ly-title/ly-artist）
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).PaddingX(4).Children(func() {
+			a.cover(c, a.current.bvid, a.current.pic, a.resp(60, 48))
+			ui.Column(c).Grow(1).Gap(2).Children(func() {
+				ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(a.resp(22, 17)).Bold().TextColor(clrText).MaxLines(1)
+				ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+			})
+			// 字幕条快捷开关（对齐主线 d-tick 语义）
+			if iconButton2(c, icMsg, 34, accent(a.captionShown)).Clicked() {
+				a.toggleCaption()
+			}
 		})
-		a.progressBarSized(c, a.progress, 6, true).Grow(1)
-		ui.Row(c).AlignSelf(ui.Stretch).Children(func() {
+		// KTV 歌词列表（对齐主线 ly-lines：当前行高亮放大）
+		ui.Box(c).Grow(1).Fill().Radius(14).Background(clrCard).PaddingX(a.resp(28, 14)).PaddingY(10).Children(func() {
+			_, curIdx := a.lyricAt(a.posSec)
+			ui.Scroll(c).Fill().Gap(10).Children(func() {
+				ui.Column(c).AlignSelf(ui.Stretch).Gap(10).Children(func() {
+					if len(a.lyricLines) == 0 {
+						ui.Column(c).AlignSelf(ui.Stretch).Children(func() {
+							ui.Text(c, "歌词加载中…").FontSize(15).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(40)
+							ui.Text(c, "网易云词源（搜索："+lyric.CleanSearchKeyword(bilibili.CleanHTML(a.current.title))+"）").FontSize(11).TextColor(clrMuted).AlignSelf(ui.Center)
+						})
+						return
+					}
+					for i, ln := range a.lyricLines {
+						i, ln := i, ln
+						text := lyricLineText(ln)
+						if text == "" {
+							continue
+						}
+						col := clrMuted
+						size := a.resp(16, 14)
+						if i == curIdx {
+							col = ui.RGB(0xff, 0xff, 0xff)
+							size = a.resp(22, 18)
+						}
+						if a.lyricTime && i == curIdx {
+							ui.Row(c).AlignSelf(ui.Center).Gap(8).AlignItems(ui.Center).Children(func() {
+								ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(11).TextColor(clrPink)
+								ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+							})
+						} else {
+							ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+						}
+					}
+				})
+			})
+		})
+		// 底部进度条（对齐主线 ly-progress：可拖 + 当前/总时长）
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, a.posText).FontSize(12).TextColor(clrMuted)
-			ui.Spacer(c).Grow(1)
+			a.progressBarSized(c, a.progress, 6, true).Grow(1)
 			ui.Text(c, a.durText).FontSize(12).TextColor(clrMuted)
 		})
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(14).Children(func() {
-			ui.Spacer(c).Grow(1)
-			if iconButton2(c, icRepeat, 32, accent(a.loopMode > 0)).Clicked() {
-				a.toggleLoop()
-			}
-			if iconButton2(c, icPrev, 36, clrMuted).Clicked() {
-				go a.prev()
-			}
-			if playCircle(c, a.playing, 54).Clicked() {
-				a.togglePlay()
-			}
-			if iconButton2(c, icNext, 36, clrMuted).Clicked() {
-				go a.next()
-			}
-			if iconButton2(c, icHeart, 32, accent(a.isFav())).Clicked() {
-				a.toggleFav()
-			}
-			ui.Spacer(c).Grow(1)
+	})
+}
+
+// lyrToolCol 右栏：工具列（对齐主线 ly-tool-drawer：字号± / 对齐±0.5s / 刷新）。
+func (a *app) lyrToolCol(c *ui.Context) {
+	ui.Column(c).Width(68).Fill().Gap(8).Children(func() {
+		toolCard := func(fn func()) {
+			box := ui.Box(c).Fill().Radius(14).Background(clrCard).PaddingX(6).PaddingY(10)
+			box.Children(fn)
+		}
+		toolCard(func() {
+			ui.Column(c).AlignSelf(ui.Center).Gap(6).Children(func() {
+				ui.Text(c, "字号").FontSize(11).TextColor(clrMuted)
+				if iconButton(c, "＋").Clicked() {
+					if a.lyricSize < 4 {
+						a.lyricSize++
+						a.win.Invalidate()
+					}
+				}
+				ui.Text(c, []string{"14", "16", "18", "22", "26"}[a.lyricSize]).FontSize(12).TextColor(clrText)
+				if iconButton(c, "－").Clicked() {
+					if a.lyricSize > 0 {
+						a.lyricSize--
+						a.win.Invalidate()
+					}
+				}
+			})
 		})
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
-			icon(c, icVol, 16, clrMuted)
-			a.volumeBar(c, 110)
-			ui.Spacer(c).Grow(1)
-			ui.Text(c, a.qualityLabel()).FontSize(12).TextColor(clrMuted)
+		toolCard(func() {
+			ui.Column(c).AlignSelf(ui.Center).Gap(6).Children(func() {
+				ui.Text(c, "对齐").FontSize(11).TextColor(clrMuted)
+				if iconButton(c, "▲").Clicked() {
+					a.nudgeLyric(0.5)
+				}
+				ui.Text(c, fmt.Sprintf("%.1fs", a.lyricOffset)).FontSize(10).TextColor(clrPink)
+				if iconButton(c, "▼").Clicked() {
+					a.nudgeLyric(-0.5)
+				}
+			})
+		})
+		toolCard(func() {
+			ui.Column(c).AlignSelf(ui.Center).Gap(6).Children(func() {
+				if iconButton(c, "⟳").Clicked() {
+					a.lyricLines = nil
+					a.win.Invalidate()
+					go a.loadLyricAsync(a.current.bvid)
+				}
+			})
 		})
 	})
 }
 
-// lyricStrip 歌词区（占位模拟；真实 B站歌词后续接入）。
-func (a *app) lyricStrip(c *ui.Context) {
-	ui.Column(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		if a.current == nil {
-			return
-		}
-		ui.Text(c, "歌词").FontSize(11).TextColor(clrMuted)
-		lines := []string{"你发如雪 凄美了离别", "我焚香感动了谁", "邀明月 让回忆皎洁", "爱在月光下完美"}
-		cur := 2 // 模拟当前行
-		for i, ln := range lines {
-			col := clrMuted
-			size := float32(15)
-			if i == cur {
-				col = ui.RGB(0xff, 0xff, 0xff)
-				size = 20
-			}
-			ui.Text(c, ln).FontSize(size).Bold().TextColor(col)
-		}
+// narrowLyricPanel 窄档歌词面板：全宽 KTV 歌词（对齐主线 <640 抽屉收起、歌词全宽）。
+func (a *app) narrowLyricPanel(c *ui.Context) {
+	ui.Row(c).Fill().Gap(a.resp(12, 8)).Children(func() {
+		ui.Column(c).Grow(1).Fill().Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
+				a.cover(c, a.current.bvid, a.current.pic, 48)
+				ui.Column(c).Grow(1).Gap(2).Children(func() {
+					ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(16).Bold().TextColor(clrText).MaxLines(1)
+					ui.Text(c, a.current.author).FontSize(12).TextColor(clrMuted).MaxLines(1)
+				})
+				if iconButton2(c, icMsg, 32, accent(a.captionShown)).Clicked() {
+					a.toggleCaption()
+				}
+			})
+			ui.Box(c).Grow(1).Fill().Radius(12).Background(clrCard).PaddingX(12).PaddingY(10).Children(func() {
+				_, curIdx := a.lyricAt(a.posSec)
+				ui.Scroll(c).Fill().Gap(8).Children(func() {
+					ui.Column(c).AlignSelf(ui.Stretch).Gap(8).Children(func() {
+						if len(a.lyricLines) == 0 {
+							ui.Text(c, "歌词加载中…").FontSize(14).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(30)
+							return
+						}
+						for i, ln := range a.lyricLines {
+							i, ln := i, ln
+							text := lyricLineText(ln)
+							if text == "" {
+								continue
+							}
+							col := clrMuted
+							size := float32(14)
+							if i == curIdx {
+								col = ui.RGB(0xff, 0xff, 0xff)
+								size = 19
+							}
+							ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+						}
+					})
+				})
+			})
+			ui.Row(c).AlignSelf(ui.Stretch).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, a.posText).FontSize(12).TextColor(clrMuted)
+				a.progressBarSized(c, a.progress, 5, true).Grow(1)
+				ui.Text(c, a.durText).FontSize(12).TextColor(clrMuted)
+			})
+		})
 	})
 }
 
@@ -521,45 +608,202 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 	}
 }
 
-// settingsPage 设置页：对齐主线 content_settings.html 完整项
-// （主题模式/网页字幕条/音质/播放模式/歌词字号/字幕字号/缓存）。
+// settingsPage 设置页：全量对齐主线 settings.js 渲染的 11 个区块
+// （主题模式/网页字幕条/音质/播放模式/歌词字号/歌词背景/歌词时间/字幕字号/歌曲缓存/歌词缓存/数据/关于）。
 func (a *app) settingsPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12).Children(func() {
-		ui.Text(c, "设置").FontSize(20).Bold().TextColor(clrText)
-		ui.Spacer(c).Height(4)
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(10).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "设置").FontSize(20).Bold().TextColor(clrText)
+			ui.Spacer(c).Grow(1)
+			ui.Text(c, "自动 ／ 明亮 ／ 暗黑（点击切换）").FontSize(12).TextColor(clrMuted)
+		})
 		ui.Scroll(c).Grow(1).Gap(10).Children(func() {
 			ui.Column(c).Gap(10).Children(func() {
-				// 主题模式（对齐主线：暗黑/自动/明亮）
-				a.settingRow(c, "主题模式", "暗黑", "当前仅深色紫粉主题")
-				// 网页字幕条（主线同款：桌面歌词由挂件承担）
-				a.settingRowSwitch(c, "网页字幕条", a.captionShown, "播放条内歌词条", func(on bool) {
+				// 1 主题模式（主线 THEMES 三态：自动/明亮/暗黑）
+				a.setRow(c, "主题模式")
+				a.setRowSeg(c, []string{"自动", "明亮", "暗黑"}, a.themeMode, func(i int) {
+					a.themeMode = i
+					a.win.Invalidate()
+				})
+				// 2 网页字幕条（主线 set-sub 开关）
+				a.setRowSwitch(c, "网页字幕条", "默认关，可打开；桌面端歌词由桌面挂件优先承担", a.captionShown, func(on bool) {
 					a.captionShown = on
 				})
-				// 音质（对齐主线 d-quality 三档）
-				a.settingRowSeg(c, "音质", []string{"64k", "128k", "192k"}, a.quality, func(i int) {
+				// 3 音质（主线 d-quality / set-q 三档）
+				a.setRow(c, "音质")
+				a.setRowSeg(c, []string{"64k", "128k", "192k"}, a.quality, func(i int) {
 					a.quality = i
+					a.win.Invalidate()
 				})
-				// 播放模式（对齐主线 4 模式）
-				a.settingRowSeg(c, "播放模式", []string{"顺序播放", "列表循环", "单曲循环", "随机播放"}, a.loopMode, func(i int) {
+				// 4 播放模式（主线 MODES 四态 + 当前模式名）
+				a.setRow(c, "播放模式")
+				a.setRowText(c, "当前："+a.loopLabel()+"（点按钮切换）")
+				a.setRowSeg(c, []string{"顺序播放", "列表循环", "单曲循环", "随机播放"}, a.loopMode, func(i int) {
 					a.loopMode = i
 					a.pb.SetMode(intToMode(i))
 				})
-				// 歌词字号（对齐主线 14-26px）
-				a.settingRowSeg(c, "歌词字号", []string{"14px", "16px", "18px", "22px", "26px"}, a.lyricSize, func(i int) {
+				// 5 歌词字号（主线 LY_SIZES 14/16/18/22/26）
+				a.setRow(c, "歌词字号")
+				a.setRowSeg(c, []string{"14px", "16px", "18px", "22px", "26px"}, a.lyricSize, func(i int) {
 					a.lyricSize = i
+					a.win.Invalidate()
 				})
-				// 字幕字号（对齐主线横向字幕条 16-32px）
-				a.settingRowSeg(c, "字幕字号", []string{"16px", "20px", "24px", "28px", "32px"}, a.capSize, func(i int) {
+				// 6 歌词背景（主线 set-lybg：封面模糊/纯色）
+				a.setRow(c, "歌词背景")
+				a.setRowSeg(c, []string{"封面模糊", "纯色"}, a.lyricBg, func(i int) {
+					a.lyricBg = i
+					a.win.Invalidate()
+				})
+				// 7 歌词时间显示（主线 set-lytime 开关）
+				a.setRowSwitch(c, "歌词时间显示", "歌词行旁显示时间戳", a.lyricTime, func(on bool) {
+					a.lyricTime = on
+					a.win.Invalidate()
+				})
+				// 8 字幕字号（主线 SUB_SIZES 16..32 + 当前字号说明）
+				a.setRow(c, "字幕字号")
+				a.setRowText(c, "当前字号："+a.capSizeLabel()+"px · 拖动字幕条可移动位置")
+				a.setRowSeg(c, []string{"16px", "20px", "24px", "28px", "32px"}, a.capSize, func(i int) {
 					a.capSize = i
+					a.win.Invalidate()
 				})
-				// 歌曲缓存（主线同款：自动缓存播放超 60 秒的歌）
-				a.settingRow(c, "歌曲缓存", "自动缓存播放超过 60 秒的歌", "")
-				a.settingRow(c, "缓存目录", "/tmp/mymusic-*.m4a", "临时文件")
+				// 9 歌曲缓存（主线 cache.js：已用/清空未收藏/清空缓存/上限）
+				a.setRow(c, "歌曲缓存")
+				a.setRowText(c, "自动缓存播放超过 60 秒的歌，再次播放秒开；超上限自动淘汰最旧")
+				a.setRowText(c, "已用："+a.cacheUsedLabel())
+				a.setRowBtns(c, []string{"清空未收藏", "清空缓存"}, func(i int) {
+					if i == 0 {
+						a.clearCache(false)
+					} else {
+						a.clearCache(true)
+					}
+				})
+				a.setRow(c, "缓存上限")
+				a.setRowSeg(c, []string{"关闭", "200MB", "500MB", "1GB", "2GB"}, a.cacheLimit, func(i int) {
+					a.cacheLimit = i
+					a.win.Invalidate()
+				})
+				// 10 歌词缓存（主线 lyc：记忆歌词源，LRU 50 首）
+				a.setRow(c, "歌词缓存")
+				a.setRowText(c, "字幕条与歌词面板共用：自动记忆你选的歌词源，最多 50 首")
+				a.setRowText(c, "已缓存："+a.lyricCacheCount()+" 首")
+				a.setRowBtns(c, []string{"清空歌词缓存"}, func(i int) {})
+				// 11 数据（主线：搜索历史 + 清空）
+				a.setRow(c, "数据")
+				a.setRowText(c, "搜索历史（"+a.historyCount()+" 条）")
+				a.setRowBtns(c, []string{"清空历史"}, func(i int) {
+					a.searchHistory = nil
+					a.win.Invalidate()
+				})
+				// 12 关于（主线）
+				a.setRow(c, "关于")
+				a.setRowText(c, "mymusic MyGo 原生版 · 紫粉渐变主题 · SSOT 共享主线 playback 域")
 			})
 		})
-		ui.Spacer(c).Height(4)
-		ui.Text(c, "MyGo 原生版 · 紫粉渐变主题").FontSize(12).TextColor(clrMuted)
 	})
+}
+
+// █ 设置页区块行（对齐主线 settings.js 的 card 卡片布局）
+
+// setRow 区块标题行。
+func (a *app) setRow(c *ui.Context, label string) {
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).PaddingX(4).Children(func() {
+		ui.Text(c, label).FontSize(15).Bold().TextColor(clrText)
+		ui.Spacer(c).Grow(1)
+	})
+}
+
+// setRowText 区块内说明文字行（对齐主线 text-xs text-gray-500）。
+func (a *app) setRowText(c *ui.Context, txt string) {
+	ui.Text(c, txt).FontSize(12).TextColor(clrMuted).PaddingX(4)
+}
+
+// setRowSeg 分段按钮行（对齐主线 flex gap-2 圆角按钮组）。
+func (a *app) setRowSeg(c *ui.Context, opts []string, cur int, cb func(int)) {
+	ui.Row(c).Gap(a.resp(10, 8)).PaddingX(4).Wrap().Children(func() {
+		for i, opt := range opts {
+			i, opt := i, opt
+			if segBtn(c, opt, i == cur).Clicked() {
+				cb(i)
+			}
+		}
+	})
+}
+
+// setRowSwitch 开关行（对齐主线 w-11 h-6 滑动开关）。
+func (a *app) setRowSwitch(c *ui.Context, label, hint string, on bool, cb func(bool)) {
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).PaddingX(4).Children(func() {
+		ui.Text(c, label).FontSize(14).Bold().TextColor(clrText)
+		ui.Spacer(c).Grow(1)
+		if switchToggle(c, on).Clicked() {
+			cb(!on)
+		}
+	})
+	ui.Text(c, hint).FontSize(11).TextColor(clrMuted).PaddingX(4)
+}
+
+// setRowBtns 操作按钮行（对齐主线 清空xxx 描边小按钮）。
+func (a *app) setRowBtns(c *ui.Context, labels []string, cb func(int)) {
+	ui.Row(c).Gap(8).PaddingX(4).Children(func() {
+		for i, l := range labels {
+			i, l := i, l
+			if chip(c, l).Clicked() {
+				cb(i)
+			}
+		}
+	})
+}
+
+// capSizeLabel 字幕字号档对应的像素值。
+func (a *app) capSizeLabel() string {
+	return []string{"16", "20", "24", "28", "32"}[a.capSize]
+}
+
+// cacheUsedLabel 缓存占用（扫描 /tmp 临时音频）。
+func (a *app) cacheUsedLabel() string {
+	var total int64
+	entries, err := os.ReadDir("/tmp")
+	if err == nil {
+		for _, e := range entries {
+			if !e.IsDir() && (strings.HasPrefix(e.Name(), "mymusic-") || strings.HasSuffix(e.Name(), ".m4a")) {
+				if fi, err := e.Info(); err == nil {
+					total += fi.Size()
+				}
+			}
+		}
+	}
+	return fmt.Sprintf("%.1f MB", float64(total)/(1<<20))
+}
+
+// clearCache 清空缓存（true=全部；false=仅未收藏）。
+func (a *app) clearCache(all bool) {
+	entries, err := os.ReadDir("/tmp")
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), "mymusic-") {
+			continue
+		}
+		if !all {
+			// 未收藏：文件名形如 mymusic-<bvid>.m4a；收藏的保留
+			bvid := strings.TrimSuffix(strings.TrimPrefix(e.Name(), "mymusic-"), ".m4a")
+			if a.favMap[bvid] {
+				continue
+			}
+		}
+		os.Remove("/tmp/" + e.Name())
+	}
+	a.win.Invalidate()
+}
+
+// lyricCacheCount 歌词缓存计数（当前未接歌词域包 → 0）。
+func (a *app) lyricCacheCount() string {
+	return "0"
+}
+
+// historyCount 搜索历史条数。
+func (a *app) historyCount() string {
+	return fmt.Sprintf("%d", len(a.searchHistory))
 }
 
 // settingRow 设置项行（左标签 + 右文案，对齐主线 settings 行布局）。

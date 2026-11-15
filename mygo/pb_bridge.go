@@ -90,6 +90,7 @@ func (a *app) progressReporter() {
 		info := a.mygoOut.Position()
 		if info.Dur > 0 {
 			a.pb.SetProgress(info.Pos, info.Dur, info.Playing)
+			a.posSec = info.Pos
 		}
 	}
 }
@@ -114,6 +115,7 @@ func (a *app) applyState(st playback.State) {
 	}
 	a.posText = fmtDurMygo(st.Position)
 	a.durText = fmtDurMygo(st.Duration)
+	a.posSec = st.Position
 	if st.Title != "" {
 		a.lyricText = "♪ " + st.Title
 	}

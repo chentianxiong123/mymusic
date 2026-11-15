@@ -15,6 +15,7 @@ import (
 	_ "github.com/egoist/mygo/audio/mp4" // m4a / fMP4 解码
 	"github.com/egoist/mygo/ui"
 
+	"homecast/service/lyric"
 	"homecast/service/playback"
 
 	"mymusic-mygo/bilibili"
@@ -62,15 +63,27 @@ type app struct {
 	activeTab  string // search|queue|fav|cast|settings
 	playlist   []bilibili.SearchItem
 	playIndex  int
+	posSec     float64 // 当前播放秒（歌词定位用）
 	volume     float64
 	loopMode   int // 0 列表循环 1 单曲 2 随机
 	favorites  []bilibili.SearchItem
 	favMap     map[string]bool
 
-	quality       int    // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
-	lyricSize     int    // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
+	quality       int      // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
+	lyricSize     int      // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
+	capSize       int      // 0-4 字幕字号档（对齐主线 16/20/24/28/32px）
+	themeMode     int      // 0 自动 1 明亮 2 暗黑（对齐主线 THEMES 三态）
+	lyricBg       int      // 0 封面模糊 1 纯色（对齐主线 set-lybg）
+	lyricTime     bool     // 歌词行显示时间戳（对齐主线 set-lytime）
+	cacheLimit    int      // 0 关闭 1 200MB 2 500MB 3 1GB 4 2GB（对齐主线缓存上限）
+	searchHistory []string // 搜索历史（对齐主线 清空历史）
+	// 歌词（复用主线 lyric 域包；对齐 lyric-panel）
+	lyricLines    []lyric.LyricLine
+	lyricCands    []lyric.LyricResult
+	lyricSID      int
+	lyricOffset   float64
+	lyricLoading  bool
 	expandedTitle string // 搜索结果标题展开态 bvid（对齐主线 hx-title）
-	capSize       int    // 0-4 字幕字号档（对齐主线 16/20/24/28/32px）
 	// 静音 / 字幕条（学主线结构）
 	muted        bool
 	lastVolume   float64

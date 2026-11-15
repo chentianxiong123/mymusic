@@ -226,15 +226,24 @@ func (a *app) coverWide(c *ui.Context, bvid, url string, w float32) ui.Element {
 	return box
 }
 
-// lyricCaption 字幕条（对齐主线）：当前歌词行 + 关闭按钮。
+// lyricCaption 字幕条（对齐主线 subtitle-bar）：当前歌词行（真歌词）+ 关闭按钮。
 func (a *app) lyricCaption(c *ui.Context) {
 	if !a.captionShown {
 		return
 	}
+	// 歌词行文本：有真歌词用真词（对齐主线 subtitle-bar 走 lyric.js），否则回退标题
+	line, _ := a.lyricAt(a.posSec)
+	sub := line
+	if sub == "" {
+		sub = a.lyricText
+	}
+	if sub == "" {
+		sub = "♪ " + a.current.title
+	}
 	box := ui.Box(c).AlignSelf(ui.Stretch).Height(a.resp(40, 34)).Radius(12).PaddingX(a.resp(16, 12)).Background(clrCard)
 	box.Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
-			ui.Text(c, a.lyricText).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
+			ui.Text(c, sub).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
 			ui.Spacer(c).Grow(1)
 			if iconButton(c, "✕").Clicked() {
 				a.toggleCaption()
