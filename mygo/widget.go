@@ -3,9 +3,15 @@
 package main
 
 import (
+	"time"
+
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
+
+// lyricHandleW 挂件左边缘把手宽（DIP）：默认只有这条接收鼠标（其余穿透到
+// 下层窗口/桌面），鼠标进把手 1 秒 → 全窗口可交互（拖拽+控制），移出恢复穿透。
+const lyricHandleW = 12
 
 // toggleLyric 开/关桌面歌词挂件。桌面歌词是 MyGo 原生 UI 最能替代
 // 原项目 cgo(GTK/Win32) 挂件的地方：无边框 + 透明 + 置顶 + 不进任务栏
@@ -31,8 +37,15 @@ func (a *app) toggleLyric() {
 		Y:             80,
 		Content:       ui.View(a.lyricView),
 	})
-	// 可交互（学主线 subtitle-bar：pointerdown 拖拽 + 悬停浮现关闭；不再鼠标穿透）
-	a.lyricWin.SetIgnoreMouseEvents(false)
+	// 默认鼠标穿透（事件驱动聚焦，无轮询）：SetInputRegion 只保留左边缘把手
+	// 区接收鼠标，其余穿透到下层；鼠标进把手满 1 秒 → 全窗口可交互，移出恢复。
+	a.lyricHot = false
+	a.lyricHoverStart = time.Time{}
+	if a.lyricHoverTimer != nil {
+		a.lyricHoverTimer.Stop()
+		a.lyricHoverTimer = nil
+	}
+	a.lyricWin.SetInputRegion([]mygo.Rectangle{{X: 0, Y: 0, Width: lyricHandleW, Height: 130}})
 }
 
 // lyricView 挂件内容：透明底 + 当前歌词行（真歌词 KTV 定位）+ 下一行预览 + 进度。
@@ -40,11 +53,41 @@ func (a *app) lyricView(c *ui.Context) {
 	// 挂件透明：mygo ui.View 根默认 theme.Background（不透明），显式置透明
 	// 才对（对齐主线 subtitle-bar 无背景；白字靠 text-shadow 投影兜底）。
 	c.Root().Background(ui.Transparent)
-	// DragWindow：整条作为窗口拖拽句柄（学主线 subtitle.js pointerdown/move 拖动定位）
+	// 把手聚焦（事件驱动，无轮询）：穿透下窗口收不到鼠标事件，靠 SetInputRegion
+	// 保留把手区接收鼠标；Hovered 在把手区为真 → AfterFunc 满 1 秒取消穿透；
+	// 移出把手/窗口 → 恢复穿透（SetInputRegion 只留把手）。
+	if c.Root().Hovered() {
+		if a.lyricHoverStart.IsZero() {
+			a.lyricHoverStart = time.Now()
+			a.lyricHoverTimer = time.AfterFunc(time.Second, func() {
+				if a.lyricWin != nil && !a.lyricHot {
+					a.lyricHot = true
+					a.lyricWin.SetInputRegion(nil) // 全窗口可交互（拖拽 + 控制按钮）
+					a.win.Invalidate()
+				}
+			})
+		}
+	} else {
+		a.lyricHoverStart = time.Time{}
+		if a.lyricHoverTimer != nil {
+			a.lyricHoverTimer.Stop()
+			a.lyricHoverTimer = nil
+		}
+		if a.lyricHot {
+			a.lyricHot = false
+			a.lyricWin.SetInputRegion([]mygo.Rectangle{{X: 0, Y: 0, Width: lyricHandleW, Height: 130}}) // 恢复穿透
+			a.win.Invalidate()
+		}
+	}
+	// DragWindow：整条作为窗口拖拽句柄（学主线 subtitle.js pointerdown/move 拖动定位）；
+	// 只有聚焦态（全窗口可交互）才拖得动，穿透态仅把手区可触发聚焦。
 	ui.Column(c).Fill().Center().Gap(6 * uiScale).Padding(16).DragWindow().Children(func() {
-		// 悬停浮现控制按钮面板（学主线 subtitle-bar group-hover 浮现控制；
+		// 左边缘把手指示（穿透时提示拖动入口；聚焦后高亮）
+		ui.Box(c).Absolute().Left(3).Top(0).Bottom(0).Width(3).Radius(2).
+			Background(ui.RGBA(1, 1, 1, 0.22))
+		// 聚焦后浮现控制按钮面板（学主线 subtitle-bar group-hover 浮现控制；
 		// 复用 dock 控件：上一首/播放/下一首/收藏/关闭）
-		if c.Root().Hovered() {
+		if a.lyricHot {
 			ui.Row(c).Absolute().Top(2).Left(0).Right(0).Justify(ui.Center).Gap(8 * uiScale).Children(func() {
 				if iconButton2(c, icPrev, 26, clrMuted).Clicked() {
 					go a.prev()
@@ -57,9 +100,6 @@ func (a *app) lyricView(c *ui.Context) {
 				}
 				if iconButton2(c, icHeart, 26, accent(a.isFav())).Clicked() {
 					a.toggleFav()
-				}
-				if iconButton2(c, icMsg, 26, accent(a.captionShown)).Clicked() {
-					a.toggleCaption()
 				}
 				if iconButton2(c, icClose, 26, clrMuted).Clicked() {
 					a.lyricWin.Close()
