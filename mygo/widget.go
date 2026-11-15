@@ -37,6 +37,9 @@ func (a *app) toggleLyric() {
 
 // lyricView 挂件内容：透明底 + 当前歌词行（真歌词 KTV 定位）+ 下一行预览 + 进度。
 func (a *app) lyricView(c *ui.Context) {
+	// 挂件透明：mygo ui.View 根默认 theme.Background（不透明），显式置透明
+	// 才对（对齐主线 subtitle-bar 无背景；白字靠 text-shadow 投影兜底）。
+	c.Root().Background(ui.Transparent)
 	ui.Column(c).Fill().Center().Gap(6).Padding(16).Children(func() {
 		cur, idx := a.lyricAt(a.posSec)
 		text := cur
@@ -48,11 +51,13 @@ func (a *app) lyricView(c *ui.Context) {
 		}
 		// 字号档位（对齐设置页 14/16/18/22/26 + 挂件放大 1.5x）
 		size := float32([]int{14, 16, 18, 22, 26}[a.lyricSize]) * 1.5
-		ui.Text(c, text).FontSize(size).Bold().MaxLines(1).TextAlign(ui.Center).TextColor(ui.RGB(0xff, 0xff, 0xff))
+		ui.Text(c, text).FontSize(size).Bold().MaxLines(1).TextAlign(ui.Center).TextColor(ui.RGB(0xff, 0xff, 0xff)).
+			TextShadow(0, 1, 3, ui.RGBA(0, 0, 0, 0.95))
 		// 下一行预览（对齐主线挂件双行语义）
 		if idx >= 0 && idx+1 < len(a.lyricLines) {
 			if nxt := lyricLineText(a.lyricLines[idx+1]); nxt != "" {
-				ui.Text(c, nxt).FontSize(size * 0.55).MaxLines(1).TextAlign(ui.Center).TextColor(ui.RGBA(0xff, 0xff, 0xff, 0.55))
+				ui.Text(c, nxt).FontSize(size*0.55).MaxLines(1).TextAlign(ui.Center).TextColor(ui.RGBA(0xff, 0xff, 0xff, 0.55)).
+					TextShadow(0, 1, 3, ui.RGBA(0, 0, 0, 0.8))
 			}
 		}
 		ui.Progress(c, a.progress)
