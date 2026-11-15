@@ -6,12 +6,12 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"os"
-	"strings"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"homecast/service/lyric"
+	"homecast/service/playback"
 	"homecast/service/speaker"
 
 	"homecast/bilibili"
@@ -446,9 +446,50 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 	})
 }
 
-// queuePage 队列页：上次在听 + 播放列表。
+// queuePage 队列页：最近播放 + 上次在听 + 播放列表（对齐主线 last-view/recent-view/queue-view）。
 func (a *app) queuePage(c *ui.Context) {
 	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14).Children(func() {
+		// 最近播放横排小卡（对齐主线 recent-view：最多 10 显示 + 清空）
+		if len(a.recent) > 0 {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Text(c, "最近播放").FontSize(16).Bold().TextColor(clrText)
+				ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(12).TextColor(clrMuted)
+				ui.Spacer(c).Grow(1)
+				if chip(c, "清空").Clicked() {
+					a.recent = nil
+					a.win.Invalidate()
+				}
+			})
+			ui.Scroll(c).AlignSelf(ui.Stretch).Gap(10).Children(func() {
+				ui.Row(c).Gap(10).Children(func() {
+					n := len(a.recent)
+					if n > 10 {
+						n = 10
+					}
+					for _, r := range a.recent[:n] {
+						r := r
+						box := ui.Box(c).Width(88).Height(88).Radius(12)
+						box.Draw(func(p *ui.Painter, b ui.Rect) {
+							p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
+							if img, ok := a.covers[r.BVID]; ok {
+								p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
+							} else {
+								p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
+							}
+						})
+						a.loadCover(r.BVID, r.Pic)
+						if box.Clicked() {
+							go a.play(r)
+						}
+						if box.Hovered() {
+							box.Draw(func(p *ui.Painter, b ui.Rect) {
+								p.FillRadii(b, [4]float32{12, 12, 12, 12}, ui.RGBA(0, 0, 0, 0.25))
+							})
+						}
+					}
+				})
+			})
+		}
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
 			ui.Text(c, "播放队列").FontSize(20).Bold().TextColor(clrText)
 			ui.Text(c, fmt.Sprintf("%d 首", len(a.playlist))).FontSize(13).TextColor(clrMuted)
@@ -753,40 +794,24 @@ func (a *app) capSizeLabel() string {
 	return []string{"16", "20", "24", "28", "32"}[a.capSize]
 }
 
-// cacheUsedLabel 缓存占用（扫描 /tmp 临时音频）。
+// cacheUsedLabel 缓存占用（SSOT：cache 域包 Size）。
 func (a *app) cacheUsedLabel() string {
-	var total int64
-	entries, err := os.ReadDir("/tmp")
-	if err == nil {
-		for _, e := range entries {
-			if !e.IsDir() && (strings.HasPrefix(e.Name(), "mymusic-") || strings.HasSuffix(e.Name(), ".m4a")) {
-				if fi, err := e.Info(); err == nil {
-					total += fi.Size()
-				}
-			}
-		}
+	if a.svc == nil || a.svc.cache == nil {
+		return "0.0 MB"
 	}
-	return fmt.Sprintf("%.1f MB", float64(total)/(1<<20))
+	mb := a.svc.cache.Size()
+	return fmt.Sprintf("%.1f MB", mb)
 }
 
-// clearCache 清空缓存（true=全部；false=仅未收藏）。
+// clearCache 清空缓存（SSOT：cache 域包；true=全部 ClearAll，false=仅未收藏 ClearUnfav）。
 func (a *app) clearCache(all bool) {
-	entries, err := os.ReadDir("/tmp")
-	if err != nil {
+	if a.svc == nil || a.svc.cache == nil {
 		return
 	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasPrefix(e.Name(), "mymusic-") {
-			continue
-		}
-		if !all {
-			// 未收藏：文件名形如 mymusic-<bvid>.m4a；收藏的保留
-			bvid := strings.TrimSuffix(strings.TrimPrefix(e.Name(), "mymusic-"), ".m4a")
-			if a.favSet[bvid] {
-				continue
-			}
-		}
-		os.Remove("/tmp/" + e.Name())
+	if all {
+		a.svc.cache.ClearAll()
+	} else {
+		a.svc.cache.ClearUnfav("favs") // favs 表名（fav 域包常量；保留收藏的缓存）
 	}
 	a.win.Invalidate()
 }
@@ -928,6 +953,35 @@ func (a *app) castPage(c *ui.Context) {
 				})
 			})
 		}
+		// 小米音箱扫码登录（SSOT：xiaoai QRLogin；未登录显示按钮/二维码）
+		if len(a.speakers) == 0 {
+			if a.qrImage != "" {
+				ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(12).Background(clrCard).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16).Children(func() {
+						// 二维码图（UI 解码 data URI）
+						ui.Box(c).Size(120, 120).Draw(func(p *ui.Painter, r ui.Rect) {
+							if img, ok := a.covers["__qr__"]; ok {
+								p.Clip(r, 8, func() { p.Image(img, r, ui.Cover) })
+							}
+							p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
+						})
+						ui.Column(c).Grow(1).Gap(6).Children(func() {
+							ui.Text(c, "小米音箱扫码登录").FontSize(14).Bold().TextColor(clrText)
+							ui.Text(c, "用米家 App 扫描二维码登录").FontSize(12).TextColor(clrMuted)
+							ui.Text(c, a.qrStatus).FontSize(12).TextColor(clrPink)
+						})
+					})
+				})
+			}
+			ui.Scroll(c).AlignSelf(ui.Stretch).Children(func() {
+				ui.Column(c).Gap(8).Children(func() {
+					ui.Text(c, "小米音箱").FontSize(14).Bold().TextColor(clrText).PaddingX(4)
+					if gradButton(c, "扫码登录音箱").Clicked() {
+						go a.startSpeakerLogin()
+					}
+				})
+			})
+		}
 		ui.Text(c, "DLNA 设备").FontSize(14).Bold().TextColor(clrText).PaddingX(4)
 		if len(a.castDevices) == 0 {
 			ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12).TextColor(clrMuted).PaddingX(4)
@@ -977,6 +1031,50 @@ func (a *app) castPage(c *ui.Context) {
 			})
 		})
 	})
+}
+
+// startSpeakerLogin 生成音箱登录二维码（SSOT：xiaoai QRLogin）+ 轮询状态。
+func (a *app) startSpeakerLogin() {
+	if a.svc == nil || a.svc.qr == nil {
+		return
+	}
+	res, err := a.svc.qr.GenerateQRCode()
+	if err != nil {
+		a.win.Update(func() { a.qrStatus = "二维码生成失败：" + err.Error() })
+		return
+	}
+	a.win.Update(func() {
+		qri, _ := res["qr_image"].(string)
+		a.qrImage = qri
+		if qri != "" {
+			if img, derr := ui.DecodeImage([]byte(qri)); derr == nil {
+				a.covers["__qr__"] = img
+			}
+		}
+		a.qrStatus = "等待扫码…"
+		a.win.Invalidate()
+	})
+	// 轮询（CheckStatus 长轮询 120s）；成功后刷新设备
+	go func() {
+		for {
+			st, err := a.svc.qr.CheckStatus()
+			if err != nil {
+				a.win.Update(func() { a.qrStatus = "登录失败：" + err.Error() })
+				return
+			}
+			status, _ := st["status"].(string)
+			msg, _ := st["message"].(string)
+			a.win.Update(func() { a.qrStatus = msg })
+			switch status {
+			case "success":
+				a.win.Update(func() { a.qrStatus = "登录成功，正在刷新设备…" })
+				a.discoverCast()
+				return
+			case "failed":
+				return
+			}
+		}
+	}()
 }
 
 // discoverCast 发现 DLNA 设备（cast 域包 Discover，后台执行）。
@@ -1044,5 +1142,94 @@ func (a *app) playToSpeaker(did, name string) {
 		a.castOn = name
 		a.status = "已在音箱播放：" + name
 	}
+	a.win.Invalidate()
+}
+
+// openCtxMenu 打开右键菜单（对齐主线 contextmenu：点某行）
+func (a *app) openCtxMenu(item *bilibili.SearchItem) {
+	a.ctxItem = item
+	a.win.Invalidate()
+}
+
+// ctxMenu 右键菜单浮层（对齐主线 contextmenu.js 四项：播放/下一首播放/收藏/复制链接）
+func (a *app) ctxMenu(c *ui.Context) {
+	item := *a.ctxItem
+	// 背景：点外部关闭
+	bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+	bg.Draw(func(p *ui.Painter, r ui.Rect) {})
+	if bg.Clicked() {
+		a.ctxItem = nil
+		return
+	}
+	items := []struct {
+		label string
+		fn    func()
+	}{
+		{"播放", func() { go a.play(item); a.ctxItem = nil }},
+		{"下一首播放", func() { a.playNext(item); a.ctxItem = nil }},
+		{"收藏 / 取消收藏", func() { a.toggleFavItem(item); a.ctxItem = nil }},
+		{"复制链接", func() { a.copyLink(item); a.ctxItem = nil }},
+	}
+	w := float32(160)
+	h := float32(len(items))*38 + 8
+	// 居中定位（原生无全局鼠标坐标；用窗口尺寸居中偏下）
+	lx := float32(a.winW)/2 - w/2
+	ly := float32(a.winH)/2 - h/2
+	if a.winW <= 0 {
+		lx = 300
+	}
+	if a.winH <= 0 {
+		ly = 300
+	}
+	menu := ui.Box(c).Absolute().Left(lx).Top(ly).Width(w).Height(h).Radius(12).Background(clrCard).PaddingY(4)
+	menu.Draw(func(p *ui.Painter, r ui.Rect) {
+		p.Shadow(r, 16, 0, 10, 36, 0, ui.RGBA(0, 0, 0, 0.45))
+		p.FillRadii(r, [4]float32{12, 12, 12, 12}, clrCard)
+	})
+	menu.Children(func() {
+		ui.Column(c).Gap(0).Children(func() {
+			for _, it := range items {
+				it := it
+				row := ui.Box(c).Fill().Height(38).PaddingX(12)
+				if row.Hovered() {
+					row.Background(clrField)
+				}
+				row.Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, it.label).FontSize(13).TextColor(clrText)
+					})
+				})
+				if row.Clicked() {
+					it.fn()
+					a.win.Invalidate()
+				}
+			}
+		})
+	})
+}
+
+// playNext 下一首播放（对齐主线 play-next：插到当前歌后面 → 这里等价"立即播完这首接它"，
+// MyGo 用 SetQueue 语义：取当前队列，把 item 插到 playIndex+1，重新 SetQueue）
+func (a *app) playNext(item bilibili.SearchItem) {
+	snap := a.pb.Snapshot()
+	idx := snap.QIdx
+	if idx < 0 || idx+1 > len(snap.Queue) {
+		// 无队列：直接播放
+		go a.play(item)
+		return
+	}
+	q := make([]playback.Song, 0, len(snap.Queue)+1)
+	q = append(q, snap.Queue[:idx+1]...)
+	q = append(q, toSong(item))
+	q = append(q, snap.Queue[idx+1:]...)
+	a.pb.SetQueue(q, idx)
+	a.win.Invalidate()
+}
+
+// copyLink 复制 B站链接到剪贴板（mygo Clipboard.WriteText）。
+func (a *app) copyLink(item bilibili.SearchItem) {
+	url := "https://www.bilibili.com/video/" + item.BVID
+	mygo.Clipboard.WriteText(url)
+	a.status = "已复制：" + url
 	a.win.Invalidate()
 }

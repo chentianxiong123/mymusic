@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -43,6 +44,12 @@ type app struct {
 	castOn      string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
 	castDevices []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
 	speakers    []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
+	recent      []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
+	qrStatus    string                 // 音箱扫码登录状态文案
+	qrImage     string                 // 二维码 data URI（渲染用）
+	ctxItem     *bilibili.SearchItem   // 右键菜单目标（非空=显示）
+	ctxX, ctxY  float32                // 菜单弹出位置（窗口坐标）
+	clipboard   string                 // 待复制链接（mygo 暂无线程安全 clipboard API，先字段+状态提示）
 
 	// 搜索
 	query   string
@@ -171,6 +178,10 @@ func (a *app) view(c *ui.Context) {
 	})
 	if a.showPlayer {
 		a.nowPlaying(c)
+	}
+	// 右键上下文菜单（对齐主线 contextmenu.js）
+	if a.ctxItem != nil {
+		a.ctxMenu(c)
 	}
 }
 
@@ -336,16 +347,35 @@ func (a *app) searchEmpty(c *ui.Context) {
 				go a.search()
 			}
 		})
-		// 热词/历史标签（对齐原项目；窄窗自动换行）
-		ui.Row(c).Gap(8).Wrap().Children(func() {
-			for _, tag := range []string{"周杰伦", "晴天", "发如雪", "花海"} {
-				t := tag
-				if chip(c, tag).Clicked() {
-					a.query = t
-					go a.search()
+		// 搜索历史（对齐主线 search-history：有才显示，可清空）
+		if len(a.searchHistory) > 0 {
+			ui.Row(c).AlignSelf(ui.Stretch).Gap(8).Wrap().Children(func() {
+				for _, h := range a.searchHistory {
+					h := h
+					if chip(c, h).Clicked() {
+						a.query = h
+						go a.search()
+					}
 				}
-			}
-		})
+				ui.Column(c).Center().Children(func() {
+					if chip(c, "清空").Clicked() {
+						a.searchHistory = nil
+						a.win.Invalidate()
+					}
+				})
+			})
+		} else {
+			// 无历史 → 默认热词
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				for _, tag := range []string{"周杰伦", "晴天", "发如雪", "花海"} {
+					t := tag
+					if chip(c, tag).Clicked() {
+						a.query = t
+						go a.search()
+					}
+				}
+			})
+		}
 		ui.Text(c, "输入关键词开始搜索").TextColor(clrMuted).FontSize(15)
 	})
 }
@@ -411,10 +441,13 @@ func (a *app) playerBar(c *ui.Context) {
 			if a.compact() {
 				ui.Spacer(c).Grow(1)
 			}
-			// 音质按钮（对齐主线 d-quality：点击循环 64/128/192k）
+			// 音质按钮（对齐主线 d-quality：点击循环 64/128/192k；切换后重播当前歌生效）
 			if qualityChip(c, a.qualityLabel(), a.quality > 0).Clicked() {
 				a.quality = (a.quality + 1) % 3
 				a.win.Invalidate()
+				if a.current != nil {
+					go a.play(*a.currentToItem())
+				}
 			}
 			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {
 				a.toggleLoop()
@@ -500,11 +533,18 @@ func main() {
 	}
 	// 主线 playback 接入：SSOT 状态源 + MyGo 出声后端 + SQLite 持久化
 	a.db = ensureDB()
-	a.svc = newServices(a.db, a.bili)
+	audioDir := ""
+	if dir, err := os.UserConfigDir(); err == nil {
+		audioDir = filepath.Join(dir, "mymusic-mygo", "cache", "audio")
+		os.MkdirAll(audioDir, 0o755)
+	}
+	a.svc = newServices(a.db, a.bili, audioDir)
 	a.favSet = map[string]bool{}
 	a.refreshFavs() // 收藏恢复自 fav 域包（SQLite 持久化）
 	a.pb = playback.NewPlaybackState()
 	a.mygoOut = newMyGoOutput(a.bili)
+	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
+	a.mygoOut.qualFn = func() int { return a.quality } // 音质档实时读取（60k/128k/192k）
 	a.pb.SetOutput(a.mygoOut)
 	a.pb.SetDB(a.db)
 	a.pb.Restore(a.db)

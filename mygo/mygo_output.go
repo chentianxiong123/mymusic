@@ -8,11 +8,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/egoist/mygo/audio"
 
+	"homecast/service/cache"
 	"homecast/service/playback"
 
 	"homecast/bilibili"
@@ -26,7 +28,11 @@ import (
 // source=web，进度由 MyGo 上报（等价 timeupdate）。与 web 不同的是 MyGo 直接
 // 在这里取流+解码出声（不走浏览器），这是"原生前端"的天然接缝。
 type MyGoOutput struct {
-	bili *bilibili.Client
+	bili    *bilibili.Client
+	cache   *cache.CacheService // 主线缓存域包（可空：命中→秒开）
+	qualFn  func() int          // 当前音质档（0=64k 1=128k 2=192k，默认 192k）
+	qualMu  sync.Mutex
+	quality int // Locked by qualMu：默认 192k
 
 	mu    sync.Mutex
 	p     *audio.Player
@@ -59,12 +65,33 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 		log.Printf("[mygo-output] 取视频信息失败 %s: %v", bvid, err)
 		return
 	}
-	stream, err := o.bili.GetBestAudioURL(bvid, info.CID, bilibili.PreferredQuality)
+	qn := bilibili.PreferredQuality
+	if o.qualFn != nil {
+		switch o.qualFn() {
+		case 0:
+			qn = bilibili.Audio64K
+		case 1:
+			qn = bilibili.Audio128K
+		default:
+			qn = bilibili.Audio192K
+		}
+	}
+	stream, err := o.bili.GetBestAudioURL(bvid, info.CID, qn)
 	if err != nil {
 		log.Printf("[mygo-output] 取流失败 %s: %v", bvid, err)
 		return
 	}
 
+	// 缓存命中（对齐主线 cache 域包：再次播放秒开）
+	if o.cache != nil {
+		if _, _, ok := o.cache.Get(bvid); ok {
+			path := o.cache.FilePath(bvid)
+			if fi, err := os.Stat(path); err == nil && fi.Size() > 0 {
+				o.openAndPlay(bvid, opts, gen, path)
+				return
+			}
+		}
+	}
 	// 下载到临时文件（B站 CDN 多节点，拒连重试）
 	f, err := os.CreateTemp("", "mymusic-mygo-*.m4a")
 	if err != nil {
@@ -94,7 +121,18 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 		log.Printf("[mygo-output] 下载失败 %s: %v", bvid, err)
 		return
 	}
+	// 回写缓存域包（SQLite 元数据 + 磁盘）；失败不影响播放
+	if o.cache != nil {
+		if data, rerr := os.ReadFile(path); rerr == nil {
+			_ = o.cache.Put(bvid, bilibili.PreferredQuality, data)
+		}
+	}
 
+	o.openAndPlay(bvid, opts, gen, path)
+}
+
+// openAndPlay 打开音频文件并提交到 audio.Player（缓存命中/下载后共用）。
+func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, path string) {
 	// 解码
 	r, err := os.Open(path)
 	if err != nil {
@@ -129,7 +167,7 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 	if old != nil {
 		old.Stop()
 	}
-	if oldPath != "" {
+	if oldPath != "" && !strings.HasSuffix(oldPath, ".m4s") {
 		os.Remove(oldPath)
 	}
 	// 播完回调核心（自动连播：核心填 Next）

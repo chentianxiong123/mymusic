@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"homecast/service/cache"
 	"homecast/service/cast"
 	"homecast/service/fav"
 	"homecast/service/lyric"
@@ -27,6 +28,8 @@ type services struct {
 	cast       *cast.CastService
 	speaker    *speaker.SpeakerService
 	tokens     *token.TokenStore
+	cache      *cache.CacheService
+	qr         *xiaoai.QRLogin
 }
 
 // favHas 收藏查询（薄封装，UI 侧只读）。
@@ -55,7 +58,7 @@ func durationSec(progress float32, durText string) int {
 }
 
 // newServices 构造主线域包（对齐主线 server.go 的组装方式）。
-func newServices(db *sql.DB, client *bilibili.Client) *services {
+func newServices(db *sql.DB, client *bilibili.Client, audioDir string) *services {
 	tokens := token.NewTokenStore()
 	return &services{
 		fav:        fav.NewFavService(db),
@@ -64,5 +67,7 @@ func newServices(db *sql.DB, client *bilibili.Client) *services {
 		cast:       cast.NewCastService(client, tokens),
 		speaker:    speaker.NewSpeakerService(xiaoai.NewSpeakerAuth(), client, tokens),
 		tokens:     tokens,
+		cache:      cache.NewCacheService(db, audioDir, -1), // -1=默认上限
+		qr:         xiaoai.NewQRLogin(),
 	}
 }

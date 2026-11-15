@@ -115,6 +115,11 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 		}
 		a.win.Invalidate()
 	}
+	// 右键 → 更多菜单（对齐主线 contextmenu）
+	if btn, ok := box.PressedButton(); ok && btn == 2 {
+		it := item
+		a.openCtxMenu(&it)
+	}
 }
 
 // playTriangle 返回一个播放三角 Path（中心偏右）。

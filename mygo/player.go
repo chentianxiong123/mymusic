@@ -32,6 +32,20 @@ func (a *app) search() {
 		a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
 		return
 	}
+	// 搜索历史（对齐主线 search-history：去重置顶，最多 10 条）
+	mygo.RunOnMain(func() {
+		hist := make([]string, 0, len(a.searchHistory)+1)
+		hist = append(hist, kw)
+		for _, h := range a.searchHistory {
+			if h != kw {
+				hist = append(hist, h)
+			}
+		}
+		if len(hist) > 10 {
+			hist = hist[:10]
+		}
+		a.searchHistory = hist
+	})
 	a.win.Update(func() {
 		a.results = res.Result
 		// 换页清理：保留当前播放曲目的封面，其余驱逐（防止跨页堆积）
@@ -56,11 +70,33 @@ func (a *app) search() {
 // play 播放一首：交给主线 playback（SSOT）入队+定位+出声（MyGoOutput 取流）。
 // 状态/队列/进度全由 pbLoop 从状态流渲染，这里只发命令。
 func (a *app) play(item bilibili.SearchItem) {
+	a.recordRecent(item)
 	a.win.Update(func() {
 		a.loading.Store(false)
 		a.status = "播放: " + bilibili.CleanHTML(item.Title)
 	})
 	a.pb.Play(toSong(item))
+}
+
+// recordRecent 记录最近播放（对齐主线 hc:recent：去重置顶，最多 30）。
+func (a *app) recordRecent(item bilibili.SearchItem) {
+	mygo.RunOnMain(func() {
+		out := make([]bilibili.SearchItem, 0, len(a.recent)+1)
+		out = append(out, bilibili.SearchItem{
+			BVID: item.BVID, Title: bilibili.CleanHTML(item.Title),
+			Author: item.Author, Pic: item.Pic, Duration: item.Duration,
+		})
+		for _, r := range a.recent {
+			if r.BVID != item.BVID {
+				out = append(out, r)
+			}
+		}
+		if len(out) > 30 {
+			out = out[:30]
+		}
+		a.recent = out
+		a.win.Invalidate()
+	})
 }
 
 // playAll 播放整个队列（搜索结果/收藏夹）：SetQueue 整队+定位。
