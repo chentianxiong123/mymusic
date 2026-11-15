@@ -160,6 +160,7 @@ func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLy
 func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 	// 标题展开态（对齐主线 hx-title 点击展开/收起完整标题）
 	expanded := a.expandedTitle == item.BVID
+	btnHit := false // 点击了行内 ♥/播放按钮（收藏/播放独立生效，不触发展开标题）
 	rowH := float32(68)
 	if expanded {
 		rowH = 84
@@ -191,14 +192,17 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 			})
 			if iconButton2(c, icHeart, a.resp(34, 30), accent(a.isFavItem(item))).Clicked() {
 				a.toggleFavItem(item)
+				btnHit = true
 			}
 			// 播放按钮始终显示（对齐主线结果行 hx-play：粉紫渐变圆角 + ▶ + 播放）
 			if playBtn(c).Clicked() {
 				go a.play(item)
+				btnHit = true
 			}
 		})
 	})
-	if box.Clicked() {
+	// 展开标题仅在点击行主体（非 ♥/播放按钮）时触发，避免点收藏却展开（收藏独立生效）
+	if box.Clicked() && !btnHit {
 		if a.expandedTitle == item.BVID {
 			a.expandedTitle = ""
 		} else {
