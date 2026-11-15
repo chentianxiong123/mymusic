@@ -171,6 +171,9 @@ func (a *app) view(c *ui.Context) {
 			a.recentPage(c)
 		default:
 			if len(a.results) > 0 {
+				// 搜索条常驻（对齐主线 content_search.html：搜索条始终保留在顶部）
+				a.searchBar(c)
+				a.searchChips(c)
 				a.resultsHeader(c)
 				ui.Scroll(c).Grow(1).PaddingX(a.resp(24, 12)).Gap(8).Children(func() {
 					ui.Column(c).Gap(8).Children(func() {
@@ -180,6 +183,8 @@ func (a *app) view(c *ui.Context) {
 					})
 				})
 			} else if a.searched {
+				a.searchBar(c)
+				a.searchChips(c)
 				a.searchNotFound(c)
 			} else {
 				a.searchEmpty(c)
@@ -348,46 +353,55 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) 
 }
 
 // searchEmpty 空状态：居中大搜索框 + 热词标签 + 提示。
-func (a *app) searchEmpty(c *ui.Context) {
-	ui.Column(c).Fill().Center().Gap(16).PaddingX(16).Children(func() {
-		ui.Row(c).WidthPercent(a.resp(60, 90)).Height(52).Radius(26).Background(clrField).PaddingX(20).Gap(12).AlignItems(ui.Center).Children(func() {
-			icon(c, icSearch, 20, clrMuted)
-			ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).
-				Placeholder("搜索喜欢的音乐…").TextColor(clrText)
-			if gradButton(c, "搜索").Clicked() {
-				go a.search()
+// searchBar 常驻胶囊搜索框（对齐主线 content_search.html：搜索结果页顶部也保留）。
+func (a *app) searchBar(c *ui.Context) {
+	ui.Row(c).WidthPercent(a.resp(60, 90)).Height(52).Radius(26).Background(clrField).PaddingX(20).Gap(12).AlignItems(ui.Center).Children(func() {
+		icon(c, icSearch, 20, clrMuted)
+		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).
+			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
+		if gradButton(c, "搜索").Clicked() {
+			go a.search()
+		}
+	})
+}
+
+// searchChips 搜索历史 / 默认热词（对齐主线 search-history）。
+func (a *app) searchChips(c *ui.Context) {
+	if len(a.searchHistory) > 0 {
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(8).Wrap().Children(func() {
+			for _, h := range a.searchHistory {
+				h := h
+				if chip(c, h).Clicked() {
+					a.query = h
+					go a.search()
+				}
+			}
+			ui.Column(c).Center().Children(func() {
+				if chip(c, "清空").Clicked() {
+					a.searchHistory = nil
+					a.saveHistory()
+					a.win.Invalidate()
+				}
+			})
+		})
+	} else {
+		// 无历史 → 默认热词
+		ui.Row(c).Gap(8).Wrap().Children(func() {
+			for _, tag := range []string{"周杰伦", "晴天", "发如雪", "花海"} {
+				t := tag
+				if chip(c, tag).Clicked() {
+					a.query = t
+					go a.search()
+				}
 			}
 		})
-		// 搜索历史（对齐主线 search-history：有才显示，可清空）
-		if len(a.searchHistory) > 0 {
-			ui.Row(c).AlignSelf(ui.Stretch).Gap(8).Wrap().Children(func() {
-				for _, h := range a.searchHistory {
-					h := h
-					if chip(c, h).Clicked() {
-						a.query = h
-						go a.search()
-					}
-				}
-				ui.Column(c).Center().Children(func() {
-					if chip(c, "清空").Clicked() {
-						a.searchHistory = nil
-						a.saveHistory()
-						a.win.Invalidate()
-					}
-				})
-			})
-		} else {
-			// 无历史 → 默认热词
-			ui.Row(c).Gap(8).Wrap().Children(func() {
-				for _, tag := range []string{"周杰伦", "晴天", "发如雪", "花海"} {
-					t := tag
-					if chip(c, tag).Clicked() {
-						a.query = t
-						go a.search()
-					}
-				}
-			})
-		}
+	}
+}
+
+func (a *app) searchEmpty(c *ui.Context) {
+	ui.Column(c).Fill().Center().Gap(16).PaddingX(16).Children(func() {
+		a.searchBar(c)
+		a.searchChips(c)
 		ui.Text(c, "输入关键词开始搜索").TextColor(clrMuted).FontSize(15)
 	})
 }

@@ -324,9 +324,10 @@ func LaodingTag() string { return "搜索中…" }
 
 // lyrCenterCol 中栏：歌曲信息 + KTV 歌词列表 + 底部进度条（对齐主线 lyric-panel 中栏）。
 func (a *app) lyrCenterCol(c *ui.Context) {
-	ui.Column(c).Grow(1).Fill().Gap(10).Children(func() {
+	ui.Column(c).Grow(1).Fill().Children(func() {
 		// 顶部：封面 + 标题/歌手/来源（对齐主线 ly-cover/ly-title/ly-artist/ly-source）
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).PaddingX(4).Children(func() {
+		// 上边距 resp 24/14（对齐主线 mb-3 sm:mb-6）
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).PaddingX(4).Margin(0, 0, a.resp(24, 14), 0).Children(func() {
 			a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
 				ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(a.resp(22, 17)).Bold().TextColor(clrText).MaxLines(1)
@@ -395,8 +396,8 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 				})
 			})
 		})
-		// 底部进度条（对齐主线 ly-progress：可拖 + 当前/总时长）
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(10).AlignItems(ui.Center).Children(func() {
+		// 底部进度条（对齐主线 ly-progress：可拖 + 当前/总时长；上边距 mt-2 sm:mt-4）
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(10).AlignItems(ui.Center).Margin(a.resp(16, 10), 0, 0, 0).Children(func() {
 			ui.Text(c, a.posText).FontSize(12).TextColor(clrMuted)
 			a.progressBarSized(c, a.progress, 6, true).Grow(1)
 			ui.Text(c, a.durText).FontSize(12).TextColor(clrMuted)

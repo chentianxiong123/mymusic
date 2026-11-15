@@ -60,6 +60,22 @@ func grad() ui.LinearGradient {
 }
 
 // gradButton 紫渐变圆角按钮。
+// playBtn 播放按钮（对齐主线结果行 hx-play：粉紫渐变圆角 + 播放三角 + "播放"）。
+func playBtn(c *ui.Context) ui.Element {
+	box := ui.Box(c).Height(34).Radius(17).PaddingX(14).
+		Draw(func(p *ui.Painter, r ui.Rect) {
+			p.FillGradient(r, grad(), r.H/2)
+		})
+	box.Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			// 白色播放三角
+			icon(c, icPlay, 15, ui.RGB(0xff, 0xff, 0xff))
+			ui.Text(c, "播放").TextColor(ui.RGB(0xff, 0xff, 0xff)).FontSize(14).Bold()
+		})
+	})
+	return box
+}
+
 func gradButton(c *ui.Context, label string) ui.Element {
 	box := ui.Box(c).Height(42).Radius(21).PaddingX(24).PaddingY(9).
 		Draw(func(p *ui.Painter, r ui.Rect) {
@@ -175,10 +191,9 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 			if iconButton2(c, icHeart, a.resp(34, 30), accent(a.isFavItem(item))).Clicked() {
 				a.toggleFavItem(item)
 			}
-			if !a.compact() {
-				if gradButton(c, "播放").Clicked() {
-					go a.play(item)
-				}
+			// 播放按钮始终显示（对齐主线结果行 hx-play：粉紫渐变圆角 + ▶ + 播放）
+			if playBtn(c).Clicked() {
+				go a.play(item)
 			}
 		})
 	})
