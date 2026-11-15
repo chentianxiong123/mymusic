@@ -274,7 +274,7 @@ func (a *app) nowPlaying(c *ui.Context) {
 
 // lyrCandCol 左栏：歌词候选（对齐主线 ly-cand-drawer：w-64 列表，点选换源）。
 func (a *app) lyrCandCol(c *ui.Context) {
-	box := ui.Box(c).Width(a.resp(256, 200)).Radius(16).Background(clrCard).PaddingX(10).PaddingY(8)
+	box := ui.Box(c).Width(a.resp(256, 200)).Radius(16).Background(clrCardGlass).PaddingX(10).PaddingY(8)
 	box.Children(func() {
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
@@ -338,7 +338,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 			})
 		})
 		// KTV 歌词列表（对齐主线 ly-lines：居中 + 当前行粉色渐底逐行进度 + 点击行跳句）
-		ui.Box(c).Grow(1).Fill().Radius(14).Background(clrCard).PaddingX(a.resp(28, 14)).PaddingY(10).Children(func() {
+		ui.Box(c).Grow(1).Fill().Radius(14).Background(clrCardGlass).PaddingX(a.resp(28, 14)).PaddingY(10).Children(func() {
 			curIdx, prog := a.lyricProg(a.posSec)
 			ui.Scroll(c).Fill().Gap(10).Children(func() {
 				ui.Column(c).AlignSelf(ui.Stretch).Gap(8).Children(func() {
@@ -410,7 +410,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 func (a *app) lyrToolCol(c *ui.Context) {
 	ui.Column(c).Width(56).Gap(8).Children(func() {
 		toolCard := func(fn func()) {
-			box := ui.Box(c).Fill().Radius(14).Background(clrCard).PaddingX(6).PaddingY(10)
+			box := ui.Box(c).Fill().Radius(14).Background(clrCardGlass).PaddingX(6).PaddingY(10)
 			box.Children(fn)
 		}
 		toolCard(func() {
@@ -507,7 +507,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 			})
 			// 抽屉浮层（候选 / 工具，互斥）
 			if a.lyrDrawer == 1 {
-				ui.Box(c).AlignSelf(ui.Stretch).Radius(12).Background(clrCard).PaddingX(10).PaddingY(8).Children(func() {
+				ui.Box(c).AlignSelf(ui.Stretch).Radius(12).Background(clrCardGlass).PaddingX(10).PaddingY(8).Children(func() {
 					ui.Column(c).Gap(6).Children(func() {
 						ui.Text(c, "歌词候选").FontSize(13).Bold().TextColor(clrPink)
 						if len(a.lyricCands) == 0 {
@@ -544,7 +544,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 					})
 				})
 			} else if a.lyrDrawer == 2 {
-				ui.Box(c).AlignSelf(ui.Stretch).Radius(12).Background(clrCard).PaddingX(12).PaddingY(10).Children(func() {
+				ui.Box(c).AlignSelf(ui.Stretch).Radius(12).Background(clrCardGlass).PaddingX(12).PaddingY(10).Children(func() {
 					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Wrap().Children(func() {
 						ui.Text(c, "字号").FontSize(11).TextColor(clrMuted)
 						if iconButton(c, "＋").Clicked() {
@@ -578,7 +578,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 				})
 			}
 			// KTV 歌词（居中 + 渐底 + 点击跳句，同中栏）
-			ui.Box(c).Grow(1).Fill().Radius(12).Background(clrCard).PaddingX(12).PaddingY(10).Children(func() {
+			ui.Box(c).Grow(1).Fill().Radius(12).Background(clrCardGlass).PaddingX(12).PaddingY(10).Children(func() {
 				curIdx, prog := a.lyricProg(a.posSec)
 				ui.Scroll(c).Fill().Gap(8).Children(func() {
 					ui.Column(c).AlignSelf(ui.Stretch).Gap(8).Children(func() {
@@ -702,7 +702,7 @@ func (a *app) queuePage(c *ui.Context) {
 		})
 		// 上次在听（对齐原项目）
 		if a.current != nil {
-			ui.Box(c).Fill().Radius(16).PaddingX(18).PaddingY(16).Background(clrCard).Children(func() {
+			ui.Box(c).Fill().Radius(16).PaddingX(18).PaddingY(16).Background(clrCardGlass).Children(func() {
 				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16).Children(func() {
 					a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
 					ui.Column(c).Grow(1).Gap(4).Children(func() {
