@@ -320,9 +320,9 @@ func (a *app) navPanelRow(c *ui.Context, s *ui.SVG, label string, active bool, o
 
 // navTab 导航项：当前高亮为紫渐变胶囊；hover 淡高亮。iconOnly 时只显示图标。
 func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) ui.Element {
-	box := ui.Box(c).Height(40).Radius(20).PaddingX(16)
+	box := ui.Box(c).Height(40).Radius(20).PaddingX(16).AlignItems(ui.Center).Justify(ui.Center)
 	if iconOnly {
-		box = ui.Box(c).Size(40, 40).Radius(20)
+		box = ui.Box(c).Size(40, 40).Radius(20).AlignItems(ui.Center).Justify(ui.Center)
 	}
 	if active {
 		box.Draw(func(p *ui.Painter, r ui.Rect) {
@@ -355,7 +355,7 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) 
 // searchEmpty 空状态：居中大搜索框 + 热词标签 + 提示。
 // searchBar 常驻胶囊搜索框（对齐主线 content_search.html：搜索结果页顶部也保留）。
 func (a *app) searchBar(c *ui.Context) {
-	ui.Row(c).WidthPercent(a.resp(60, 90)).Height(52).Radius(26).Background(clrField).PaddingX(20).Gap(12).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).WidthPercent(a.resp(60, 90)).Height(52).Radius(26).Background(clrField).PaddingX(20).Gap(12).AlignItems(ui.Center).AlignSelf(ui.Center).Children(func() {
 		icon(c, icSearch, 20, clrMuted)
 		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).
 			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
@@ -368,7 +368,7 @@ func (a *app) searchBar(c *ui.Context) {
 // searchChips 搜索历史 / 默认热词（对齐主线 search-history）。
 func (a *app) searchChips(c *ui.Context) {
 	if len(a.searchHistory) > 0 {
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(8).Wrap().Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(8).Wrap().Justify(ui.Center).Children(func() {
 			for _, h := range a.searchHistory {
 				h := h
 				if chip(c, h).Clicked() {
@@ -386,7 +386,7 @@ func (a *app) searchChips(c *ui.Context) {
 		})
 	} else {
 		// 无历史 → 默认热词
-		ui.Row(c).Gap(8).Wrap().Children(func() {
+		ui.Row(c).Gap(8).Wrap().Justify(ui.Center).Children(func() {
 			for _, tag := range []string{"周杰伦", "晴天", "发如雪", "花海"} {
 				t := tag
 				if chip(c, tag).Clicked() {
