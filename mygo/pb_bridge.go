@@ -101,6 +101,10 @@ func (a *app) progressReporter() {
 			a.eqPhase = -1 // -1 = 不显示
 		}
 		a.win.Invalidate()
+		// 桌面挂件歌词跟着动（挂件是独立窗口，需单独重绘）
+		if a.lyricWin != nil {
+			a.lyricWin.Invalidate()
+		}
 	}
 }
 
