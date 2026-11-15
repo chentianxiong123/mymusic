@@ -159,8 +159,14 @@ func lyricTimeStr(t float64) string {
 // nudgeLyric 歌词对齐微调 ±0.5s（对齐主线 ly-nudge 逻辑；SSOT 持久化 offset）。
 func (a *app) nudgeLyric(delta float64) {
 	a.lyricOffset += delta
+	a.setLyricOffset(a.lyricOffset)
+}
+
+// setLyricOffset 设置歌词对齐偏移（含归零；SSOT：lyric_sels 表持久化）。
+func (a *app) setLyricOffset(v float64) {
+	a.lyricOffset = v
 	if a.svc != nil && a.current != nil {
-		a.svc.lyricStore.SetOffset(a.current.bvid, a.lyricOffset)
+		a.svc.lyricStore.SetOffset(a.current.bvid, v)
 	}
 	a.win.Invalidate()
 }
@@ -176,4 +182,82 @@ func (a *app) cacheLyric(bvid string, lines []lyric.LyricLine) {
 		return
 	}
 	_ = a.svc.lyricCache.Put(bvid, string(b))
+}
+
+// lyricSourceText 中栏来源行（对齐主线 lyric.js setSource：
+// 「来源：网易云 · 歌手《歌名》」，无歌词给引导文案）。
+func (a *app) lyricSourceText() string {
+	if len(a.lyricLines) == 0 {
+		return "未找到歌词 — 点候选栏换源"
+	}
+	if a.lyricSID > 0 {
+		for _, c := range a.lyricCands {
+			if c.ID == a.lyricSID {
+				s := "来源：网易云 · " + c.Artist
+				if c.Artist != "" && c.Name != "" {
+					s += "《" + c.Name + "》"
+				} else if c.Name != "" {
+					s += " " + c.Name
+				}
+				return s
+			}
+		}
+	}
+	return "来源：网易云 · 自动匹配"
+}
+
+// lyricProg 当前行卡拉OK进度（对齐主线 lyric.js sync：当前行唱到百分之几，
+// yrc 用自带时长 l[2]，LRC 用下一行时间差估算）。
+// 返回当前行下标 + 0~1 进度；无歌词行时 -1,0。
+func (a *app) lyricProg(sec float64) (int, float64) {
+	if len(a.lyricLines) == 0 {
+		return -1, 0
+	}
+	t := sec + a.lyricOffset
+	idx := -1
+	for i, ln := range a.lyricLines {
+		ls, ok := ln[0].(float64)
+		if !ok {
+			continue
+		}
+		if t >= ls-0.3 {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		return -1, 0
+	}
+	start, _ := a.lyricLines[idx][0].(float64)
+	dur := 0.0
+	if d, ok := a.lyricLines[idx][2].(float64); ok && d > 0 {
+		dur = d // yrc 逐字行自带时长
+	} else if idx+1 < len(a.lyricLines) {
+		if nxt, ok := a.lyricLines[idx+1][0].(float64); ok {
+			dur = nxt - start
+		}
+	}
+	if dur <= 0 {
+		return idx, 1
+	}
+	p := (t - start) / dur
+	if p < 0 {
+		p = 0
+	}
+	if p > 1 {
+		p = 1
+	}
+	return idx, p
+}
+
+// seekToLine 点击歌词行 → 跳到该句时间（对齐主线 renderLines 点击：
+// currentTime = lines[i][0] - offset + 0.1，所见即所听）。
+func (a *app) seekToLine(idx int) {
+	if idx < 0 || idx >= len(a.lyricLines) {
+		return
+	}
+	ls, ok := a.lyricLines[idx][0].(float64)
+	if !ok {
+		return
+	}
+	a.pb.Seek(ls - a.lyricOffset + 0.1)
 }

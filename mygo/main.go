@@ -48,6 +48,7 @@ type app struct {
 	lastVolSave  time.Time              // 音量落库节流时间戳
 	qrStatus     string                 // 音箱扫码登录状态文案
 	lastLyricIdx int                    // 上次高亮歌词行（KTV 滚动跟随去重）
+	lyrDrawer    int                    // 窄档歌词抽屉：0 关 1 候选 2 工具（对齐主线 ly-drawer-*）
 	searched     bool                   // 是否已执行过搜索（区分空结果态）
 	eqPhase      int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
 	qrImage      string                 // 二维码 data URI（渲染用）

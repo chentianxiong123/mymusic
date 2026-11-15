@@ -227,13 +227,21 @@ func (a *app) nowPlaying(c *ui.Context) {
 			p.FillGradient(ui.Rect{X: r.X, Y: r.Y, W: r.W, H: 170},
 				ui.LinearGradient{From: ui.RGBA(0x8b, 0x5c, 0xf6, 0.14), To: ui.RGBA(0xec, 0x48, 0x99, 0.0), Angle: 270}, 170)
 		})
+		// 点背景仅收起窄档抽屉（对齐主线 closeDrawers；面板不随背景点击关闭，
+		// 关闭靠 ly-close / ESC / 封面再点）
 		if bg.Clicked() {
+			a.lyrDrawer = 0
+		}
+		// ESC 关闭歌词面板（对齐主线 lyric.js ESC）
+		if c.Shortcut(0, ui.KeyEscape) {
 			a.showPlayer = false
+			a.lyrDrawer = 0
 		}
 		// 关闭按钮（对齐主线 ly-close：右上角）
 		ui.Row(c).Absolute().Top(18).Right(20).Children(func() {
 			if iconButton(c, "✕").Clicked() {
 				a.showPlayer = false
+				a.lyrDrawer = 0
 			}
 		})
 
@@ -317,21 +325,23 @@ func LaodingTag() string { return "搜索中…" }
 // lyrCenterCol 中栏：歌曲信息 + KTV 歌词列表 + 底部进度条（对齐主线 lyric-panel 中栏）。
 func (a *app) lyrCenterCol(c *ui.Context) {
 	ui.Column(c).Grow(1).Fill().Gap(10).Children(func() {
-		// 顶部：封面 + 标题/歌手（对齐主线 ly-cover/ly-title/ly-artist）
+		// 顶部：封面 + 标题/歌手/来源（对齐主线 ly-cover/ly-title/ly-artist/ly-source）
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).PaddingX(4).Children(func() {
-			a.cover(c, a.current.bvid, a.current.pic, a.resp(60, 48))
+			a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
 				ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(a.resp(22, 17)).Bold().TextColor(clrText).MaxLines(1)
 				ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+				// 来源行（对齐主线 ly-source：网易云 候选名《歌名》/ 未找到引导）
+				ui.Text(c, a.lyricSourceText()).FontSize(11).TextColor(clrPink).MaxLines(1)
 			})
 			// 字幕条快捷开关（对齐主线 d-tick 语义）
 			if iconButton2(c, icMsg, 34, accent(a.captionShown)).Clicked() {
 				a.toggleCaption()
 			}
 		})
-		// KTV 歌词列表（对齐主线 ly-lines：当前行高亮放大 + 自动跟随滚动）
+		// KTV 歌词列表（对齐主线 ly-lines：居中 + 当前行粉色渐底逐行进度 + 点击行跳句）
 		ui.Box(c).Grow(1).Fill().Radius(14).Background(clrCard).PaddingX(a.resp(28, 14)).PaddingY(10).Children(func() {
-			_, curIdx := a.lyricAt(a.posSec)
+			curIdx, prog := a.lyricProg(a.posSec)
 			ui.Scroll(c).Fill().Gap(10).Children(func() {
 				ui.Column(c).AlignSelf(ui.Stretch).Gap(10).Children(func() {
 					if len(a.lyricLines) == 0 {
@@ -349,25 +359,39 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 						}
 						col := clrMuted
 						size := a.lyricFontSize()
-						if i == curIdx {
+						active := i == curIdx
+						if active {
 							col = ui.RGB(0xff, 0xff, 0xff)
 							size = a.lyricFontSize() * 1.35
 						}
-						var el ui.Element
-						if a.lyricTime && i == curIdx {
-							// 时间显示开关：当前行带时间戳（对齐主线 ly-time）
-							row := ui.Row(c).AlignSelf(ui.Center).Gap(8).AlignItems(ui.Center)
-							row.Children(func() {
-								ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(11).TextColor(clrPink)
-								ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+						// 行容器：居中 + 点击跳句（对齐主线 ly-line cursor-pointer text-center）
+						row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(4).PaddingX(10).Radius(8)
+						row.Draw(func(p *ui.Painter, r ui.Rect) {
+							// 卡拉OK渐进底（对齐主线 .ly-line.ly-active --prog 粉色渐底）
+							if active {
+								p.FillGradient(ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(prog), H: r.H},
+									ui.LinearGradient{From: ui.RGBA(0xec, 0x48, 0x99, 0.30), To: ui.RGBA(0xec, 0x48, 0x99, 0.14), Angle: 0}, 8)
+							}
+							if row.Hovered() {
+								p.Fill(r, ui.RGBA(0xff, 0xff, 0xff, 0.05), 8)
+							}
+						})
+						row.Children(func() {
+							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
+								if a.lyricTime && active {
+									ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(11).TextColor(clrPink)
+								}
+								tb := ui.Text(c, text).FontSize(size).Bold().TextColor(col).TextAlign(ui.Center).Grow(1)
+								_ = tb
 							})
-							el = row
-						} else {
-							el = ui.Text(c, text).FontSize(size).Bold().TextColor(col)
-						}
+						})
 						// KTV 跟随：切到新行时把当前行滚到中栏中心
-						if i == curIdx && curIdx != a.lastLyricIdx {
-							el.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollCenter})
+						if active && curIdx != a.lastLyricIdx {
+							row.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollCenter})
+						}
+						// 点击行 → 跳该句时间（对齐主线 renderLines click）
+						if row.Clicked() {
+							a.seekToLine(i)
 						}
 					}
 					a.lastLyricIdx = curIdx
@@ -396,13 +420,16 @@ func (a *app) lyrToolCol(c *ui.Context) {
 				if iconButton(c, "＋").Clicked() {
 					if a.lyricSize < 4 {
 						a.lyricSize++
+						a.savePref("mygo_lyricsize", a.lyricSize)
 						a.win.Invalidate()
 					}
 				}
-				ui.Text(c, []string{"14", "16", "18", "22", "26"}[a.lyricSize]).FontSize(12).TextColor(clrText)
+				// 档位显示（对齐主线 ly-size 3/5）
+				ui.Text(c, fmt.Sprintf("%d/5", a.lyricSize+1)).FontSize(11).TextColor(clrText)
 				if iconButton(c, "－").Clicked() {
 					if a.lyricSize > 0 {
 						a.lyricSize--
+						a.savePref("mygo_lyricsize", a.lyricSize)
 						a.win.Invalidate()
 					}
 				}
@@ -414,7 +441,17 @@ func (a *app) lyrToolCol(c *ui.Context) {
 				if iconButton(c, "▲").Clicked() {
 					a.nudgeLyric(0.5)
 				}
-				ui.Text(c, fmt.Sprintf("%.1fs", a.lyricOffset)).FontSize(10).TextColor(clrPink)
+				// 偏移值：点击归零（对齐主线 ly-nudge-val 点击归零）
+				off := ui.Box(c).PaddingX(2).Radius(4)
+				if off.Hovered() {
+					off.Background(clrField)
+				}
+				off.Children(func() {
+					ui.Text(c, fmt.Sprintf("%.1fs", a.lyricOffset)).FontSize(10).TextColor(clrPink)
+				})
+				if off.Clicked() && a.lyricOffset != 0 {
+					a.setLyricOffset(0)
+				}
 				if iconButton(c, "▼").Clicked() {
 					a.nudgeLyric(-0.5)
 				}
@@ -422,32 +459,126 @@ func (a *app) lyrToolCol(c *ui.Context) {
 		})
 		toolCard(func() {
 			ui.Column(c).AlignSelf(ui.Center).Gap(6).Children(func() {
-				if iconButton(c, "⟳").Clicked() {
-					a.lyricLines = nil
-					a.win.Invalidate()
-					go a.loadLyricAsync(a.current.bvid)
+				// 收藏/取消收藏（对齐主线 ly-fav）
+				if iconButton2(c, icHeart, 26, accent(a.isFav())).Clicked() {
+					a.toggleFav()
+				}
+				// 复制链接（对齐主线 ly-copy）
+				if iconButton(c, "⧉").Clicked() {
+					it := *a.currentToItem()
+					a.copyLink(it)
 				}
 			})
 		})
 	})
 }
 
-// narrowLyricPanel 窄档歌词面板：全宽 KTV 歌词（对齐主线 <640 抽屉收起、歌词全宽）。
+// narrowLyricPanel 窄档歌词面板：全宽 KTV 歌词 + 候选/工具抽屉
+// （对齐主线 <640：左上 ly-drawer-cand / ly-drawer-tool 按需唤出，互斥、点外收起）。
 func (a *app) narrowLyricPanel(c *ui.Context) {
 	ui.Row(c).Fill().Gap(a.resp(12, 8)).Children(func() {
 		ui.Column(c).Grow(1).Fill().Children(func() {
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
-				a.cover(c, a.current.bvid, a.current.pic, 48)
+			// 顶栏：抽屉按钮 + 封面/标题
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
+				if iconButton2(c, icMenu, 32, accent(a.lyrDrawer == 1)).Clicked() {
+					if a.lyrDrawer == 1 {
+						a.lyrDrawer = 0
+					} else {
+						a.lyrDrawer = 1
+					}
+					a.win.Invalidate()
+				}
+				a.cover(c, a.current.bvid, a.current.pic, 42)
 				ui.Column(c).Grow(1).Gap(2).Children(func() {
-					ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(16).Bold().TextColor(clrText).MaxLines(1)
-					ui.Text(c, a.current.author).FontSize(12).TextColor(clrMuted).MaxLines(1)
+					ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(15).Bold().TextColor(clrText).MaxLines(1)
+					ui.Text(c, a.current.author).FontSize(11).TextColor(clrMuted).MaxLines(1)
 				})
 				if iconButton2(c, icMsg, 32, accent(a.captionShown)).Clicked() {
 					a.toggleCaption()
 				}
+				// 工具抽屉按钮（对齐主线 ly-drawer-tool）
+				if iconButton2(c, icSet, 32, accent(a.lyrDrawer == 2)).Clicked() {
+					if a.lyrDrawer == 2 {
+						a.lyrDrawer = 0
+					} else {
+						a.lyrDrawer = 2
+					}
+					a.win.Invalidate()
+				}
 			})
+			// 抽屉浮层（候选 / 工具，互斥）
+			if a.lyrDrawer == 1 {
+				ui.Box(c).AlignSelf(ui.Stretch).Radius(12).Background(clrCard).PaddingX(10).PaddingY(8).Children(func() {
+					ui.Column(c).Gap(6).Children(func() {
+						ui.Text(c, "歌词候选").FontSize(13).Bold().TextColor(clrPink)
+						if len(a.lyricCands) == 0 {
+							ui.Text(c, LaodingTag()).FontSize(12).TextColor(clrMuted)
+							return
+						}
+						ui.Scroll(c).MaxHeight(200).Gap(4).Children(func() {
+							ui.Column(c).Gap(4).Children(func() {
+								for _, cand := range a.lyricCands {
+									cand := cand
+									on := a.lyricSID == cand.ID
+									row := ui.Box(c).AlignSelf(ui.Stretch).Height(46).Radius(8).PaddingX(10)
+									if on {
+										row.Background(clrField)
+									}
+									row.Children(func() {
+										ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
+											ui.Column(c).Grow(1).Gap(2).Children(func() {
+												ui.Text(c, cand.Name).FontSize(13).Bold().
+													TextColor(selColor(on, clrPink, clrText)).MaxLines(1)
+												ui.Text(c, cand.Artist).FontSize(11).TextColor(clrMuted).MaxLines(1)
+											})
+										})
+									})
+									if row.Clicked() {
+										go a.pickLyricSID(a.current.bvid, cand.ID)
+										a.lyrDrawer = 0
+									}
+								}
+							})
+						})
+					})
+				})
+			} else if a.lyrDrawer == 2 {
+				ui.Box(c).AlignSelf(ui.Stretch).Radius(12).Background(clrCard).PaddingX(12).PaddingY(10).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Wrap().Children(func() {
+						ui.Text(c, "字号").FontSize(11).TextColor(clrMuted)
+						if iconButton(c, "＋").Clicked() {
+							if a.lyricSize < 4 {
+								a.lyricSize++
+								a.savePref("mygo_lyricsize", a.lyricSize)
+								a.win.Invalidate()
+							}
+						}
+						ui.Text(c, fmt.Sprintf("%d/5", a.lyricSize+1)).FontSize(11).TextColor(clrText)
+						if iconButton(c, "－").Clicked() {
+							if a.lyricSize > 0 {
+								a.lyricSize--
+								a.savePref("mygo_lyricsize", a.lyricSize)
+								a.win.Invalidate()
+							}
+						}
+						ui.Spacer(c).Width(8)
+						ui.Text(c, "对齐").FontSize(11).TextColor(clrMuted)
+						if iconButton(c, "▲").Clicked() {
+							a.nudgeLyric(0.5)
+						}
+						ui.Text(c, fmt.Sprintf("%.1fs", a.lyricOffset)).FontSize(10).TextColor(clrPink)
+						if iconButton(c, "▼").Clicked() {
+							a.nudgeLyric(-0.5)
+						}
+						if iconButton2(c, icHeart, 26, accent(a.isFav())).Clicked() {
+							a.toggleFav()
+						}
+					})
+				})
+			}
+			// KTV 歌词（居中 + 渐底 + 点击跳句，同中栏）
 			ui.Box(c).Grow(1).Fill().Radius(12).Background(clrCard).PaddingX(12).PaddingY(10).Children(func() {
-				_, curIdx := a.lyricAt(a.posSec)
+				curIdx, prog := a.lyricProg(a.posSec)
 				ui.Scroll(c).Fill().Gap(8).Children(func() {
 					ui.Column(c).AlignSelf(ui.Stretch).Gap(8).Children(func() {
 						if len(a.lyricLines) == 0 {
@@ -460,14 +591,31 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 							if text == "" {
 								continue
 							}
+							active := i == curIdx
 							col := clrMuted
 							size := a.lyricFontSize()
-							if i == curIdx {
+							if active {
 								col = ui.RGB(0xff, 0xff, 0xff)
 								size = a.lyricFontSize() * 1.3
 							}
-							ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+							row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(4).PaddingX(8).Radius(8)
+							row.Draw(func(p *ui.Painter, r ui.Rect) {
+								if active {
+									p.FillGradient(ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(prog), H: r.H},
+										ui.LinearGradient{From: ui.RGBA(0xec, 0x48, 0x99, 0.30), To: ui.RGBA(0xec, 0x48, 0x99, 0.14), Angle: 0}, 8)
+								}
+							})
+							row.Children(func() {
+								ui.Text(c, text).FontSize(size).Bold().TextColor(col).TextAlign(ui.Center).AlignSelf(ui.Stretch)
+							})
+							if active && curIdx != a.lastLyricIdx {
+								row.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollCenter})
+							}
+							if row.Clicked() {
+								a.seekToLine(i)
+							}
 						}
+						a.lastLyricIdx = curIdx
 					})
 				})
 			})
@@ -478,6 +626,14 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 			})
 		})
 	})
+}
+
+// selColor 选中态颜色选择（简化条件表达式，Go 无三元）。
+func selColor(on bool, yes, no ui.Color) ui.Color {
+	if on {
+		return yes
+	}
+	return no
 }
 
 // queuePage 队列页：最近播放 + 上次在听 + 播放列表（对齐主线 last-view/recent-view/queue-view）。
@@ -760,6 +916,7 @@ func (a *app) settingsPage(c *ui.Context) {
 				// 5 歌词字号（主线 LY_SIZES 14/16/18/22/26）
 				a.setRow(c, "歌词字号")
 				a.setRowSeg(c, []string{"14px", "16px", "18px", "22px", "26px"}, a.lyricSize, func(i int) {
+					a.savePref("mygo_lyricsize", i)
 					a.lyricSize = i
 					a.win.Invalidate()
 				})

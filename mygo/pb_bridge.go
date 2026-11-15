@@ -197,6 +197,7 @@ func (a *app) restorePrefs() {
 	a.quality = a.loadPref("mygo_quality", 2)
 	a.cacheLimit = a.loadPref("mygo_cachelimit", 0)
 	a.loopMode = a.loadPref("mygo_loopmode", 0)
+	a.lyricSize = a.loadPref("mygo_lyricsize", 2)
 	a.volume = a.loadPrefFloat("mygo_volume", 0.8)
 	if a.svc != nil && a.svc.speaker != nil && a.loopMode != 0 {
 		a.pb.SetMode(intToMode(a.loopMode))
