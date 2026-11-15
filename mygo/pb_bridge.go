@@ -16,7 +16,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"homecast/service/cache"
 	"homecast/service/conv"
+	"homecast/service/fav"
+	"homecast/service/lyric"
+	"homecast/service/lyriccache"
 	"homecast/service/playback"
 	"homecast/store"
 
@@ -38,8 +42,16 @@ func ensureDB() *sql.DB {
 		log.Printf("[mygo] open db: %v", err)
 		return nil
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT)`); err != nil {
-		log.Printf("[mygo] ensure settings table: %v", err)
+	// 建业务表（对齐主线 server.go Migrate：favs/lyric/cache/lyriccache/settings）。
+	// 否则 fav.Add 等写表失败 → 收藏/歌词缓存不持久化（表不存在）。
+	if err := store.Migrate(db, []string{
+		fav.FavSchema,
+		lyric.LyricSchema,
+		cache.CacheSchema,
+		cache.SettingsSchema,
+		lyriccache.CacheSchema,
+	}, nil); err != nil {
+		log.Printf("[mygo] migrate tables: %v", err)
 	}
 	return db
 }
