@@ -458,12 +458,13 @@ func (a *app) playerBar(c *ui.Context) {
 	igap := a.resp(12, 8)  // 行内间距
 	brow := a.resp(40, 32) // 下排按钮
 	ui.Column(c).AlignSelf(ui.Stretch).Background(clrBar).PaddingX(px).PaddingY(a.resp(14, 10)).Gap(gap).Children(func() {
-		if a.current == nil {
-			ui.Text(c, "未在播放").TextColor(clrMuted).FontSize(15 * uiScale).PaddingY(24 * uiScale)
-			return
+		// 无歌曲也显示控制面板（对齐主线 dock 始终显示播放控制/音量/进度；
+		// 仅歌曲信息区显示"未在播放"占位）——队列/设置/投屏等页都看到控制面板
+		has := a.current != nil
+		// 字幕条（对齐主线：当前歌词行 + 关闭；有歌才显示）
+		if has {
+			a.lyricCaption(c)
 		}
-		// 字幕条（对齐主线：当前歌词行 + 关闭）
-		a.lyricCaption(c)
 		// 上排：音质 + 循环模式 + 静音 + 音量（对齐主线 dock-tools：全部右对齐）
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(igap).Children(func() {
 			ui.Spacer(c).Grow(1) // 右对齐（对齐主线工具行在进度条右上方）
@@ -493,11 +494,20 @@ func (a *app) playerBar(c *ui.Context) {
 		ui.Row(c).AlignSelf(ui.Stretch).Gap(a.resp(16, 10)).AlignItems(ui.Center).Children(func() {
 			info := ui.Row(c).Grow(1).Gap(brow / 3).AlignItems(ui.Center)
 			info.Children(func() {
-				a.coverTagged(c, a.current.bvid, a.current.pic, 56, true)
-				ui.Column(c).Grow(1).Gap(3 * uiScale).Children(func() {
-					ui.Text(c, a.current.title).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
-					ui.Text(c, a.current.author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
-				})
+				if has {
+					a.coverTagged(c, a.current.bvid, a.current.pic, 56, true)
+					ui.Column(c).Grow(1).Gap(3 * uiScale).Children(func() {
+						ui.Text(c, a.current.title).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
+						ui.Text(c, a.current.author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
+					})
+				} else {
+					// 无歌：占位封面 + "未在播放"（控制面板始终显示）
+					a.cover(c, "", "", 56)
+					ui.Column(c).Grow(1).Gap(3 * uiScale).Children(func() {
+						ui.Text(c, "未在播放").FontSize(a.resp(16, 14)).Bold().TextColor(clrMuted).MaxLines(1)
+						ui.Text(c, "搜索并播放一首歌开始").FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
+					})
+				}
 			})
 			if info.Clicked() {
 				a.showPlayer = true
