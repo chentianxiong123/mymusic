@@ -25,10 +25,10 @@ func (a *app) toggleLyric() {
 		AlwaysOnTop:   true,
 		SkipTaskbar:   true,
 		DisableShadow: true,
-		Width:         int(560 * uiScale),
-		Height:        int(130 * uiScale),
-		X:             int(200 * uiScale),
-		Y:             int(80 * uiScale),
+		Width:         560,
+		Height:        130,
+		X:             200,
+		Y:             80,
 		Content:       ui.View(a.lyricView),
 	})
 	// 可交互（学主线 subtitle-bar：pointerdown 拖拽 + 悬停浮现关闭；不再鼠标穿透）

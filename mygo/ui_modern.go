@@ -262,7 +262,7 @@ func (a *app) progressBarSized(c *ui.Context, frac float64, h float32, seek bool
 
 // playCircle 大号圆形播放/暂停按钮。
 func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
-	box := ui.Box(c).Size(size*uiScale, size*uiScale).Radius(size * uiScale / 2)
+	box := ui.Box(c).Size(size, size).Radius(size / 2)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.FillGradient(r, grad(), r.H/2)
 		if playing {

@@ -572,10 +572,10 @@ func main() {
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "mymusic-mygo",
-			Width:     int(980 * uiScale),
-			Height:    int(680 * uiScale),
-			MinWidth:  int(500 * uiScale),
-			MinHeight: int(480 * uiScale),
+			Width:     980,
+			Height:    680,
+			MinWidth:  500,
+			MinHeight: 480,
 			Content:   ui.View(a.view),
 		})
 		// 分辨率适配：窗口尺寸变化时更新宽度感知（断点切换 compact），仅重绘不重建
