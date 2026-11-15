@@ -6,8 +6,10 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
+	"github.com/lsongdev/miservice-go/miservice"
 	"homecast/service/cache"
 	"homecast/service/cast"
 	"homecast/service/fav"
@@ -30,6 +32,7 @@ type services struct {
 	tokens     *token.TokenStore
 	cache      *cache.CacheService
 	qr         *xiaoai.QRLogin
+	qrAuth     *xiaoai.SpeakerAuth // 与 speaker 共用同一 auth（主线程组装，避免双实例）
 }
 
 // favHas 收藏查询（薄封装，UI 侧只读）。
@@ -60,14 +63,62 @@ func durationSec(progress float32, durText string) int {
 // newServices 构造主线域包（对齐主线 server.go 的组装方式）。
 func newServices(db *sql.DB, client *bilibili.Client, audioDir string) *services {
 	tokens := token.NewTokenStore()
+	spAuth := xiaoai.NewSpeakerAuth() // 单一 auth 实例：QR 登录后与 speaker 共享
 	return &services{
 		fav:        fav.NewFavService(db),
 		lyricStore: lyric.NewLyricStore(db),
 		lyricCache: lyriccache.NewLyricCache(db, -1), // -1=默认上限
 		cast:       cast.NewCastService(client, tokens),
-		speaker:    speaker.NewSpeakerService(xiaoai.NewSpeakerAuth(), client, tokens),
+		speaker:    speaker.NewSpeakerService(spAuth, client, tokens),
 		tokens:     tokens,
 		cache:      cache.NewCacheService(db, audioDir, -1), // -1=默认上限
 		qr:         xiaoai.NewQRLogin(),
+		qrAuth:     spAuth,
 	}
+}
+
+// applyQRToken 扫码成功后把 QR token 灌进 speaker auth（对齐主线 hx/speaker.go applyQRToken）。
+func (s *services) applyQRToken() {
+	if s.qr == nil || s.qrAuth == nil {
+		return
+	}
+	uid, pwd, ssec, stok, ok := s.qr.BuildTokens()
+	if !ok {
+		return
+	}
+	t := miservice.NewTokens()
+	t.UserId = uid
+	t.PassToken = pwd
+	t.DeviceId = s.qr.DeviceID()
+	t.Sids["micoapi"] = miservice.SidToken{Ssecurity: ssec, ServiceToken: stok}
+	_ = s.qrAuth.LoginWithToken(t)
+}
+
+// speakerLoggedIn 音箱是否已登录（面板显示已登录布局用）。
+func (s *services) speakerLoggedIn() bool {
+	return s.qrAuth != nil && s.qrAuth.IsLoggedIn()
+}
+
+// speakerUserID 音箱登录用户 ID。
+func (s *services) speakerUserID() string {
+	if s.qrAuth == nil {
+		return ""
+	}
+	return s.qrAuth.UserID()
+}
+
+// exportSpeakerToken 导出 token JSON（多端复用，对齐主线 /api/v1/speaker/token/export）。
+func (s *services) exportSpeakerToken() (string, error) {
+	if s.qrAuth == nil {
+		return "", fmt.Errorf("未登录，无 token 可导出")
+	}
+	t := s.qrAuth.Tokens()
+	if t == nil {
+		return "", fmt.Errorf("未登录，无 token 可导出")
+	}
+	data, err := json.MarshalIndent(t, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }

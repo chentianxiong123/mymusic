@@ -546,6 +546,10 @@ func main() {
 	a.favSet = map[string]bool{}
 	a.refreshFavs()  // 收藏恢复自 fav 域包（SQLite 持久化）
 	a.restorePrefs() // 恢复主题/音质/缓存上限（settings 表）
+	// 音箱：若已有持久化 token（与主线 web 共用 speaker.json），启动即刷新设备
+	if a.svc != nil && a.svc.speakerLoggedIn() {
+		go a.refreshSpeakers()
+	}
 	a.pb = playback.NewPlaybackState()
 	a.mygoOut = newMyGoOutput(a.bili)
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）

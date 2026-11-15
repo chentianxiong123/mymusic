@@ -1033,8 +1033,32 @@ func (a *app) castPage(c *ui.Context) {
 				})
 			})
 		}
-		// 小米音箱扫码登录（SSOT：xiaoai QRLogin；未登录显示按钮/二维码）
-		if len(a.speakers) == 0 {
+		// 小米音箱（SSOT：xiaoai auth 登录态；未登录→扫码；已登录→账户头+刷新+导出 token）
+		loggedIn := a.svc != nil && a.svc.speakerLoggedIn()
+		if loggedIn {
+			ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(12).Background(clrCard).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
+					icon(c, icMsg, 18, clrPurple)
+					ui.Column(c).Grow(1).Gap(2).Children(func() {
+						ui.Text(c, "小爱音箱").FontSize(14).Bold().TextColor(clrText)
+						uid := a.svc.speakerUserID()
+						ui.Text(c, "已登录 · "+uid).FontSize(11).TextColor(clrMuted)
+					})
+					if chip(c, "刷新设备").Clicked() {
+						go a.refreshSpeakers()
+					}
+					if chip(c, "复制 token").Clicked() {
+						if tok, err := a.svc.exportSpeakerToken(); err == nil {
+							mygo.Clipboard.WriteText(tok)
+							a.status = "已复制音箱 token（多端免扫码复用）"
+						} else {
+							a.status = err.Error()
+						}
+						a.win.Invalidate()
+					}
+				})
+			})
+		} else {
 			if a.qrImage != "" {
 				ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(12).Background(clrCard).Children(func() {
 					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16).Children(func() {
@@ -1053,14 +1077,37 @@ func (a *app) castPage(c *ui.Context) {
 					})
 				})
 			}
-			ui.Scroll(c).AlignSelf(ui.Stretch).Children(func() {
-				ui.Column(c).Gap(8).Children(func() {
-					ui.Text(c, "小米音箱").FontSize(14).Bold().TextColor(clrText).PaddingX(4)
-					if gradButton(c, "扫码登录音箱").Clicked() {
+			ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(10).Background(clrCard).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
+					icon(c, icMsg, 18, clrMuted)
+					ui.Text(c, "小爱音箱未登录").FontSize(13).TextColor(clrText).Grow(1)
+					if gradButton(c, "扫码登录").Clicked() {
 						go a.startSpeakerLogin()
 					}
 				})
 			})
+		}
+		// 音箱设备列表（登录后展示，SSOT speaker）
+		if loggedIn {
+			if len(a.speakers) == 0 {
+				ui.Text(c, "音箱：点「刷新设备」获取设备列表").FontSize(12).TextColor(clrMuted).PaddingX(4)
+			}
+			for _, sp := range a.speakers {
+				sp := sp
+				row := ui.Box(c).Fill().Height(56).Radius(12).PaddingX(14).Background(clrCard)
+				row.Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+						icon(c, icVol, 18, clrMuted)
+						ui.Column(c).Grow(1).Gap(2).Children(func() {
+							ui.Text(c, sp.Name).FontSize(14).Bold().TextColor(clrText).MaxLines(1)
+							ui.Text(c, sp.DID).FontSize(11).TextColor(clrMuted)
+						})
+						if gradButton(c, "播放").Clicked() {
+							go a.playToSpeaker(sp.DID, sp.Name)
+						}
+					})
+				})
+			}
 		}
 		ui.Text(c, "DLNA 设备").FontSize(14).Bold().TextColor(clrText).PaddingX(4)
 		if len(a.castDevices) == 0 {
@@ -1086,27 +1133,6 @@ func (a *app) castPage(c *ui.Context) {
 							}
 						})
 					})
-				}
-				// 小米音箱（SSOT speaker：需先扫码登录，登录态由 xiaoai auth 管）
-				if len(a.speakers) > 0 {
-					ui.Spacer(c).Height(6)
-					ui.Text(c, "小米音箱").FontSize(14).Bold().TextColor(clrText).PaddingX(4)
-					for _, sp := range a.speakers {
-						sp := sp
-						row := ui.Box(c).Fill().Height(56).Radius(12).PaddingX(14).Background(clrCard)
-						row.Children(func() {
-							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
-								icon(c, icVol, 18, clrMuted)
-								ui.Column(c).Grow(1).Gap(2).Children(func() {
-									ui.Text(c, sp.Name).FontSize(14).Bold().TextColor(clrText).MaxLines(1)
-									ui.Text(c, sp.DID).FontSize(11).TextColor(clrMuted)
-								})
-								if gradButton(c, "播放").Clicked() {
-									go a.playToSpeaker(sp.DID, sp.Name)
-								}
-							})
-						})
-					}
 				}
 			})
 		})
@@ -1147,14 +1173,32 @@ func (a *app) startSpeakerLogin() {
 			a.win.Update(func() { a.qrStatus = msg })
 			switch status {
 			case "success":
+				// 把 QR token 灌进 speaker auth（对齐主线 hx/speaker.go applyQRToken）
+				a.svc.applyQRToken()
 				a.win.Update(func() { a.qrStatus = "登录成功，正在刷新设备…" })
 				a.discoverCast()
+				// 已登录 → 刷新音箱设备
+				if a.svc.speakerLoggedIn() {
+					go a.refreshSpeakers()
+				}
 				return
 			case "failed":
 				return
 			}
 		}
 	}()
+}
+
+// refreshSpeakers 刷新小米音箱设备列表（speaker 域包 ListDevices）。
+func (a *app) refreshSpeakers() {
+	if a.svc == nil || a.svc.speaker == nil || !a.svc.speakerLoggedIn() {
+		return
+	}
+	list := a.svc.speaker.ListDevices() // SpeakerService.ListDevices 无错误返回（auth 层处理）
+	a.win.Update(func() {
+		a.speakers = list
+		a.win.Invalidate()
+	})
 }
 
 // discoverCast 发现 DLNA 设备（cast 域包 Discover，后台执行）。
