@@ -329,7 +329,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 				a.toggleCaption()
 			}
 		})
-		// KTV 歌词列表（对齐主线 ly-lines：当前行高亮放大）
+		// KTV 歌词列表（对齐主线 ly-lines：当前行高亮放大 + 自动跟随滚动）
 		ui.Box(c).Grow(1).Fill().Radius(14).Background(clrCard).PaddingX(a.resp(28, 14)).PaddingY(10).Children(func() {
 			_, curIdx := a.lyricAt(a.posSec)
 			ui.Scroll(c).Fill().Gap(10).Children(func() {
@@ -353,15 +353,24 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 							col = ui.RGB(0xff, 0xff, 0xff)
 							size = a.lyricFontSize() * 1.35
 						}
+						var el ui.Element
 						if a.lyricTime && i == curIdx {
-							ui.Row(c).AlignSelf(ui.Center).Gap(8).AlignItems(ui.Center).Children(func() {
+							// 时间显示开关：当前行带时间戳（对齐主线 ly-time）
+							row := ui.Row(c).AlignSelf(ui.Center).Gap(8).AlignItems(ui.Center)
+							row.Children(func() {
 								ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(11).TextColor(clrPink)
 								ui.Text(c, text).FontSize(size).Bold().TextColor(col)
 							})
+							el = row
 						} else {
-							ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+							el = ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+						}
+						// KTV 跟随：切到新行时把当前行滚到中栏中心
+						if i == curIdx && curIdx != a.lastLyricIdx {
+							el.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollCenter})
 						}
 					}
+					a.lastLyricIdx = curIdx
 				})
 			})
 		})

@@ -37,22 +37,23 @@ type app struct {
 	bili     *bilibili.Client
 
 	// 主线 SSOT 接入：业务状态/队列/模式/持久化全在 playback 域包（MyGo 只渲染+发命令）
-	pb          *playback.PlaybackState
-	mygoOut     *MyGoOutput
-	db          *sql.DB
-	svc         *services              // 主线域包句柄（fav/lyric/cast/speaker）
-	castOn      string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
-	castDevices []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
-	speakers    []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
-	recent      []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
-	lastVolSave time.Time              // 音量落库节流时间戳
-	qrStatus    string                 // 音箱扫码登录状态文案
-	searched    bool                   // 是否已执行过搜索（区分空结果态）
-	eqPhase     int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
-	qrImage     string                 // 二维码 data URI（渲染用）
-	ctxItem     *bilibili.SearchItem   // 右键菜单目标（非空=显示）
-	ctxX, ctxY  float32                // 菜单弹出位置（窗口坐标）
-	clipboard   string                 // 待复制链接（mygo 暂无线程安全 clipboard API，先字段+状态提示）
+	pb           *playback.PlaybackState
+	mygoOut      *MyGoOutput
+	db           *sql.DB
+	svc          *services              // 主线域包句柄（fav/lyric/cast/speaker）
+	castOn       string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
+	castDevices  []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
+	speakers     []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
+	recent       []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
+	lastVolSave  time.Time              // 音量落库节流时间戳
+	qrStatus     string                 // 音箱扫码登录状态文案
+	lastLyricIdx int                    // 上次高亮歌词行（KTV 滚动跟随去重）
+	searched     bool                   // 是否已执行过搜索（区分空结果态）
+	eqPhase      int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
+	qrImage      string                 // 二维码 data URI（渲染用）
+	ctxItem      *bilibili.SearchItem   // 右键菜单目标（非空=显示）
+	ctxX, ctxY   float32                // 菜单弹出位置（窗口坐标）
+	clipboard    string                 // 待复制链接（mygo 暂无线程安全 clipboard API，先字段+状态提示）
 
 	// 搜索
 	query   string
