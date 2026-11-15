@@ -124,6 +124,62 @@ func (a *app) loadPref(key string, def int) int {
 	return v
 }
 
+// saveRecent 最近播放落库（JSON；对齐主线 localStorage hc:recent）。
+func (a *app) saveRecent() {
+	if a.db == nil {
+		return
+	}
+	data, err := json.Marshal(a.recent)
+	if err != nil {
+		return
+	}
+	a.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?`,
+		"mygo_recent", string(data), string(data))
+}
+
+// restoreRecent 启动恢复最近播放。
+func (a *app) restoreRecent() {
+	if a.db == nil {
+		return
+	}
+	var v string
+	if err := a.db.QueryRow(`SELECT value FROM settings WHERE key=?`, "mygo_recent").Scan(&v); err != nil {
+		return
+	}
+	var list []bilibili.SearchItem
+	if json.Unmarshal([]byte(v), &list) == nil {
+		a.recent = list
+	}
+}
+
+// saveHistory 搜索历史落库（JSON；对齐主线 localStorage search-history）。
+func (a *app) saveHistory() {
+	if a.db == nil {
+		return
+	}
+	data, err := json.Marshal(a.searchHistory)
+	if err != nil {
+		return
+	}
+	a.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?`,
+		"mygo_history", string(data), string(data))
+}
+
+// restoreHistory 启动恢复搜索历史。
+func (a *app) restoreHistory() {
+	if a.db == nil {
+		return
+	}
+	var v string
+	if err := a.db.QueryRow(`SELECT value FROM settings WHERE key=?`, "mygo_history").Scan(&v); err != nil {
+		return
+	}
+	var list []string
+	if json.Unmarshal([]byte(v), &list) == nil {
+		a.searchHistory = list
+	}
+}
+
 // restorePrefs 启动恢复本机偏好（主题/音质/缓存上限，对齐主线 settings.js 持久化）。
 func (a *app) restorePrefs() {
 	a.themeMode = a.loadPref("mygo_theme", 0)

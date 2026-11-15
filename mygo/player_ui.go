@@ -478,6 +478,7 @@ func (a *app) queuePage(c *ui.Context) {
 				}
 				if chip(c, "清空").Clicked() {
 					a.recent = nil
+					a.saveRecent()
 					a.win.Invalidate()
 				}
 			})
@@ -568,6 +569,7 @@ func (a *app) recentPage(c *ui.Context) {
 			if len(a.recent) > 0 {
 				if chip(c, "清空").Clicked() {
 					a.recent = nil
+					a.saveRecent()
 					a.win.Invalidate()
 				}
 			}
@@ -798,6 +800,7 @@ func (a *app) settingsPage(c *ui.Context) {
 				a.setRowText(c, "搜索历史（"+a.historyCount()+" 条）")
 				a.setRowBtns(c, []string{"清空历史"}, func(i int) {
 					a.searchHistory = nil
+					a.saveHistory()
 					a.win.Invalidate()
 				})
 				// 12 关于（主线）

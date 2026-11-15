@@ -367,6 +367,7 @@ func (a *app) searchEmpty(c *ui.Context) {
 				ui.Column(c).Center().Children(func() {
 					if chip(c, "清空").Clicked() {
 						a.searchHistory = nil
+						a.saveHistory()
 						a.win.Invalidate()
 					}
 				})
@@ -547,8 +548,10 @@ func main() {
 	}
 	a.svc = newServices(a.db, a.bili, audioDir)
 	a.favSet = map[string]bool{}
-	a.refreshFavs()  // 收藏恢复自 fav 域包（SQLite 持久化）
-	a.restorePrefs() // 恢复主题/音质/缓存上限（settings 表）
+	a.refreshFavs()    // 收藏恢复自 fav 域包（SQLite 持久化）
+	a.restorePrefs()   // 恢复主题/音质/缓存上限（settings 表）
+	a.restoreRecent()  // 恢复最近播放
+	a.restoreHistory() // 恢复搜索历史
 	// 音箱：若已有持久化 token（与主线 web 共用 speaker.json），启动即刷新设备
 	if a.svc != nil && a.svc.speakerLoggedIn() {
 		go a.refreshSpeakers()

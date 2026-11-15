@@ -45,6 +45,7 @@ func (a *app) search() {
 			hist = hist[:10]
 		}
 		a.searchHistory = hist
+		a.saveHistory()
 	})
 	a.win.Update(func() {
 		a.results = res.Result
@@ -96,6 +97,7 @@ func (a *app) recordRecent(item bilibili.SearchItem) {
 			out = out[:30]
 		}
 		a.recent = out
+		a.saveRecent()
 		a.win.Invalidate()
 	})
 }
