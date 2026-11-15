@@ -274,7 +274,7 @@ func (a *app) nowPlaying(c *ui.Context) {
 
 // lyrCandCol 左栏：歌词候选（对齐主线 ly-cand-drawer：w-64 列表，点选换源）。
 func (a *app) lyrCandCol(c *ui.Context) {
-	box := ui.Box(c).Width(a.resp(256, 200)).Fill().Radius(16).Background(clrCard).PaddingX(10).PaddingY(8)
+	box := ui.Box(c).Width(a.resp(256, 200)).Radius(16).Background(clrCard).PaddingX(10).PaddingY(8)
 	box.Children(func() {
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
@@ -329,18 +329,19 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 		// 上边距 resp 24/14（对齐主线 mb-3 sm:mb-6）
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).PaddingX(4).Margin(0, 0, a.resp(24, 14), 0).Children(func() {
 			a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
-			ui.Column(c).Grow(1).Gap(2).Children(func() {
-				ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(a.resp(22, 17)).Bold().TextColor(clrText).MaxLines(1)
-				ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+			ui.Column(c).Grow(1).Gap(3).Children(func() {
+				// 标题 text-lg(18px) 白 / 歌手 text-sm(14px) gray / 来源 text-xs(12px) gray（对齐主线）
+				ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(a.resp(18, 15)).Bold().TextColor(clrText).MaxLines(1)
+				ui.Text(c, a.current.author).FontSize(14).TextColor(clrMuted).MaxLines(1)
 				// 来源行（对齐主线 ly-source：网易云 候选名《歌名》/ 未找到引导）
-				ui.Text(c, a.lyricSourceText()).FontSize(11).TextColor(clrPink).MaxLines(1)
+				ui.Text(c, a.lyricSourceText()).FontSize(12).TextColor(clrPink).MaxLines(1)
 			})
 		})
 		// KTV 歌词列表（对齐主线 ly-lines：居中 + 当前行粉色渐底逐行进度 + 点击行跳句）
 		ui.Box(c).Grow(1).Fill().Radius(14).Background(clrCard).PaddingX(a.resp(28, 14)).PaddingY(10).Children(func() {
 			curIdx, prog := a.lyricProg(a.posSec)
 			ui.Scroll(c).Fill().Gap(10).Children(func() {
-				ui.Column(c).AlignSelf(ui.Stretch).Gap(10).Children(func() {
+				ui.Column(c).AlignSelf(ui.Stretch).Gap(8).Children(func() {
 					if len(a.lyricLines) == 0 {
 						ui.Column(c).AlignSelf(ui.Stretch).Children(func() {
 							ui.Text(c, "歌词加载中…").FontSize(15).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(40)
@@ -359,7 +360,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 						active := i == curIdx
 						if active {
 							col = ui.RGB(0xff, 0xff, 0xff)
-							size = a.lyricFontSize() * 1.35
+							size = a.lyricFontSize() * 1.18
 						}
 						// 行容器：居中 + 点击跳句（对齐主线 ly-line cursor-pointer text-center）
 						row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(4).PaddingX(16).Radius(8)
@@ -380,7 +381,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 									// 每行都有时间戳（对齐 renderLines lyTime：text-[10px] gray 小字）
 									ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(10).TextColor(clrMuted)
 								}
-								ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+								ui.Text(c, text).FontSize(size).Bold().TextColor(col).LineHeight(1.8)
 							})
 						})
 						// KTV 跟随：切到新行时把当前行滚到中栏中心
@@ -407,7 +408,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 
 // lyrToolCol 右栏：工具列（对齐主线 ly-tool-drawer：字号± / 对齐±0.5s / 刷新）。
 func (a *app) lyrToolCol(c *ui.Context) {
-	ui.Column(c).Width(56).Fill().Gap(8).Children(func() {
+	ui.Column(c).Width(56).Gap(8).Children(func() {
 		toolCard := func(fn func()) {
 			box := ui.Box(c).Fill().Radius(14).Background(clrCard).PaddingX(6).PaddingY(10)
 			box.Children(fn)
@@ -610,7 +611,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 									if a.lyricTime {
 										ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(10).TextColor(clrMuted)
 									}
-									ui.Text(c, text).FontSize(size).Bold().TextColor(col)
+									ui.Text(c, text).FontSize(size).Bold().TextColor(col).LineHeight(1.8)
 								})
 							})
 							if active && curIdx != a.lastLyricIdx {
