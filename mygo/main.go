@@ -448,11 +448,9 @@ func (a *app) playerBar(c *ui.Context) {
 		}
 		// 字幕条（对齐主线：当前歌词行 + 关闭）
 		a.lyricCaption(c)
-		// 上排：音质 + 循环模式 + 静音 + 音量（对齐主线 dock-tools：移动端居中、≥640 右对齐）
+		// 上排：音质 + 循环模式 + 静音 + 音量（对齐主线 dock-tools：全部右对齐）
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(igap).Children(func() {
-			if a.compact() {
-				ui.Spacer(c).Grow(1)
-			}
+			ui.Spacer(c).Grow(1) // 右对齐（对齐主线工具行在进度条右上方）
 			// 音质按钮（对齐主线 d-quality：点击循环 64/128/192k；切换后重播当前歌生效）
 			if qualityChip(c, a.qualityLabel(), a.quality > 0).Clicked() {
 				a.quality = (a.quality + 1) % 3
@@ -464,19 +462,10 @@ func (a *app) playerBar(c *ui.Context) {
 			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {
 				a.toggleLoop()
 			}
-			if !a.compact() {
-				ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
-			}
-			if !a.compact() {
-				ui.Spacer(c).Grow(1)
-			}
 			if iconButton2(c, icVol, a.resp(24, 20), accent(a.muted)).Clicked() {
 				a.toggleMute()
 			}
 			a.volumeBar(c, a.resp(120, 84))
-			if !a.compact() {
-				ui.Spacer(c).Grow(1)
-			}
 		})
 		// 进度行：时间 + 滑块 + 时长
 		ui.Row(c).AlignSelf(ui.Stretch).Gap(igap).AlignItems(ui.Center).Children(func() {
@@ -488,7 +477,7 @@ func (a *app) playerBar(c *ui.Context) {
 		ui.Row(c).AlignSelf(ui.Stretch).Gap(a.resp(16, 10)).AlignItems(ui.Center).Children(func() {
 			info := ui.Row(c).Grow(1).Gap(brow / 3).AlignItems(ui.Center)
 			info.Children(func() {
-				a.cover(c, a.current.bvid, a.current.pic, a.resp(60, 44))
+				a.coverTagged(c, a.current.bvid, a.current.pic, a.resp(60, 44), true)
 				ui.Column(c).Grow(1).Gap(3).Children(func() {
 					ui.Text(c, a.current.title).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
 					ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted).MaxLines(1)
@@ -498,21 +487,18 @@ func (a *app) playerBar(c *ui.Context) {
 				a.showPlayer = true
 				a.win.Invalidate()
 			}
-			// 字幕开关（对齐主线 dock 的 d-tick；按用户要求：仅窄屏出现、置于控制区左侧）
-			if a.narrow() {
-				if iconButton2(c, icMsg, brow, accent(a.captionShown)).Clicked() {
-					a.toggleCaption()
-				}
+			// 收藏（对齐主线 d-fav）
+			if iconButton2(c, icHeart, brow, accent(a.isFav())).Clicked() {
+				a.toggleFav()
 			}
-			if !a.compact() {
-				if iconButton2(c, icHeart, brow, accent(a.isFav())).Clicked() {
-					a.toggleFav()
-				}
+			// 字幕开关（对齐主线 d-tick：位置在收藏与上一首之间，始终显示）
+			if iconButton2(c, icMsg, brow, accent(a.captionShown)).Clicked() {
+				a.toggleCaption()
 			}
 			if iconButton2(c, icPrev, brow, clrMuted).Clicked() {
 				go a.prev()
 			}
-			if playCircle(c, a.playing, a.resp(60, 48)).Clicked() {
+			if playCircle(c, a.playing, a.resp(56, 44)).Clicked() {
 				a.togglePlay()
 			}
 			if iconButton2(c, icNext, brow, clrMuted).Clicked() {

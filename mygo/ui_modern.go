@@ -73,6 +73,11 @@ func gradButton(c *ui.Context, label string) ui.Element {
 
 // cover 圆角封面图（网络加载 + 占位）。url 为空显示占位。
 func (a *app) cover(c *ui.Context, bvid, url string, size float32) ui.Element {
+	return a.coverTagged(c, bvid, url, size, false)
+}
+
+// coverTagged 圆角封面（hoverLyric=true 时 hover 显示「歌词」标签，对齐主线 d-cover group-hover）。
+func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLyric bool) ui.Element {
 	box := ui.Box(c).Size(size, size)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Clip(r, size/2, func() {
@@ -87,6 +92,16 @@ func (a *app) cover(c *ui.Context, bvid, url string, size float32) ui.Element {
 				p.Line(r.X+size*0.68, r.Y+size*0.48, r.X+size*0.68, r.Y+size*0.26, size*0.05, clrPink)
 			}
 		})
+		// hover「歌词」标签（对齐主线 group-hover 黑底圆角）
+		if hoverLyric && box.Hovered() {
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.45), size/2)
+			lbl := "歌词"
+			// 用 painter 居中画小标签
+			w, h := size*0.5, size*0.28
+			lx, ly := r.X+(r.W-w)/2, r.Y+(r.H-h)/2
+			p.FillRadii(ui.Rect{X: lx, Y: ly, W: w, H: h}, [4]float32{h / 2, h / 2, h / 2, h / 2}, ui.RGBA(0, 0, 0, 0.6))
+			p.Text(lx+w/2, ly+h/2, lbl, size*0.11, ui.RGB(0xff, 0xff, 0xff))
+		}
 		// EQ 跳动频谱（对齐主线 d-eq：封面底部黑条 + 5 条粉色柱）
 		if a.eqPhase >= 0 {
 			barH := size * 0.22

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
+	"strings"
 
 	"homecast/service/lyric"
 
@@ -260,4 +262,27 @@ func (a *app) seekToLine(idx int) {
 		return
 	}
 	a.pb.Seek(ls - a.lyricOffset + 0.1)
+}
+
+// titleToSongMygo 歌名解析（对齐主线 lyric.js titleToSong：
+// 剥 []【】取《》; 取不到用全标题）。
+func titleToSongMygo(t string) string {
+	clean := regexp.MustCompile(`[\[【][^\]】]*[\]】]`).ReplaceAllString(t, "")
+	m := regexp.MustCompile(`《([^》]+)》`).FindStringSubmatch(clean)
+	if m != nil {
+		return strings.TrimSpace(m[1])
+	}
+	out := strings.TrimSpace(clean)
+	if out == "" {
+		return t
+	}
+	return out
+}
+
+// candDurText 候选时长 mm:ss（对齐主线 candDur；无则 --:--）。
+func candDurText(dur int) string {
+	if dur <= 0 {
+		return "--:--"
+	}
+	return fmt.Sprintf("%d:%02d", dur/60, dur%60)
 }
