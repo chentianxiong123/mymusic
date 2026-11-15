@@ -38,7 +38,7 @@ func icon(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Element {
 
 // iconButton2 圆形图标按钮（hover 提亮）。
 func iconButton2(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Element {
-	box := ui.Box(c).Size(size, size).Radius(size / 2)
+	box := ui.Box(c).Size(size*uiScale, size*uiScale).Radius(size * uiScale / 2)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if box.Hovered() {
 			p.Fill(r, clrCardHov, r.H/2)

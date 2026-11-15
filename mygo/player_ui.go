@@ -173,7 +173,7 @@ func (a *app) refreshFavs() {
 
 // volumeBar 音量滑块：拖动 SetVolume，点击轨道定位。
 func (a *app) volumeBar(c *ui.Context, width float32) ui.Element {
-	box := ui.Box(c).Width(width).Height(4).Radius(2)
+	box := ui.Box(c).Width(width).Height(4 * uiScale).Radius(2 * uiScale)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.FillRadii(r, [4]float32{r.H / 2, r.H / 2, r.H / 2, r.H / 2}, clrTrackBar)
 		v := float32(a.volume)
@@ -247,7 +247,7 @@ func (a *app) nowPlaying(c *ui.Context) {
 
 		if a.current == nil {
 			ui.Column(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Center().Children(func() {
-				ui.Text(c, "未在播放").FontSize(22).Bold().TextColor(clrMuted)
+				ui.Text(c, "未在播放").FontSize(22 * uiScale).Bold().TextColor(clrMuted)
 			})
 			return
 		}
@@ -274,25 +274,25 @@ func (a *app) nowPlaying(c *ui.Context) {
 
 // lyrCandCol 左栏：歌词候选（对齐主线 ly-cand-drawer：w-64 列表，点选换源）。
 func (a *app) lyrCandCol(c *ui.Context) {
-	box := ui.Box(c).Width(a.resp(256, 200)).Radius(16).Background(clrCardGlass).PaddingX(10).PaddingY(8)
+	box := ui.Box(c).Width(a.resp(256, 200)).Radius(16 * uiScale).Background(clrCardGlass).PaddingX(10 * uiScale).PaddingY(8 * uiScale)
 	box.Children(func() {
-		ui.Column(c).Gap(6).Children(func() {
+		ui.Column(c).Gap(6 * uiScale).Children(func() {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "歌词候选").FontSize(13).Bold().TextColor(clrPink)
+				ui.Text(c, "歌词候选").FontSize(13 * uiScale).Bold().TextColor(clrPink)
 				ui.Spacer(c).Grow(1)
 				// 候选标题《歌名》（对齐主线 ly-cand-title）
 				ui.Text(c, "《"+titleToSongMygo(bilibili.CleanHTML(a.current.title))+"》").
 					FontSize(11).TextColor(clrText).MaxLines(1).MaxWidth(120)
 			})
 			if len(a.lyricCands) == 0 {
-				ui.Text(c, LaodingTag()).FontSize(12).TextColor(clrMuted).PaddingY(20)
+				ui.Text(c, LaodingTag()).FontSize(12 * uiScale).TextColor(clrMuted).PaddingY(20 * uiScale)
 			} else {
-				ui.Scroll(c).Grow(1).Gap(4).Children(func() {
-					ui.Column(c).Gap(4).Children(func() {
+				ui.Scroll(c).Grow(1).Gap(4 * uiScale).Children(func() {
+					ui.Column(c).Gap(4 * uiScale).Children(func() {
 						for _, cand := range a.lyricCands {
 							cand := cand
 							on := a.lyricSID == cand.ID
-							row := ui.Box(c).Fill().Height(52).Radius(10).PaddingX(10)
+							row := ui.Box(c).Fill().Height(52 * uiScale).Radius(10 * uiScale).PaddingX(10 * uiScale)
 							if on {
 								// 选中态：粉紫底（对齐主线 bg-pink-500/20 text-pink-300）
 								row.Background(ui.RGBA(0xec, 0x48, 0x99, 0.20))
@@ -301,8 +301,8 @@ func (a *app) lyrCandCol(c *ui.Context) {
 							}
 							row.Children(func() {
 								// 左对齐两行：歌名 / 歌手·时长（对齐主线 text-left）
-								ui.Column(c).Grow(1).Gap(2).AlignSelf(ui.Center).Children(func() {
-									ui.Text(c, cand.Name).FontSize(13).Bold().
+								ui.Column(c).Grow(1).Gap(2 * uiScale).AlignSelf(ui.Center).Children(func() {
+									ui.Text(c, cand.Name).FontSize(13 * uiScale).Bold().
 										TextColor(selColor(on, clrPink, clrText)).MaxLines(1)
 									ui.Text(c, cand.Artist+" · "+candDurText(cand.Duration)).
 										FontSize(11).TextColor(clrMuted).MaxLines(1)
@@ -328,30 +328,30 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 	ui.Column(c).Grow(1).Fill().Children(func() {
 		// 顶部：封面 + 标题/歌手/来源（对齐主线 ly-cover/ly-title/ly-artist/ly-source）
 		// 上边距 resp 24/14（对齐主线 mb-3 sm:mb-6）
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).PaddingX(4).Margin(0, 0, a.resp(24, 14), 0).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12*uiScale).PaddingX(4*uiScale).Margin(0, 0, a.resp(24, 14), 0).Children(func() {
 			a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
-			ui.Column(c).Grow(1).Gap(3).Children(func() {
+			ui.Column(c).Grow(1).Gap(3 * uiScale).Children(func() {
 				// 标题 text-lg(18px) 白 / 歌手 text-sm(14px) gray / 来源 text-xs(12px) gray（对齐主线）
 				ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(a.resp(18, 15)).Bold().TextColor(clrText).MaxLines(1)
-				ui.Text(c, a.current.author).FontSize(14).TextColor(clrMuted).MaxLines(1)
+				ui.Text(c, a.current.author).FontSize(14 * uiScale).TextColor(clrMuted).MaxLines(1)
 				// 来源行（对齐主线 ly-source：网易云 候选名《歌名》/ 未找到引导）
-				ui.Text(c, a.lyricSourceText()).FontSize(12).TextColor(clrPink).MaxLines(1)
+				ui.Text(c, a.lyricSourceText()).FontSize(12 * uiScale).TextColor(clrPink).MaxLines(1)
 			})
 		})
 		// KTV 歌词列表（对齐主线 ly-lines：居中 + 当前行粉色渐底逐行进度 + 点击行跳句）
 		// 优化：垂直渐变玻璃（顶 0.78 → 底 0.92）更立体，歌词在玻璃上
-		lyrCard := ui.Box(c).Grow(1).Fill().Radius(14).PaddingX(a.resp(28, 14)).PaddingY(10)
+		lyrCard := ui.Box(c).Grow(1).Fill().Radius(14 * uiScale).PaddingX(a.resp(28, 14)).PaddingY(10 * uiScale)
 		lyrCard.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.FillGradient(r, ui.LinearGradient{From: ui.RGBA(0x18, 0x19, 0x22, 0.78), To: ui.RGBA(0x0e, 0x0f, 0x14, 0.92), Angle: 90}, 14)
 		})
 		lyrCard.Children(func() {
 			curIdx, prog := a.lyricProg(a.posSec)
-			ui.Scroll(c).Fill().Gap(10).Children(func() {
-				ui.Column(c).AlignSelf(ui.Stretch).Gap(8).Children(func() {
+			ui.Scroll(c).Fill().Gap(10 * uiScale).Children(func() {
+				ui.Column(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Children(func() {
 					if len(a.lyricLines) == 0 {
 						ui.Column(c).AlignSelf(ui.Stretch).Children(func() {
-							ui.Text(c, "歌词加载中…").FontSize(15).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(40)
-							ui.Text(c, "网易云词源（搜索："+lyric.CleanSearchKeyword(bilibili.CleanHTML(a.current.title))+"）").FontSize(11).TextColor(clrMuted).AlignSelf(ui.Center)
+							ui.Text(c, "歌词加载中…").FontSize(15 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(40 * uiScale)
+							ui.Text(c, "网易云词源（搜索："+lyric.CleanSearchKeyword(bilibili.CleanHTML(a.current.title))+"）").FontSize(11 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center)
 						})
 						return
 					}
@@ -369,7 +369,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 							size = a.lyricFontSize() * 1.2
 						}
 						// 行容器：居中 + 点击跳句（对齐主线 ly-line cursor-pointer text-center）
-						row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(5).PaddingX(16).Radius(8)
+						row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(5 * uiScale).PaddingX(16 * uiScale).Radius(8 * uiScale)
 						row.Draw(func(p *ui.Painter, r ui.Rect) {
 							// 卡拉OK渐进底（对齐主线 .ly-line.ly-active --prog 粉色渐底）
 							// 优化：当前行渐底更饱和 + 左右粉/紫装饰竖条（更醒目）
@@ -386,10 +386,10 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 						})
 						row.Children(func() {
 							// 时间戳+歌词整体居中（对齐主线 .ly-line justify-center gap-2）
-							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Justify(ui.Center).Gap(8).Children(func() {
+							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Justify(ui.Center).Gap(8 * uiScale).Children(func() {
 								if a.lyricTime {
 									// 每行都有时间戳（对齐 renderLines lyTime：text-[10px] gray 小字）
-									ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(10).TextColor(clrMuted)
+									ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(10 * uiScale).TextColor(clrMuted)
 								}
 								ui.Text(c, text).FontSize(size).Bold().TextColor(col).LineHeight(1.8)
 							})
@@ -408,24 +408,24 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 			})
 		})
 		// 底部进度条（对齐主线 ly-progress：可拖 + 当前/总时长；上边距 mt-2 sm:mt-4）
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(10).AlignItems(ui.Center).Margin(a.resp(16, 10), 0, 0, 0).Children(func() {
-			ui.Text(c, a.posText).FontSize(12).TextColor(clrMuted)
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(10*uiScale).AlignItems(ui.Center).Margin(a.resp(16, 10), 0, 0, 0).Children(func() {
+			ui.Text(c, a.posText).FontSize(12 * uiScale).TextColor(clrMuted)
 			a.progressBarSized(c, a.progress, 6, true).Grow(1)
-			ui.Text(c, a.durText).FontSize(12).TextColor(clrMuted)
+			ui.Text(c, a.durText).FontSize(12 * uiScale).TextColor(clrMuted)
 		})
 	})
 }
 
 // lyrToolCol 右栏：工具列（对齐主线 ly-tool-drawer：字号± / 对齐±0.5s / 刷新）。
 func (a *app) lyrToolCol(c *ui.Context) {
-	ui.Column(c).Width(56).Gap(8).Children(func() {
+	ui.Column(c).Width(56 * uiScale).Gap(8 * uiScale).Children(func() {
 		toolCard := func(fn func()) {
-			box := ui.Box(c).Fill().Radius(14).Background(clrCardGlass).PaddingX(6).PaddingY(10)
+			box := ui.Box(c).Fill().Radius(14 * uiScale).Background(clrCardGlass).PaddingX(6 * uiScale).PaddingY(10 * uiScale)
 			box.Children(fn)
 		}
 		// 竖排播放控制卡（用户要求控制面竖排，放右侧工具列）
 		toolCard(func() {
-			ui.Column(c).AlignSelf(ui.Center).Gap(8).Children(func() {
+			ui.Column(c).AlignSelf(ui.Center).Gap(8 * uiScale).Children(func() {
 				if iconButton2(c, icPrev, 32, clrMuted).Clicked() {
 					go a.prev()
 				}
@@ -438,8 +438,8 @@ func (a *app) lyrToolCol(c *ui.Context) {
 			})
 		})
 		toolCard(func() {
-			ui.Column(c).AlignSelf(ui.Center).Gap(6).Children(func() {
-				ui.Text(c, "字号").FontSize(11).TextColor(clrMuted)
+			ui.Column(c).AlignSelf(ui.Center).Gap(6 * uiScale).Children(func() {
+				ui.Text(c, "字号").FontSize(11 * uiScale).TextColor(clrMuted)
 				if iconButton(c, "＋").Clicked() {
 					if a.lyricSize < 4 {
 						a.lyricSize++
@@ -448,7 +448,7 @@ func (a *app) lyrToolCol(c *ui.Context) {
 					}
 				}
 				// 档位显示（对齐主线 ly-size 3/5）
-				ui.Text(c, fmt.Sprintf("%d/5", a.lyricSize+1)).FontSize(11).TextColor(clrText)
+				ui.Text(c, fmt.Sprintf("%d/5", a.lyricSize+1)).FontSize(11 * uiScale).TextColor(clrText)
 				if iconButton(c, "－").Clicked() {
 					if a.lyricSize > 0 {
 						a.lyricSize--
@@ -459,18 +459,18 @@ func (a *app) lyrToolCol(c *ui.Context) {
 			})
 		})
 		toolCard(func() {
-			ui.Column(c).AlignSelf(ui.Center).Gap(6).Children(func() {
-				ui.Text(c, "对齐").FontSize(11).TextColor(clrMuted)
+			ui.Column(c).AlignSelf(ui.Center).Gap(6 * uiScale).Children(func() {
+				ui.Text(c, "对齐").FontSize(11 * uiScale).TextColor(clrMuted)
 				if iconButton(c, "▲").Clicked() {
 					a.nudgeLyric(0.5)
 				}
 				// 偏移值：点击归零（对齐主线 ly-nudge-val 点击归零）
-				off := ui.Box(c).PaddingX(2).Radius(4)
+				off := ui.Box(c).PaddingX(2 * uiScale).Radius(4 * uiScale)
 				if off.Hovered() {
 					off.Background(clrField)
 				}
 				off.Children(func() {
-					ui.Text(c, fmt.Sprintf("%.1fs", a.lyricOffset)).FontSize(10).TextColor(clrPink)
+					ui.Text(c, fmt.Sprintf("%.1fs", a.lyricOffset)).FontSize(10 * uiScale).TextColor(clrPink)
 				})
 				if off.Clicked() && a.lyricOffset != 0 {
 					a.setLyricOffset(0)
@@ -481,7 +481,7 @@ func (a *app) lyrToolCol(c *ui.Context) {
 			})
 		})
 		toolCard(func() {
-			ui.Column(c).AlignSelf(ui.Center).Gap(6).Children(func() {
+			ui.Column(c).AlignSelf(ui.Center).Gap(6 * uiScale).Children(func() {
 				// 收藏/取消收藏（对齐主线 ly-fav）
 				if iconButton2(c, icHeart, 26, accent(a.isFav())).Clicked() {
 					a.toggleFav()
@@ -502,7 +502,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 	ui.Row(c).Fill().Gap(a.resp(12, 8)).Children(func() {
 		ui.Column(c).Grow(1).Fill().Children(func() {
 			// 顶栏：抽屉按钮 + 封面/标题
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
 				if iconButton2(c, icMenu, 32, accent(a.lyrDrawer == 1)).Clicked() {
 					if a.lyrDrawer == 1 {
 						a.lyrDrawer = 0
@@ -512,9 +512,9 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 					a.win.Invalidate()
 				}
 				a.cover(c, a.current.bvid, a.current.pic, 42)
-				ui.Column(c).Grow(1).Gap(2).Children(func() {
-					ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(15).Bold().TextColor(clrText).MaxLines(1)
-					ui.Text(c, a.current.author).FontSize(11).TextColor(clrMuted).MaxLines(1)
+				ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+					ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(15 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+					ui.Text(c, a.current.author).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
 				})
 				if iconButton2(c, icMsg, 32, accent(a.captionShown)).Clicked() {
 					a.toggleCaption()
@@ -531,30 +531,30 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 			})
 			// 抽屉浮层（候选 / 工具，互斥）
 			if a.lyrDrawer == 1 {
-				ui.Box(c).AlignSelf(ui.Stretch).Radius(12).Background(clrCardGlass).PaddingX(10).PaddingY(8).Children(func() {
-					ui.Column(c).Gap(6).Children(func() {
-						ui.Text(c, "歌词候选").FontSize(13).Bold().TextColor(clrPink)
+				ui.Box(c).AlignSelf(ui.Stretch).Radius(12 * uiScale).Background(clrCardGlass).PaddingX(10 * uiScale).PaddingY(8 * uiScale).Children(func() {
+					ui.Column(c).Gap(6 * uiScale).Children(func() {
+						ui.Text(c, "歌词候选").FontSize(13 * uiScale).Bold().TextColor(clrPink)
 						if len(a.lyricCands) == 0 {
-							ui.Text(c, LaodingTag()).FontSize(12).TextColor(clrMuted)
+							ui.Text(c, LaodingTag()).FontSize(12 * uiScale).TextColor(clrMuted)
 							return
 						}
-						ui.Scroll(c).MaxHeight(200).Gap(4).Children(func() {
-							ui.Column(c).Gap(4).Children(func() {
+						ui.Scroll(c).MaxHeight(200).Gap(4 * uiScale).Children(func() {
+							ui.Column(c).Gap(4 * uiScale).Children(func() {
 								for _, cand := range a.lyricCands {
 									cand := cand
 									on := a.lyricSID == cand.ID
-									row := ui.Box(c).AlignSelf(ui.Stretch).Height(46).Radius(8).PaddingX(10)
+									row := ui.Box(c).AlignSelf(ui.Stretch).Height(46 * uiScale).Radius(8 * uiScale).PaddingX(10 * uiScale)
 									if on {
 										row.Background(ui.RGBA(0xec, 0x48, 0x99, 0.20))
 									} else if row.Hovered() {
 										row.Background(ui.RGBA(0x2b, 0x2c, 0x37, 0.6))
 									}
 									row.Children(func() {
-										ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
-											ui.Column(c).Grow(1).Gap(2).Children(func() {
-												ui.Text(c, cand.Name).FontSize(13).Bold().
+										ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+											ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+												ui.Text(c, cand.Name).FontSize(13 * uiScale).Bold().
 													TextColor(selColor(on, clrPink, clrText)).MaxLines(1)
-												ui.Text(c, cand.Artist+" · "+candDurText(cand.Duration)).FontSize(11).TextColor(clrMuted).MaxLines(1)
+												ui.Text(c, cand.Artist+" · "+candDurText(cand.Duration)).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
 											})
 										})
 									})
@@ -568,9 +568,9 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 					})
 				})
 			} else if a.lyrDrawer == 2 {
-				ui.Box(c).AlignSelf(ui.Stretch).Radius(12).Background(clrCardGlass).PaddingX(12).PaddingY(10).Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Wrap().Children(func() {
-						ui.Text(c, "字号").FontSize(11).TextColor(clrMuted)
+				ui.Box(c).AlignSelf(ui.Stretch).Radius(12 * uiScale).Background(clrCardGlass).PaddingX(12 * uiScale).PaddingY(10 * uiScale).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Wrap().Children(func() {
+						ui.Text(c, "字号").FontSize(11 * uiScale).TextColor(clrMuted)
 						if iconButton(c, "＋").Clicked() {
 							if a.lyricSize < 4 {
 								a.lyricSize++
@@ -578,7 +578,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 								a.win.Invalidate()
 							}
 						}
-						ui.Text(c, fmt.Sprintf("%d/5", a.lyricSize+1)).FontSize(11).TextColor(clrText)
+						ui.Text(c, fmt.Sprintf("%d/5", a.lyricSize+1)).FontSize(11 * uiScale).TextColor(clrText)
 						if iconButton(c, "－").Clicked() {
 							if a.lyricSize > 0 {
 								a.lyricSize--
@@ -586,12 +586,12 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 								a.win.Invalidate()
 							}
 						}
-						ui.Spacer(c).Width(8)
-						ui.Text(c, "对齐").FontSize(11).TextColor(clrMuted)
+						ui.Spacer(c).Width(8 * uiScale)
+						ui.Text(c, "对齐").FontSize(11 * uiScale).TextColor(clrMuted)
 						if iconButton(c, "▲").Clicked() {
 							a.nudgeLyric(0.5)
 						}
-						ui.Text(c, fmt.Sprintf("%.1fs", a.lyricOffset)).FontSize(10).TextColor(clrPink)
+						ui.Text(c, fmt.Sprintf("%.1fs", a.lyricOffset)).FontSize(10 * uiScale).TextColor(clrPink)
 						if iconButton(c, "▼").Clicked() {
 							a.nudgeLyric(-0.5)
 						}
@@ -602,12 +602,12 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 				})
 			}
 			// KTV 歌词（居中 + 渐底 + 点击跳句，同中栏）
-			ui.Box(c).Grow(1).Fill().Radius(12).Background(clrCardGlass).PaddingX(12).PaddingY(10).Children(func() {
+			ui.Box(c).Grow(1).Fill().Radius(12 * uiScale).Background(clrCardGlass).PaddingX(12 * uiScale).PaddingY(10 * uiScale).Children(func() {
 				curIdx, prog := a.lyricProg(a.posSec)
-				ui.Scroll(c).Fill().Gap(8).Children(func() {
-					ui.Column(c).AlignSelf(ui.Stretch).Gap(8).Children(func() {
+				ui.Scroll(c).Fill().Gap(8 * uiScale).Children(func() {
+					ui.Column(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Children(func() {
 						if len(a.lyricLines) == 0 {
-							ui.Text(c, "歌词加载中…").FontSize(14).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(30)
+							ui.Text(c, "歌词加载中…").FontSize(14 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(30 * uiScale)
 							return
 						}
 						for i, ln := range a.lyricLines {
@@ -623,7 +623,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 								col = ui.RGB(0xff, 0xff, 0xff)
 								size = a.lyricFontSize() * 1.3
 							}
-							row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(4).PaddingX(8).Radius(8)
+							row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(4 * uiScale).PaddingX(8 * uiScale).Radius(8 * uiScale)
 							row.Draw(func(p *ui.Painter, r ui.Rect) {
 								if active {
 									p.FillGradient(ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(prog), H: r.H},
@@ -631,9 +631,9 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 								}
 							})
 							row.Children(func() {
-								ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Justify(ui.Center).Gap(8).Children(func() {
+								ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Justify(ui.Center).Gap(8 * uiScale).Children(func() {
 									if a.lyricTime {
-										ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(10).TextColor(clrMuted)
+										ui.Text(c, lyricTimeStr(lyricLineTime(ln))).FontSize(10 * uiScale).TextColor(clrMuted)
 									}
 									ui.Text(c, text).FontSize(size).Bold().TextColor(col).LineHeight(1.8)
 								})
@@ -649,10 +649,10 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 					})
 				})
 			})
-			ui.Row(c).AlignSelf(ui.Stretch).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, a.posText).FontSize(12).TextColor(clrMuted)
+			ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, a.posText).FontSize(12 * uiScale).TextColor(clrMuted)
 				a.progressBarSized(c, a.progress, 5, true).Grow(1)
-				ui.Text(c, a.durText).FontSize(12).TextColor(clrMuted)
+				ui.Text(c, a.durText).FontSize(12 * uiScale).TextColor(clrMuted)
 			})
 		})
 	})
@@ -668,12 +668,12 @@ func selColor(on bool, yes, no ui.Color) ui.Color {
 
 // queuePage 队列页：最近播放 + 上次在听 + 播放列表（对齐主线 last-view/recent-view/queue-view）。
 func (a *app) queuePage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14).Children(func() {
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
 		// 最近播放横排小卡（对齐主线 recent-view：最多 10 显示 + 清空）
 		if len(a.recent) > 0 {
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
-				ui.Text(c, "最近播放").FontSize(16).Bold().TextColor(clrText)
-				ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(12).TextColor(clrMuted)
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+				ui.Text(c, "最近播放").FontSize(16 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(12 * uiScale).TextColor(clrMuted)
 				ui.Spacer(c).Grow(1)
 				if chip(c, "查看全部").Clicked() {
 					a.setTab("recent")
@@ -684,15 +684,15 @@ func (a *app) queuePage(c *ui.Context) {
 					a.win.Invalidate()
 				}
 			})
-			ui.Scroll(c).AlignSelf(ui.Stretch).Gap(10).Children(func() {
-				ui.Row(c).Gap(10).Children(func() {
+			ui.Scroll(c).AlignSelf(ui.Stretch).Gap(10 * uiScale).Children(func() {
+				ui.Row(c).Gap(10 * uiScale).Children(func() {
 					n := len(a.recent)
 					if n > 10 {
 						n = 10
 					}
 					for _, r := range a.recent[:n] {
 						r := r
-						box := ui.Box(c).Width(88).Height(88).Radius(12)
+						box := ui.Box(c).Width(88 * uiScale).Height(88 * uiScale).Radius(12 * uiScale)
 						box.Draw(func(p *ui.Painter, b ui.Rect) {
 							p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
 							if img, ok := a.covers[r.BVID]; ok {
@@ -714,9 +714,9 @@ func (a *app) queuePage(c *ui.Context) {
 				})
 			})
 		}
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
-			ui.Text(c, "播放队列").FontSize(20).Bold().TextColor(clrText)
-			ui.Text(c, fmt.Sprintf("%d 首", len(a.playlist))).FontSize(13).TextColor(clrMuted)
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+			ui.Text(c, "播放队列").FontSize(20 * uiScale).Bold().TextColor(clrText)
+			ui.Text(c, fmt.Sprintf("%d 首", len(a.playlist))).FontSize(13 * uiScale).TextColor(clrMuted)
 			ui.Spacer(c).Grow(1)
 			if len(a.playlist) > 0 {
 				if chip(c, "清空队列").Clicked() {
@@ -726,13 +726,13 @@ func (a *app) queuePage(c *ui.Context) {
 		})
 		// 上次在听（对齐原项目）
 		if a.current != nil {
-			ui.Box(c).Fill().Radius(16).PaddingX(18).PaddingY(16).Background(clrCardGlass).Children(func() {
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16).Children(func() {
+			ui.Box(c).Fill().Radius(16 * uiScale).PaddingX(18 * uiScale).PaddingY(16 * uiScale).Background(clrCardGlass).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
 					a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
-					ui.Column(c).Grow(1).Gap(4).Children(func() {
-						ui.Text(c, "上次在听").FontSize(12).TextColor(clrMuted)
-						ui.Text(c, a.current.title).FontSize(17).Bold().TextColor(clrText).MaxLines(1)
-						ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+					ui.Column(c).Grow(1).Gap(4 * uiScale).Children(func() {
+						ui.Text(c, "上次在听").FontSize(12 * uiScale).TextColor(clrMuted)
+						ui.Text(c, a.current.title).FontSize(17 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+						ui.Text(c, a.current.author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
 					})
 					if gradButton(c, "继续播放").Clicked() {
 						go a.play(*a.currentToItem())
@@ -741,10 +741,10 @@ func (a *app) queuePage(c *ui.Context) {
 			})
 		}
 		if len(a.playlist) == 0 {
-			ui.Column(c).Fill().Center().Gap(10).Children(func() {
+			ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
 				icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-				ui.Text(c, "队列为空").FontSize(17).Bold().TextColor(clrText)
-				ui.Text(c, "随便点一首歌，队列会自动出现在这里").FontSize(13).TextColor(clrMuted)
+				ui.Text(c, "队列为空").FontSize(17 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, "随便点一首歌，队列会自动出现在这里").FontSize(13 * uiScale).TextColor(clrMuted)
 				if gradButton(c, "去搜索").Clicked() {
 					a.setTab("search")
 				}
@@ -752,7 +752,7 @@ func (a *app) queuePage(c *ui.Context) {
 			return
 		}
 		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Column(c).Gap(6).Children(func() {
+			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for i, item := range a.playlist {
 					a.queueRow(c, i, item)
 				}
@@ -763,10 +763,10 @@ func (a *app) queuePage(c *ui.Context) {
 
 // recentPage 最近播放全页（对齐主线 /hx/recent：最多 30 首列表）。
 func (a *app) recentPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14).Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
-			ui.Text(c, "最近播放").FontSize(20).Bold().TextColor(clrText)
-			ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(13).TextColor(clrMuted)
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+			ui.Text(c, "最近播放").FontSize(20 * uiScale).Bold().TextColor(clrText)
+			ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(13 * uiScale).TextColor(clrMuted)
 			ui.Spacer(c).Grow(1)
 			if len(a.recent) > 0 {
 				if chip(c, "清空").Clicked() {
@@ -777,10 +777,10 @@ func (a *app) recentPage(c *ui.Context) {
 			}
 		})
 		if len(a.recent) == 0 {
-			ui.Column(c).Fill().Center().Gap(10).Children(func() {
+			ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
 				icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-				ui.Text(c, "还没有播放记录").FontSize(17).Bold().TextColor(clrText)
-				ui.Text(c, "听过的歌会出现在这里，最多保留 30 首").FontSize(13).TextColor(clrMuted)
+				ui.Text(c, "还没有播放记录").FontSize(17 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, "听过的歌会出现在这里，最多保留 30 首").FontSize(13 * uiScale).TextColor(clrMuted)
 				if gradButton(c, "去搜索").Clicked() {
 					a.setTab("search")
 				}
@@ -788,7 +788,7 @@ func (a *app) recentPage(c *ui.Context) {
 			return
 		}
 		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Column(c).Gap(6).Children(func() {
+			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for _, item := range a.recent {
 					a.listRow(c, item)
 				}
@@ -808,7 +808,7 @@ func (a *app) currentToItem() *bilibili.SearchItem {
 // queueRow 队列行：序号 + 封面 + 标题/作者 + 当前播放高亮。
 func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 	isCur := a.current != nil && a.current.bvid == item.BVID && i == a.playIndex
-	box := ui.Box(c).Fill().Height(64).Radius(12).PaddingX(12).Gap(12)
+	box := ui.Box(c).Fill().Height(64 * uiScale).Radius(12 * uiScale).PaddingX(12 * uiScale).Gap(12 * uiScale)
 	if isCur {
 		box.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.FillGradient(r, grad(), 12)
@@ -818,19 +818,19 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 		box.Background(clrCard)
 	}
 	box.Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, fmt.Sprintf("%02d", i+1)).FontSize(13).TextColor(clrMuted).Width(26)
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(12 * uiScale).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, fmt.Sprintf("%02d", i+1)).FontSize(13 * uiScale).TextColor(clrMuted).Width(26 * uiScale)
 			if btn, ok := box.PressedButton(); ok && btn == 2 {
 				it := item
 				a.openCtxMenu(&it)
 			}
 			a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
-			ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
 				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
-				ui.Text(c, item.Author).FontSize(12).TextColor(clrMuted).MaxLines(1)
+				ui.Text(c, item.Author).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1)
 			})
 			if isCur {
-				ui.Text(c, "▶ 播放中").FontSize(12).TextColor(clrPink).Bold()
+				ui.Text(c, "▶ 播放中").FontSize(12 * uiScale).TextColor(clrPink).Bold()
 			}
 			if iconButton(c, "✕").Clicked() {
 				a.pb.RemoveQueue(item.BVID)
@@ -844,10 +844,10 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 
 // favPage 收藏页。
 func (a *app) favPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14).Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
-			ui.Text(c, "我的收藏").FontSize(20).Bold().TextColor(clrText)
-			ui.Text(c, fmt.Sprintf("%d 首", len(a.favorites))).FontSize(13).TextColor(clrMuted)
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+			ui.Text(c, "我的收藏").FontSize(20 * uiScale).Bold().TextColor(clrText)
+			ui.Text(c, fmt.Sprintf("%d 首", len(a.favorites))).FontSize(13 * uiScale).TextColor(clrMuted)
 			ui.Spacer(c).Grow(1)
 			if len(a.favorites) > 0 {
 				if gradButton(c, "播放全部").Clicked() {
@@ -861,10 +861,10 @@ func (a *app) favPage(c *ui.Context) {
 			}
 		})
 		if len(a.favorites) == 0 {
-			ui.Column(c).Fill().Center().Gap(12).Children(func() {
+			ui.Column(c).Fill().Center().Gap(12 * uiScale).Children(func() {
 				icon(c, icHeart, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-				ui.Text(c, "收藏夹还是空的").FontSize(17).Bold().TextColor(clrText)
-				ui.Text(c, "听歌时点卡片上的 ♥ 收藏").FontSize(13).TextColor(clrMuted)
+				ui.Text(c, "收藏夹还是空的").FontSize(17 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, "听歌时点卡片上的 ♥ 收藏").FontSize(13 * uiScale).TextColor(clrMuted)
 				if gradButton(c, "去搜索").Clicked() {
 					a.setTab("search")
 				}
@@ -872,7 +872,7 @@ func (a *app) favPage(c *ui.Context) {
 			return
 		}
 		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Column(c).Gap(6).Children(func() {
+			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for _, item := range a.favorites {
 					a.favRow(c, item)
 				}
@@ -883,17 +883,17 @@ func (a *app) favPage(c *ui.Context) {
 
 // favRow 收藏行。
 func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
-	box := ui.Box(c).Fill().Height(64).Radius(12).PaddingX(12).Background(clrCard)
+	box := ui.Box(c).Fill().Height(64 * uiScale).Radius(12 * uiScale).PaddingX(12 * uiScale).Background(clrCard)
 	box.Children(func() {
 		if btn, ok := box.PressedButton(); ok && btn == 2 {
 			it := item
 			a.openCtxMenu(&it)
 		}
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(12).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(12 * uiScale).AlignItems(ui.Center).Children(func() {
 			a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
-			ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
 				ui.Text(c, item.Title).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
-				ui.Text(c, item.Author).FontSize(12).TextColor(clrMuted).MaxLines(1)
+				ui.Text(c, item.Author).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1)
 			})
 			if iconButton2(c, icHeart, 32, clrPink).Clicked() {
 				a.svc.fav.Remove(item.BVID)
@@ -910,14 +910,14 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 // settingsPage 设置页：全量对齐主线 settings.js 渲染的 11 个区块
 // （主题模式/网页字幕条/音质/播放模式/歌词字号/歌词背景/歌词时间/字幕字号/歌曲缓存/歌词缓存/数据/关于）。
 func (a *app) settingsPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(10).Children(func() {
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(10 * uiScale).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "设置").FontSize(20).Bold().TextColor(clrText)
+			ui.Text(c, "设置").FontSize(20 * uiScale).Bold().TextColor(clrText)
 			ui.Spacer(c).Grow(1)
-			ui.Text(c, "自动 ／ 明亮 ／ 暗黑（点击切换）").FontSize(12).TextColor(clrMuted)
+			ui.Text(c, "自动 ／ 明亮 ／ 暗黑（点击切换）").FontSize(12 * uiScale).TextColor(clrMuted)
 		})
-		ui.Scroll(c).Grow(1).Gap(10).Children(func() {
-			ui.Column(c).Gap(10).Children(func() {
+		ui.Scroll(c).Grow(1).Gap(10 * uiScale).Children(func() {
+			ui.Column(c).Gap(10 * uiScale).Children(func() {
 				// 1 主题模式（主线 THEMES 三态：自动/明亮/暗黑；持久化 settings kv）
 				a.setRow(c, "主题模式")
 				a.setRowSeg(c, []string{"自动", "明亮", "暗黑"}, a.themeMode, func(i int) {
@@ -1018,20 +1018,20 @@ func (a *app) settingsPage(c *ui.Context) {
 
 // setRow 区块标题行。
 func (a *app) setRow(c *ui.Context, label string) {
-	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).PaddingX(4).Children(func() {
-		ui.Text(c, label).FontSize(15).Bold().TextColor(clrText)
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).PaddingX(4 * uiScale).Children(func() {
+		ui.Text(c, label).FontSize(15 * uiScale).Bold().TextColor(clrText)
 		ui.Spacer(c).Grow(1)
 	})
 }
 
 // setRowText 区块内说明文字行（对齐主线 text-xs text-gray-500）。
 func (a *app) setRowText(c *ui.Context, txt string) {
-	ui.Text(c, txt).FontSize(12).TextColor(clrMuted).PaddingX(4)
+	ui.Text(c, txt).FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 }
 
 // setRowSeg 分段按钮行（对齐主线 flex gap-2 圆角按钮组）。
 func (a *app) setRowSeg(c *ui.Context, opts []string, cur int, cb func(int)) {
-	ui.Row(c).Gap(a.resp(10, 8)).PaddingX(4).Wrap().Children(func() {
+	ui.Row(c).Gap(a.resp(10, 8)).PaddingX(4 * uiScale).Wrap().Children(func() {
 		for i, opt := range opts {
 			i, opt := i, opt
 			if segBtn(c, opt, i == cur).Clicked() {
@@ -1043,19 +1043,19 @@ func (a *app) setRowSeg(c *ui.Context, opts []string, cur int, cb func(int)) {
 
 // setRowSwitch 开关行（对齐主线 w-11 h-6 滑动开关）。
 func (a *app) setRowSwitch(c *ui.Context, label, hint string, on bool, cb func(bool)) {
-	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).PaddingX(4).Children(func() {
-		ui.Text(c, label).FontSize(14).Bold().TextColor(clrText)
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).PaddingX(4 * uiScale).Children(func() {
+		ui.Text(c, label).FontSize(14 * uiScale).Bold().TextColor(clrText)
 		ui.Spacer(c).Grow(1)
 		if switchToggle(c, on).Clicked() {
 			cb(!on)
 		}
 	})
-	ui.Text(c, hint).FontSize(11).TextColor(clrMuted).PaddingX(4)
+	ui.Text(c, hint).FontSize(11 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 }
 
 // setRowBtns 操作按钮行（对齐主线 清空xxx 描边小按钮）。
 func (a *app) setRowBtns(c *ui.Context, labels []string, cb func(int)) {
-	ui.Row(c).Gap(8).PaddingX(4).Children(func() {
+	ui.Row(c).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
 		for i, l := range labels {
 			i, l := i, l
 			if chip(c, l).Clicked() {
@@ -1129,13 +1129,13 @@ func (a *app) historyCount() string {
 
 // settingRow 设置项行（左标签 + 右文案，对齐主线 settings 行布局）。
 func (a *app) settingRow(c *ui.Context, label, value, hint string) {
-	ui.Box(c).Fill().Height(56).Radius(12).PaddingX(16).Background(clrCard).Children(func() {
+	ui.Box(c).Fill().Height(56 * uiScale).Radius(12 * uiScale).PaddingX(16 * uiScale).Background(clrCard).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, label).FontSize(a.resp(15, 14)).TextColor(clrText).Bold().Width(a.resp(140, 104))
-			ui.Text(c, value).FontSize(13).TextColor(clrMuted)
+			ui.Text(c, value).FontSize(13 * uiScale).TextColor(clrMuted)
 			ui.Spacer(c).Grow(1)
 			if hint != "" {
-				ui.Text(c, hint).FontSize(12).TextColor(clrMuted)
+				ui.Text(c, hint).FontSize(12 * uiScale).TextColor(clrMuted)
 			}
 		})
 	})
@@ -1143,10 +1143,10 @@ func (a *app) settingRow(c *ui.Context, label, value, hint string) {
 
 // settingRowSwitch 开关行（对齐主线网页字幕条开关）。
 func (a *app) settingRowSwitch(c *ui.Context, label string, on bool, hint string, cb func(bool)) {
-	ui.Box(c).Fill().Height(56).Radius(12).PaddingX(16).Background(clrCard).Children(func() {
+	ui.Box(c).Fill().Height(56 * uiScale).Radius(12 * uiScale).PaddingX(16 * uiScale).Background(clrCard).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, label).FontSize(a.resp(15, 14)).TextColor(clrText).Bold().Width(a.resp(140, 104))
-			ui.Text(c, hint).FontSize(13).TextColor(clrMuted)
+			ui.Text(c, hint).FontSize(13 * uiScale).TextColor(clrMuted)
 			ui.Spacer(c).Grow(1)
 			if switchToggle(c, on).Clicked() {
 				cb(!on)
@@ -1157,10 +1157,10 @@ func (a *app) settingRowSwitch(c *ui.Context, label string, on bool, hint string
 
 // settingRowSeg 分段选择行（对齐主线 settings 的音质/播放模式按钮组）。
 func (a *app) settingRowSeg(c *ui.Context, label string, opts []string, cur int, cb func(int)) {
-	ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(10).Background(clrCard).Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
+	ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
 			ui.Text(c, label).FontSize(a.resp(15, 14)).TextColor(clrText).Bold().Width(a.resp(140, 104))
-			ui.Row(c).Gap(6).Children(func() {
+			ui.Row(c).Gap(6 * uiScale).Children(func() {
 				for i, opt := range opts {
 					i, opt := i, opt
 					if segBtn(c, opt, i == cur).Clicked() {
@@ -1174,7 +1174,7 @@ func (a *app) settingRowSeg(c *ui.Context, label string, opts []string, cur int,
 
 // switchToggle 开关（开=紫高亮）。
 func switchToggle(c *ui.Context, on bool) ui.Element {
-	box := ui.Box(c).Size(46, 26).Radius(13)
+	box := ui.Box(c).Size(46, 26).Radius(13 * uiScale)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if on {
 			p.FillGradient(r, grad(), 13)
@@ -1183,7 +1183,7 @@ func switchToggle(c *ui.Context, on bool) ui.Element {
 		}
 	})
 	box.Children(func() {
-		knob := ui.Box(c).Size(20, 20).Radius(10).Absolute().Top(3)
+		knob := ui.Box(c).Size(20, 20).Radius(10 * uiScale).Absolute().Top(3)
 		if on {
 			knob.Left(23)
 		} else {
@@ -1196,7 +1196,7 @@ func switchToggle(c *ui.Context, on bool) ui.Element {
 
 // segBtn 分段按钮（选中=渐变胶囊）。
 func segBtn(c *ui.Context, label string, on bool) ui.Element {
-	box := ui.Box(c).Height(32).Radius(16).PaddingX(12).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Height(32 * uiScale).Radius(16 * uiScale).PaddingX(12 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if on {
 			p.FillGradient(r, grad(), 16)
@@ -1211,16 +1211,16 @@ func segBtn(c *ui.Context, label string, on bool) ui.Element {
 		if on {
 			col = ui.RGB(0xff, 0xff, 0xff)
 		}
-		ui.Text(c, label).FontSize(13).TextColor(col)
+		ui.Text(c, label).FontSize(13 * uiScale).TextColor(col)
 	})
 	return box
 }
 
 // castPage 投屏/音箱页：DLNA 设备发现 + 投当前歌 + 小米音箱（SSOT：cast/speaker 域包）。
 func (a *app) castPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12).Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
-			ui.Text(c, "投屏 / 音箱").FontSize(20).Bold().TextColor(clrText)
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12 * uiScale).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+			ui.Text(c, "投屏 / 音箱").FontSize(20 * uiScale).Bold().TextColor(clrText)
 			ui.Spacer(c).Grow(1)
 			if gradButton(c, "发现设备").Clicked() {
 				go a.discoverCast()
@@ -1228,10 +1228,10 @@ func (a *app) castPage(c *ui.Context) {
 		})
 		// 当前投屏状态（对齐主线 d-stop：投屏中可停止）
 		if a.castOn != "" {
-			ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(12).Background(clrCard).Children(func() {
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+			ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
 					icon(c, icCast, 18, clrPink)
-					ui.Text(c, "正在投屏："+a.castOn).FontSize(14).TextColor(clrText).Bold()
+					ui.Text(c, "正在投屏："+a.castOn).FontSize(14 * uiScale).TextColor(clrText).Bold()
 					ui.Spacer(c).Grow(1)
 					if chip(c, "停止投屏").Clicked() {
 						a.stopCast()
@@ -1242,13 +1242,13 @@ func (a *app) castPage(c *ui.Context) {
 		// 小米音箱（SSOT：xiaoai auth 登录态；未登录→扫码；已登录→账户头+刷新+导出 token）
 		loggedIn := a.svc != nil && a.svc.speakerLoggedIn()
 		if loggedIn {
-			ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(12).Background(clrCard).Children(func() {
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
+			ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
 					icon(c, icMsg, 18, clrPurple)
-					ui.Column(c).Grow(1).Gap(2).Children(func() {
-						ui.Text(c, "小爱音箱").FontSize(14).Bold().TextColor(clrText)
+					ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+						ui.Text(c, "小爱音箱").FontSize(14 * uiScale).Bold().TextColor(clrText)
 						uid := a.svc.speakerUserID()
-						ui.Text(c, "已登录 · "+uid).FontSize(11).TextColor(clrMuted)
+						ui.Text(c, "已登录 · "+uid).FontSize(11 * uiScale).TextColor(clrMuted)
 					})
 					if chip(c, "刷新设备").Clicked() {
 						go a.refreshSpeakers()
@@ -1266,8 +1266,8 @@ func (a *app) castPage(c *ui.Context) {
 			})
 		} else {
 			if a.qrImage != "" {
-				ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(12).Background(clrCard).Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16).Children(func() {
+				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
 						// 二维码图（UI 解码 data URI）
 						ui.Box(c).Size(120, 120).Draw(func(p *ui.Painter, r ui.Rect) {
 							if img, ok := a.covers["__qr__"]; ok {
@@ -1275,18 +1275,18 @@ func (a *app) castPage(c *ui.Context) {
 							}
 							p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
 						})
-						ui.Column(c).Grow(1).Gap(6).Children(func() {
-							ui.Text(c, "小米音箱扫码登录").FontSize(14).Bold().TextColor(clrText)
-							ui.Text(c, "用米家 App 扫描二维码登录").FontSize(12).TextColor(clrMuted)
-							ui.Text(c, a.qrStatus).FontSize(12).TextColor(clrPink)
+						ui.Column(c).Grow(1).Gap(6 * uiScale).Children(func() {
+							ui.Text(c, "小米音箱扫码登录").FontSize(14 * uiScale).Bold().TextColor(clrText)
+							ui.Text(c, "用米家 App 扫描二维码登录").FontSize(12 * uiScale).TextColor(clrMuted)
+							ui.Text(c, a.qrStatus).FontSize(12 * uiScale).TextColor(clrPink)
 						})
 					})
 				})
 			}
-			ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(10).Background(clrCard).Children(func() {
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
+			ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
 					icon(c, icMsg, 18, clrMuted)
-					ui.Text(c, "小爱音箱未登录").FontSize(13).TextColor(clrText).Grow(1)
+					ui.Text(c, "小爱音箱未登录").FontSize(13 * uiScale).TextColor(clrText).Grow(1)
 					if gradButton(c, "扫码登录").Clicked() {
 						go a.startSpeakerLogin()
 					}
@@ -1296,17 +1296,17 @@ func (a *app) castPage(c *ui.Context) {
 		// 音箱设备列表（登录后展示，SSOT speaker）
 		if loggedIn {
 			if len(a.speakers) == 0 {
-				ui.Text(c, "音箱：点「刷新设备」获取设备列表").FontSize(12).TextColor(clrMuted).PaddingX(4)
+				ui.Text(c, "音箱：点「刷新设备」获取设备列表").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 			}
 			for _, sp := range a.speakers {
 				sp := sp
-				row := ui.Box(c).Fill().Height(56).Radius(12).PaddingX(14).Background(clrCard)
+				row := ui.Box(c).Fill().Height(56 * uiScale).Radius(12 * uiScale).PaddingX(14 * uiScale).Background(clrCard)
 				row.Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
 						icon(c, icVol, 18, clrMuted)
-						ui.Column(c).Grow(1).Gap(2).Children(func() {
-							ui.Text(c, sp.Name).FontSize(14).Bold().TextColor(clrText).MaxLines(1)
-							ui.Text(c, sp.DID).FontSize(11).TextColor(clrMuted)
+						ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+							ui.Text(c, sp.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+							ui.Text(c, sp.DID).FontSize(11 * uiScale).TextColor(clrMuted)
 						})
 						if gradButton(c, "播放").Clicked() {
 							go a.playToSpeaker(sp.DID, sp.Name)
@@ -1315,24 +1315,24 @@ func (a *app) castPage(c *ui.Context) {
 				})
 			}
 		}
-		ui.Text(c, "DLNA 设备").FontSize(14).Bold().TextColor(clrText).PaddingX(4)
+		ui.Text(c, "DLNA 设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
 		if len(a.castDevices) == 0 {
-			ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12).TextColor(clrMuted).PaddingX(4)
+			ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 		}
-		ui.Scroll(c).Grow(1).Gap(6).Children(func() {
-			ui.Column(c).Gap(8).Children(func() {
+		ui.Scroll(c).Grow(1).Gap(6 * uiScale).Children(func() {
+			ui.Column(c).Gap(8 * uiScale).Children(func() {
 				for _, d := range a.castDevices {
 					d := d
-					row := ui.Box(c).Fill().Height(56).Radius(12).PaddingX(14).Background(clrCard)
+					row := ui.Box(c).Fill().Height(56 * uiScale).Radius(12 * uiScale).PaddingX(14 * uiScale).Background(clrCard)
 					if row.Hovered() {
 						row.Background(clrCardHov)
 					}
 					row.Children(func() {
-						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
 							icon(c, icCast, 18, clrMuted)
-							ui.Column(c).Grow(1).Gap(2).Children(func() {
-								ui.Text(c, d.Name).FontSize(14).Bold().TextColor(clrText).MaxLines(1)
-								ui.Text(c, d.IP+":"+fmt.Sprintf("%d", d.Port)).FontSize(11).TextColor(clrMuted)
+							ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+								ui.Text(c, d.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+								ui.Text(c, d.IP+":"+fmt.Sprintf("%d", d.Port)).FontSize(11 * uiScale).TextColor(clrMuted)
 							})
 							if gradButton(c, "投屏").Clicked() {
 								go a.castTo(d.UDN, d.Name)
@@ -1511,22 +1511,22 @@ func (a *app) ctxMenu(c *ui.Context) {
 	if a.winH <= 0 {
 		ly = 300
 	}
-	menu := ui.Box(c).Absolute().Left(lx).Top(ly).Width(w).Height(h).Radius(12).Background(clrCard).PaddingY(4)
+	menu := ui.Box(c).Absolute().Left(lx).Top(ly).Width(w).Height(h).Radius(12 * uiScale).Background(clrCard).PaddingY(4 * uiScale)
 	menu.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Shadow(r, 16, 0, 10, 36, 0, ui.RGBA(0, 0, 0, 0.45))
 		p.FillRadii(r, [4]float32{12, 12, 12, 12}, clrCard)
 	})
 	menu.Children(func() {
-		ui.Column(c).Gap(0).Children(func() {
+		ui.Column(c).Gap(0 * uiScale).Children(func() {
 			for _, it := range items {
 				it := it
-				row := ui.Box(c).Fill().Height(38).PaddingX(12)
+				row := ui.Box(c).Fill().Height(38 * uiScale).PaddingX(12 * uiScale)
 				if row.Hovered() {
 					row.Background(clrField)
 				}
 				row.Children(func() {
 					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, it.label).FontSize(13).TextColor(clrText)
+						ui.Text(c, it.label).FontSize(13 * uiScale).TextColor(clrText)
 					})
 				})
 				if row.Clicked() {

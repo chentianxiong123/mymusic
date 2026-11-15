@@ -147,10 +147,12 @@ func (a *app) narrow() bool {
 
 // resp 响应式尺寸：正常值 / 紧凑值按当前窗口宽度选。
 func (a *app) resp(normal, narrow float32) float32 {
+	// 跟随系统文字缩放（对齐主线 GUI 150%：渲染 px 乘 uiScale）
+	v := normal
 	if a.compact() {
-		return narrow
+		v = narrow
 	}
-	return normal
+	return v * uiScale
 }
 
 func (a *app) view(c *ui.Context) {
@@ -175,8 +177,8 @@ func (a *app) view(c *ui.Context) {
 				a.searchBar(c)
 				a.searchChips(c)
 				a.resultsHeader(c)
-				ui.Scroll(c).Grow(1).PaddingX(a.resp(24, 12)).Gap(8).Children(func() {
-					ui.Column(c).Gap(8).Children(func() {
+				ui.Scroll(c).Grow(1).PaddingX(a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
+					ui.Column(c).Gap(8 * uiScale).Children(func() {
 						for _, r := range a.results {
 							a.listRow(c, r)
 						}
@@ -208,7 +210,7 @@ func (a *app) navBar(c *ui.Context) {
 	} else {
 		a.navBarDesktop(c)
 	}
-	ui.Box(c).AlignSelf(ui.Stretch).Height(1).Draw(func(p *ui.Painter, r ui.Rect) {
+	ui.Box(c).AlignSelf(ui.Stretch).Height(1 * uiScale).Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Fill(r, clrCard, 0)
 	})
 	if a.navOpen {
@@ -220,7 +222,7 @@ func (a *app) navBar(c *ui.Context) {
 func (a *app) navBarDesktop(c *ui.Context) {
 	px := a.resp(20, 12)
 	navGap := a.resp(6, 3)
-	ui.Row(c).AlignSelf(ui.Stretch).Height(64).PaddingX(px).Gap(navGap).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).AlignSelf(ui.Stretch).Height(64 * uiScale).PaddingX(px).Gap(navGap).AlignItems(ui.Center).Children(func() {
 		icon(c, icMusic, a.resp(24, 20), clrText)
 		ui.Spacer(c).Width(a.resp(10, 4))
 		if navTab(c, icList, "队列", a.activeTab == "queue", false).Clicked() {
@@ -243,9 +245,9 @@ func (a *app) navBarDesktop(c *ui.Context) {
 
 // navBarMobile 移动导航（主线 md:hidden 同款）：logo + 汉堡按钮（右），无多余开关。
 func (a *app) navBarMobile(c *ui.Context) {
-	ui.Row(c).AlignSelf(ui.Stretch).Height(56).PaddingX(12).Gap(10).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).AlignSelf(ui.Stretch).Height(56 * uiScale).PaddingX(12 * uiScale).Gap(10 * uiScale).AlignItems(ui.Center).Children(func() {
 		icon(c, icMusic, 20, clrText)
-		ui.Text(c, "myMusic").FontSize(15).Bold().TextColor(clrText)
+		ui.Text(c, "myMusic").FontSize(15 * uiScale).Bold().TextColor(clrText)
 		ui.Spacer(c).Grow(1)
 		if iconButton2(c, icMenu, 34, clrMuted).Clicked() {
 			a.navOpen = !a.navOpen
@@ -266,12 +268,12 @@ func (a *app) navPanel(c *ui.Context) {
 			a.navOpen = false
 		}
 		// 面板：左上浮层（w-48 风格）
-		panel := ui.Box(c).Absolute().Left(12).Top(64).Width(200).Radius(16).PaddingX(10).PaddingY(10).Background(clrCard)
+		panel := ui.Box(c).Absolute().Left(12).Top(64).Width(200 * uiScale).Radius(16 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale).Background(clrCard)
 		panel.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.Shadow(r, 16, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.45))
 		})
 		panel.Children(func() {
-			ui.Column(c).Gap(4).Children(func() {
+			ui.Column(c).Gap(4 * uiScale).Children(func() {
 				items := []struct {
 					tab   string
 					label string
@@ -297,20 +299,20 @@ func (a *app) navPanel(c *ui.Context) {
 
 // navPanelRow 侧滑面板里的一个导航项。
 func (a *app) navPanelRow(c *ui.Context, s *ui.SVG, label string, active bool, onPick func()) {
-	box := ui.Box(c).Fill().Height(42).Radius(10).PaddingX(12)
+	box := ui.Box(c).Fill().Height(42 * uiScale).Radius(10 * uiScale).PaddingX(12 * uiScale)
 	if active {
 		box.Background(clrField)
 	} else if box.Hovered() {
 		box.Background(clrField)
 	}
 	box.Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
 			col := clrMuted
 			if active {
 				col = clrPink
 			}
 			icon(c, s, 18, col)
-			ui.Text(c, label).FontSize(14).TextColor(col)
+			ui.Text(c, label).FontSize(14 * uiScale).TextColor(col)
 		})
 	})
 	if box.Clicked() {
@@ -320,9 +322,9 @@ func (a *app) navPanelRow(c *ui.Context, s *ui.SVG, label string, active bool, o
 
 // navTab 导航项：当前高亮为紫渐变胶囊；hover 淡高亮。iconOnly 时只显示图标。
 func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) ui.Element {
-	box := ui.Box(c).Height(40).Radius(20).PaddingX(16).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Height(40 * uiScale).Radius(20 * uiScale).PaddingX(16 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	if iconOnly {
-		box = ui.Box(c).Size(40, 40).Radius(20).AlignItems(ui.Center).Justify(ui.Center)
+		box = ui.Box(c).Size(40, 40).Radius(20 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	}
 	if active {
 		box.Draw(func(p *ui.Painter, r ui.Rect) {
@@ -342,10 +344,10 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) 
 		} else if box.Hovered() {
 			col = clrText
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(8 * uiScale).AlignItems(ui.Center).Children(func() {
 			icon(c, s, 18, col)
 			if !iconOnly {
-				ui.Text(c, label).FontSize(15).TextColor(col)
+				ui.Text(c, label).FontSize(15 * uiScale).TextColor(col)
 			}
 		})
 	})
@@ -355,7 +357,7 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) 
 // searchEmpty 空状态：居中大搜索框 + 热词标签 + 提示。
 // searchBar 常驻胶囊搜索框（对齐主线 content_search.html：搜索结果页顶部也保留）。
 func (a *app) searchBar(c *ui.Context) {
-	ui.Row(c).WidthPercent(a.resp(60, 90)).Height(52).Radius(26).Background(clrField).PaddingX(20).Gap(12).AlignItems(ui.Center).AlignSelf(ui.Center).Children(func() {
+	ui.Row(c).WidthPercent(a.resp(60, 90)).Height(52 * uiScale).Radius(26 * uiScale).Background(clrField).PaddingX(20 * uiScale).Gap(12 * uiScale).AlignItems(ui.Center).AlignSelf(ui.Center).Children(func() {
 		icon(c, icSearch, 20, clrMuted)
 		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).
 			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
@@ -368,7 +370,7 @@ func (a *app) searchBar(c *ui.Context) {
 // searchChips 搜索历史 / 默认热词（对齐主线 search-history）。
 func (a *app) searchChips(c *ui.Context) {
 	if len(a.searchHistory) > 0 {
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(8).Wrap().Justify(ui.Center).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Wrap().Justify(ui.Center).Children(func() {
 			for _, h := range a.searchHistory {
 				h := h
 				if chip(c, h).Clicked() {
@@ -386,7 +388,7 @@ func (a *app) searchChips(c *ui.Context) {
 		})
 	} else {
 		// 无历史 → 默认热词
-		ui.Row(c).Gap(8).Wrap().Justify(ui.Center).Children(func() {
+		ui.Row(c).Gap(8 * uiScale).Wrap().Justify(ui.Center).Children(func() {
 			for _, tag := range []string{"周杰伦", "晴天", "发如雪", "花海"} {
 				t := tag
 				if chip(c, tag).Clicked() {
@@ -399,16 +401,16 @@ func (a *app) searchChips(c *ui.Context) {
 }
 
 func (a *app) searchEmpty(c *ui.Context) {
-	ui.Column(c).Fill().Center().Gap(16).PaddingX(16).Children(func() {
+	ui.Column(c).Fill().Center().Gap(16 * uiScale).PaddingX(16 * uiScale).Children(func() {
 		a.searchBar(c)
 		a.searchChips(c)
-		ui.Text(c, "输入关键词开始搜索").TextColor(clrMuted).FontSize(15)
+		ui.Text(c, "输入关键词开始搜索").TextColor(clrMuted).FontSize(15 * uiScale)
 	})
 }
 
 // chip 小圆角标签。
 func chip(c *ui.Context, label string) ui.Element {
-	box := ui.Box(c).Height(30).Radius(15).PaddingX(12).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Height(30 * uiScale).Radius(15 * uiScale).PaddingX(12 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := clrCard
 		if box.Hovered() {
@@ -417,22 +419,22 @@ func chip(c *ui.Context, label string) ui.Element {
 		p.Fill(r, bg, r.H/2)
 	})
 	box.Children(func() {
-		ui.Text(c, label).FontSize(13).TextColor(clrMuted)
+		ui.Text(c, label).FontSize(13 * uiScale).TextColor(clrMuted)
 	})
 	return box
 }
 
 // resultsHeader 结果标题行：数量 + 状态 + 播放全部。
 func (a *app) resultsHeader(c *ui.Context) {
-	ui.Row(c).AlignSelf(ui.Stretch).PaddingX(a.resp(24, 12)).PaddingY(a.resp(14, 10)).AlignItems(ui.Center).Gap(10).Children(func() {
+	ui.Row(c).AlignSelf(ui.Stretch).PaddingX(a.resp(24, 12)).PaddingY(a.resp(14, 10)).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
 		ui.Text(c, "搜索结果").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
-		ui.Text(c, fmt.Sprintf("%d 首", len(a.results))).FontSize(13).TextColor(clrMuted)
+		ui.Text(c, fmt.Sprintf("%d 首", len(a.results))).FontSize(13 * uiScale).TextColor(clrMuted)
 		ui.Spacer(c).Grow(1)
 		if a.status != "" && !a.compact() {
-			ui.Text(c, a.status).FontSize(13).TextColor(clrMuted).MaxLines(1).MaxWidth(260)
+			ui.Text(c, a.status).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1).MaxWidth(260)
 		}
 		if a.compact() {
-			ui.Text(c, a.status).FontSize(12).TextColor(clrMuted).MaxLines(1).MaxWidth(120)
+			ui.Text(c, a.status).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1).MaxWidth(120)
 		}
 		// 播放全部（对齐主线 hidden sm:inline：窄屏只图标）
 		if a.compact() {
@@ -457,7 +459,7 @@ func (a *app) playerBar(c *ui.Context) {
 	brow := a.resp(40, 32) // 下排按钮
 	ui.Column(c).AlignSelf(ui.Stretch).Background(clrBar).PaddingX(px).PaddingY(a.resp(14, 10)).Gap(gap).Children(func() {
 		if a.current == nil {
-			ui.Text(c, "未在播放").TextColor(clrMuted).FontSize(15).PaddingY(24)
+			ui.Text(c, "未在播放").TextColor(clrMuted).FontSize(15 * uiScale).PaddingY(24 * uiScale)
 			return
 		}
 		// 字幕条（对齐主线：当前歌词行 + 关闭）
@@ -483,18 +485,18 @@ func (a *app) playerBar(c *ui.Context) {
 		})
 		// 进度行：时间 + 滑块 + 时长
 		ui.Row(c).AlignSelf(ui.Stretch).Gap(igap).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, a.posText).FontSize(13).TextColor(clrMuted).Width(a.resp(44, 36)).TextAlign(ui.End)
+			ui.Text(c, a.posText).FontSize(13 * uiScale).TextColor(clrMuted).Width(a.resp(44, 36)).TextAlign(ui.End)
 			a.progressBar(c, a.progress).Grow(1)
-			ui.Text(c, a.durText).FontSize(13).TextColor(clrMuted).Width(a.resp(44, 36))
+			ui.Text(c, a.durText).FontSize(13 * uiScale).TextColor(clrMuted).Width(a.resp(44, 36))
 		})
 		// 下排：封面 + 标题 | 收藏 + 字幕开关 + 上一首 + 播放 + 下一首
 		ui.Row(c).AlignSelf(ui.Stretch).Gap(a.resp(16, 10)).AlignItems(ui.Center).Children(func() {
 			info := ui.Row(c).Grow(1).Gap(brow / 3).AlignItems(ui.Center)
 			info.Children(func() {
 				a.coverTagged(c, a.current.bvid, a.current.pic, 56, true)
-				ui.Column(c).Grow(1).Gap(3).Children(func() {
+				ui.Column(c).Grow(1).Gap(3 * uiScale).Children(func() {
 					ui.Text(c, a.current.title).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
-					ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+					ui.Text(c, a.current.author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
 				})
 			})
 			if info.Clicked() {
@@ -570,10 +572,10 @@ func main() {
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "mymusic-mygo",
-			Width:     980,
-			Height:    680,
-			MinWidth:  500,
-			MinHeight: 480,
+			Width:     int(980 * uiScale),
+			Height:    int(680 * uiScale),
+			MinWidth:  int(500 * uiScale),
+			MinHeight: int(480 * uiScale),
 			Content:   ui.View(a.view),
 		})
 		// 分辨率适配：窗口尺寸变化时更新宽度感知（断点切换 compact），仅重绘不重建
@@ -607,11 +609,11 @@ func main() {
 
 // searchNotFound 搜索无结果空态（对齐主线 results.html 空态：未找到相关音乐 + 换关键词）。
 func (a *app) searchNotFound(c *ui.Context) {
-	ui.Column(c).Fill().Center().Gap(10).Children(func() {
+	ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
 		icon(c, icSearch, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-		ui.Text(c, "未找到相关音乐").FontSize(17).Bold().TextColor(clrText)
-		ui.Text(c, "换个关键词试试").FontSize(13).TextColor(clrMuted)
-		ui.Spacer(c).Height(8)
+		ui.Text(c, "未找到相关音乐").FontSize(17 * uiScale).Bold().TextColor(clrText)
+		ui.Text(c, "换个关键词试试").FontSize(13 * uiScale).TextColor(clrMuted)
+		ui.Spacer(c).Height(8 * uiScale)
 		if gradButton(c, "换个词继续搜").Clicked() {
 			a.query = ""
 			a.searched = false

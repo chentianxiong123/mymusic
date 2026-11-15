@@ -63,27 +63,27 @@ func grad() ui.LinearGradient {
 // gradButton 紫渐变圆角按钮。
 // playBtn 播放按钮（对齐主线结果行 hx-play：粉紫渐变圆角 + 播放三角 + "播放"）。
 func playBtn(c *ui.Context) ui.Element {
-	box := ui.Box(c).Height(34).Radius(17).PaddingX(14).AlignItems(ui.Center).Justify(ui.Center).
+	box := ui.Box(c).Height(34 * uiScale).Radius(17 * uiScale).PaddingX(14 * uiScale).AlignItems(ui.Center).Justify(ui.Center).
 		Draw(func(p *ui.Painter, r ui.Rect) {
 			p.FillGradient(r, grad(), r.H/2)
 		})
 	box.Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(6 * uiScale).AlignItems(ui.Center).Children(func() {
 			// 白色播放三角
 			icon(c, icPlay, 15, ui.RGB(0xff, 0xff, 0xff))
-			ui.Text(c, "播放").TextColor(ui.RGB(0xff, 0xff, 0xff)).FontSize(14).Bold()
+			ui.Text(c, "播放").TextColor(ui.RGB(0xff, 0xff, 0xff)).FontSize(14 * uiScale).Bold()
 		})
 	})
 	return box
 }
 
 func gradButton(c *ui.Context, label string) ui.Element {
-	box := ui.Box(c).Height(42).Radius(21).PaddingX(24).PaddingY(9).AlignItems(ui.Center).Justify(ui.Center).
+	box := ui.Box(c).Height(42 * uiScale).Radius(21 * uiScale).PaddingX(24 * uiScale).PaddingY(9 * uiScale).AlignItems(ui.Center).Justify(ui.Center).
 		Draw(func(p *ui.Painter, r ui.Rect) {
 			p.FillGradient(r, grad(), r.H/2)
 		})
 	box.Children(func() {
-		ui.Text(c, label).TextColor(ui.RGB(0xff, 0xff, 0xff)).FontSize(15).Bold()
+		ui.Text(c, label).TextColor(ui.RGB(0xff, 0xff, 0xff)).FontSize(15 * uiScale).Bold()
 	})
 	return box
 }
@@ -159,7 +159,7 @@ func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLy
 // rowShell 统一列表行容器：定高圆角卡 + 内容行 Fill 垂直居中。
 // 所有列表行（搜索/收藏/队列）复用，保证内部组件与容器对齐/居中统一。
 func (a *app) rowShell(c *ui.Context, h float32, fn func()) ui.Element {
-	box := ui.Box(c).Fill().Height(h).Radius(12).PaddingX(12)
+	box := ui.Box(c).Fill().Height(h).Radius(12 * uiScale).PaddingX(12 * uiScale)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if box.Hovered() {
 			p.Fill(r, clrCardHov, 12)
@@ -185,7 +185,7 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 	box := a.rowShell(c, rowH, func() {
 		// 封面（对齐主线 w-12 h-9 sm:w-20 sm:h-14 = 48×36 / 80×56 横向）
 		a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
-		ui.Column(c).Grow(1).Gap(2).Children(func() {
+		ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
 			title := bilibili.CleanHTML(item.Title)
 			tb := ui.Text(c, title).FontSize(a.resp(15, 14)).Bold().TextColor(clrText)
 			if expanded {
@@ -193,10 +193,10 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 			} else {
 				tb.MaxLines(1)
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, item.Author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+			ui.Row(c).Gap(8 * uiScale).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, item.Author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
 				if item.Duration != "" {
-					ui.Text(c, item.Duration).FontSize(12).TextColor(clrMuted)
+					ui.Text(c, item.Duration).FontSize(12 * uiScale).TextColor(clrMuted)
 				}
 			})
 		})
@@ -262,7 +262,7 @@ func (a *app) progressBarSized(c *ui.Context, frac float64, h float32, seek bool
 
 // playCircle 大号圆形播放/暂停按钮。
 func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
-	box := ui.Box(c).Size(size, size).Radius(size / 2)
+	box := ui.Box(c).Size(size*uiScale, size*uiScale).Radius(size * uiScale / 2)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.FillGradient(r, grad(), r.H/2)
 		if playing {
@@ -277,7 +277,7 @@ func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
 
 // iconButton 圆形图标按钮（歌词挂件开关等）。
 func iconButton(c *ui.Context, glyph string) ui.Element {
-	box := ui.Box(c).Size(34, 34).Radius(17).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Size(34, 34).Radius(17 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := clrCard
 		if box.Hovered() {
@@ -286,7 +286,7 @@ func iconButton(c *ui.Context, glyph string) ui.Element {
 		p.Fill(r, bg, r.H/2)
 	})
 	box.Children(func() {
-		ui.Text(c, glyph).TextColor(clrMuted).FontSize(14)
+		ui.Text(c, glyph).TextColor(clrMuted).FontSize(14 * uiScale)
 	})
 	return box
 }
@@ -298,7 +298,7 @@ func (a *app) qualityLabel() string {
 
 // qualityChip 音质小按钮（对齐主线 d-quality：点击循环切换）。
 func qualityChip(c *ui.Context, label string, on bool) ui.Element {
-	box := ui.Box(c).Height(26).Radius(8).PaddingX(8).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Height(26 * uiScale).Radius(8 * uiScale).PaddingX(8 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := ui.RGBA(0, 0, 0, 0)
 		if on || box.Hovered() {
@@ -311,7 +311,7 @@ func qualityChip(c *ui.Context, label string, on bool) ui.Element {
 		if on {
 			col = clrPink
 		}
-		ui.Text(c, label).FontSize(12).TextColor(col)
+		ui.Text(c, label).FontSize(12 * uiScale).TextColor(col)
 	})
 	return box
 }
@@ -366,7 +366,7 @@ func (a *app) lyricCaption(c *ui.Context) {
 	// 透明字幕条（对齐主线 subtitle-bar：无背景，只歌词文字 + 悬停浮现关闭按钮）
 	box := ui.Box(c).AlignSelf(ui.Stretch).Height(a.resp(40, 34)).PaddingX(a.resp(16, 12))
 	box.Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
 			// 歌词文字：有阴影投影保证深/浅背景下都可读（对齐 subtitle-bar text-white/95）
 			// 居中（对齐 subtitle-bar justify-center：内部歌词文字水平居中）
 			ui.Text(c, sub).FontSize(a.capFontSize()).Bold().

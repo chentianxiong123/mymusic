@@ -25,10 +25,10 @@ func (a *app) toggleLyric() {
 		AlwaysOnTop:   true,
 		SkipTaskbar:   true,
 		DisableShadow: true,
-		Width:         560,
-		Height:        130,
-		X:             200,
-		Y:             80,
+		Width:         int(560 * uiScale),
+		Height:        int(130 * uiScale),
+		X:             int(200 * uiScale),
+		Y:             int(80 * uiScale),
 		Content:       ui.View(a.lyricView),
 	})
 	// 可交互（学主线 subtitle-bar：pointerdown 拖拽 + 悬停浮现关闭；不再鼠标穿透）
@@ -41,11 +41,11 @@ func (a *app) lyricView(c *ui.Context) {
 	// 才对（对齐主线 subtitle-bar 无背景；白字靠 text-shadow 投影兜底）。
 	c.Root().Background(ui.Transparent)
 	// DragWindow：整条作为窗口拖拽句柄（学主线 subtitle.js pointerdown/move 拖动定位）
-	ui.Column(c).Fill().Center().Gap(6).Padding(16).DragWindow().Children(func() {
+	ui.Column(c).Fill().Center().Gap(6 * uiScale).Padding(16).DragWindow().Children(func() {
 		// 悬停浮现控制按钮面板（学主线 subtitle-bar group-hover 浮现控制；
 		// 复用 dock 控件：上一首/播放/下一首/收藏/关闭）
 		if c.Root().Hovered() {
-			ui.Row(c).Absolute().Top(2).Left(0).Right(0).Justify(ui.Center).Gap(8).Children(func() {
+			ui.Row(c).Absolute().Top(2).Left(0).Right(0).Justify(ui.Center).Gap(8 * uiScale).Children(func() {
 				if iconButton2(c, icPrev, 26, clrMuted).Clicked() {
 					go a.prev()
 				}
