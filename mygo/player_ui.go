@@ -516,8 +516,8 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 					ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(15 * uiScale).Bold().TextColor(clrText).MaxLines(1)
 					ui.Text(c, a.current.author).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
 				})
-				if iconButton2(c, icMsg, 32, accent(a.captionShown)).Clicked() {
-					a.toggleCaption()
+				if iconButton2(c, icLyric, 32, accent(a.lyricShown)).Clicked() {
+					a.toggleLyric()
 				}
 				// 工具抽屉按钮（对齐主线 ly-drawer-tool）
 				if iconButton2(c, icSet, 32, accent(a.lyrDrawer == 2)).Clicked() {

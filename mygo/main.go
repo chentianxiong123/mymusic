@@ -520,9 +520,9 @@ func (a *app) playerBar(c *ui.Context) {
 			if iconButton2(c, icHeart, a.resp(32, 28), accent(a.isFav())).Clicked() {
 				a.toggleFav()
 			}
-			// 字幕开关（对齐主线 d-tick 32×32：收藏与上一首之间，始终显示）
-			if iconButton2(c, icMsg, a.resp(32, 28), accent(a.captionShown)).Clicked() {
-				a.toggleCaption()
+			// 外部歌词开关（歌词图标，控制桌面挂件外部歌词；对齐主线 d-tick 位置）
+			if iconButton2(c, icLyric, a.resp(32, 28), accent(a.lyricShown)).Clicked() {
+				a.toggleLyric()
 			}
 			// 上一首（对齐主线 d-prev 40×40）
 			if iconButton2(c, icPrev, brow, clrMuted).Clicked() {
