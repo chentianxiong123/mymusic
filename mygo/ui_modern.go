@@ -350,13 +350,18 @@ func (a *app) lyricCaption(c *ui.Context) {
 	if sub == "" {
 		sub = "♪ " + a.current.title
 	}
-	box := ui.Box(c).AlignSelf(ui.Stretch).Height(a.resp(40, 34)).Radius(12).PaddingX(a.resp(16, 12)).Background(clrCard)
+	// 透明字幕条（对齐主线 subtitle-bar：无背景，只歌词文字 + 悬停浮现关闭按钮）
+	box := ui.Box(c).AlignSelf(ui.Stretch).Height(a.resp(40, 34)).PaddingX(a.resp(16, 12))
 	box.Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
-			ui.Text(c, sub).FontSize(a.capFontSize()).Bold().TextColor(clrText).MaxLines(1)
-			ui.Spacer(c).Grow(1)
-			if iconButton(c, "✕").Clicked() {
-				a.toggleCaption()
+			// 歌词文字：有阴影投影保证深/浅背景下都可读（对齐 subtitle-bar text-white/95）
+			ui.Text(c, sub).FontSize(a.capFontSize()).Bold().
+				TextColor(ui.RGB(0xff, 0xff, 0xff)).MaxLines(1).Grow(1)
+			// 关闭按钮：仅悬停浮现（对齐 subtitle-x group-hover）
+			if box.Hovered() {
+				if iconButton(c, "✕").Clicked() {
+					a.toggleCaption()
+				}
 			}
 		})
 	})
