@@ -155,8 +155,8 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 	})
 	box.Children(func() {
 		ui.Row(c).Gap(a.resp(12, 8)).AlignItems(ui.Center).Children(func() {
-			// 4:3 封面（对齐主线 w-20 h-14）
-			a.coverWide(c, item.BVID, item.Pic, a.resp(64, 52))
+			// 封面（对齐主线 w-12 h-9 sm:w-20 sm:h-14 = 48×36 / 80×56 横向）
+			a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
 				title := bilibili.CleanHTML(item.Title)
 				tb := ui.Text(c, title).FontSize(a.resp(15, 14)).Bold().TextColor(clrText)
@@ -288,8 +288,7 @@ func qualityChip(c *ui.Context, label string, on bool) ui.Element {
 }
 
 // coverWide 4:3 横向封面（对齐主线 results.html 封面 w-12 h-9 / sm:w-20 h-14 + hover 播放遮罩）。
-func (a *app) coverWide(c *ui.Context, bvid, url string, w float32) ui.Element {
-	h := w * 3 / 4
+func (a *app) coverWide(c *ui.Context, bvid, url string, w, h float32) ui.Element {
 	box := ui.Box(c).Size(w, h)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Clip(r, 10, func() {

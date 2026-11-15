@@ -274,7 +274,7 @@ func (a *app) nowPlaying(c *ui.Context) {
 
 // lyrCandCol 左栏：歌词候选（对齐主线 ly-cand-drawer：w-64 列表，点选换源）。
 func (a *app) lyrCandCol(c *ui.Context) {
-	box := ui.Box(c).Width(a.resp(240, 200)).Fill().Radius(16).Background(clrCard).PaddingX(10).PaddingY(8)
+	box := ui.Box(c).Width(a.resp(256, 200)).Fill().Radius(16).Background(clrCard).PaddingX(10).PaddingY(8)
 	box.Children(func() {
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
@@ -361,7 +361,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 							size = a.lyricFontSize() * 1.35
 						}
 						// 行容器：居中 + 点击跳句（对齐主线 ly-line cursor-pointer text-center）
-						row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(4).PaddingX(10).Radius(8)
+						row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(4).PaddingX(16).Radius(8)
 						row.Draw(func(p *ui.Painter, r ui.Rect) {
 							// 卡拉OK渐进底（对齐主线 .ly-line.ly-active --prog 粉色渐底）
 							if active {
@@ -406,7 +406,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 
 // lyrToolCol 右栏：工具列（对齐主线 ly-tool-drawer：字号± / 对齐±0.5s / 刷新）。
 func (a *app) lyrToolCol(c *ui.Context) {
-	ui.Column(c).Width(68).Fill().Gap(8).Children(func() {
+	ui.Column(c).Width(56).Fill().Gap(8).Children(func() {
 		toolCard := func(fn func()) {
 			box := ui.Box(c).Fill().Radius(14).Background(clrCard).PaddingX(6).PaddingY(10)
 			box.Children(fn)
@@ -798,7 +798,7 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 				it := item
 				a.openCtxMenu(&it)
 			}
-			a.cover(c, item.BVID, item.Pic, a.resp(44, 36))
+			a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
 				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
 				ui.Text(c, item.Author).FontSize(12).TextColor(clrMuted).MaxLines(1)
@@ -864,7 +864,7 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 			a.openCtxMenu(&it)
 		}
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			a.cover(c, item.BVID, item.Pic, a.resp(44, 36))
+			a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
 				ui.Text(c, item.Title).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
 				ui.Text(c, item.Author).FontSize(12).TextColor(clrMuted).MaxLines(1)

@@ -477,7 +477,7 @@ func (a *app) playerBar(c *ui.Context) {
 		ui.Row(c).AlignSelf(ui.Stretch).Gap(a.resp(16, 10)).AlignItems(ui.Center).Children(func() {
 			info := ui.Row(c).Grow(1).Gap(brow / 3).AlignItems(ui.Center)
 			info.Children(func() {
-				a.coverTagged(c, a.current.bvid, a.current.pic, a.resp(60, 44), true)
+				a.coverTagged(c, a.current.bvid, a.current.pic, 56, true)
 				ui.Column(c).Grow(1).Gap(3).Children(func() {
 					ui.Text(c, a.current.title).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
 					ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted).MaxLines(1)
@@ -487,14 +487,15 @@ func (a *app) playerBar(c *ui.Context) {
 				a.showPlayer = true
 				a.win.Invalidate()
 			}
-			// 收藏（对齐主线 d-fav）
-			if iconButton2(c, icHeart, brow, accent(a.isFav())).Clicked() {
+			// 收藏（对齐主线 d-fav 32×32）
+			if iconButton2(c, icHeart, a.resp(32, 28), accent(a.isFav())).Clicked() {
 				a.toggleFav()
 			}
-			// 字幕开关（对齐主线 d-tick：位置在收藏与上一首之间，始终显示）
-			if iconButton2(c, icMsg, brow, accent(a.captionShown)).Clicked() {
+			// 字幕开关（对齐主线 d-tick 32×32：收藏与上一首之间，始终显示）
+			if iconButton2(c, icMsg, a.resp(32, 28), accent(a.captionShown)).Clicked() {
 				a.toggleCaption()
 			}
+			// 上一首（对齐主线 d-prev 40×40）
 			if iconButton2(c, icPrev, brow, clrMuted).Clicked() {
 				go a.prev()
 			}
@@ -542,10 +543,6 @@ func main() {
 	a.restorePrefs()   // 恢复主题/音质/缓存上限（settings 表）
 	a.restoreRecent()  // 恢复最近播放
 	a.restoreHistory() // 恢复搜索历史
-	// 音箱：若已有持久化 token（与主线 web 共用 speaker.json），启动即刷新设备
-	if a.svc != nil && a.svc.speakerLoggedIn() {
-		go a.refreshSpeakers()
-	}
 	a.pb = playback.NewPlaybackState()
 	a.mygoOut = newMyGoOutput(a.bili)
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
@@ -553,7 +550,6 @@ func main() {
 	a.mygoOut.SetVolume(int(a.volume * 100))           // 恢复音量（restorePrefs 后 mygoOut 才存在）
 	a.pb.SetOutput(a.mygoOut)
 	a.pb.SetDB(a.db)
-	a.pb.Restore(a.db)
 	// 播完自动连播（MyGoOutput.OnEnd → 核心 Next）
 	a.mygoOut.SetEndedHook(func() { a.pb.Next() })
 
@@ -576,6 +572,12 @@ func main() {
 				a.win.Invalidate()
 			}
 		})
+		// 恢复队列（window 就绪后再恢复，自动播放的进度上报不会撞未创建窗口）
+		a.pb.Restore(a.db)
+		// 音箱：已有持久化 token（与主线 web 共用 speaker.json）→ 刷新设备
+		if a.svc != nil && a.svc.speakerLoggedIn() {
+			go a.refreshSpeakers()
+		}
 		// 订阅主线状态流 → 渲染；MyGo 本地 audio 进度 → 上报 SSOT
 		go a.pbLoop()
 		go a.progressReporter()
