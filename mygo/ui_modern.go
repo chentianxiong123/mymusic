@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
 )
 
 // 配色（现代深色 + 紫粉渐变，参考用户 htmx 的强调色）

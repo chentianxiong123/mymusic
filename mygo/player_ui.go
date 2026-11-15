@@ -12,8 +12,9 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"homecast/service/lyric"
+	"homecast/service/speaker"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
 )
 
 // setTab 切换导航页。
@@ -45,7 +46,7 @@ func (a *app) next() {
 	if len(a.playlist) == 0 {
 		return
 	}
-	if a.loopMode == 2 { // 随机
+	if a.loopMode == 3 { // 随机
 		a.playAt(rand.Intn(len(a.playlist)))
 		return
 	}
@@ -96,7 +97,7 @@ func (a *app) setVolume(v float64) {
 
 // toggleLoop 循环模式：列表循环→单曲→随机（同步 SSOT）。
 func (a *app) toggleLoop() {
-	a.loopMode = (a.loopMode + 1) % 3
+	a.loopMode = (a.loopMode + 1) % 4
 	a.pb.SetMode(intToMode(a.loopMode))
 }
 
@@ -104,65 +105,63 @@ func (a *app) toggleLoop() {
 func (a *app) loopLabel() string {
 	switch a.loopMode {
 	case 1:
-		return "单曲循环"
+		return "列表循环"
 	case 2:
+		return "单曲循环"
+	case 3:
 		return "随机播放"
 	default:
-		return "列表循环"
+		return "顺序播放"
 	}
 }
 
-// isFav 当前曲目是否已收藏。
+// isFav 当前曲目是否已收藏（SSOT：fav 域包）。
 func (a *app) isFav() bool {
-	return a.current != nil && a.favMap[a.current.bvid]
+	return a.current != nil && a.svc.favHas(a.current.bvid)
 }
 
-// toggleFav 收藏/取消当前曲目。
+// toggleFav 收藏/取消当前曲目（SSOT：fav 域包 Add/Remove）。
 func (a *app) toggleFav() {
 	if a.current == nil {
 		return
 	}
-	bvid := a.current.bvid
-	a.win.Update(func() {
-		if a.favMap[bvid] {
-			delete(a.favMap, bvid)
-			for i, f := range a.favorites {
-				if f.BVID == bvid {
-					a.favorites = append(a.favorites[:i], a.favorites[i+1:]...)
-					break
-				}
-			}
-		} else {
-			a.favMap[bvid] = true
-			a.favorites = append([]bilibili.SearchItem{{BVID: bvid, Title: a.current.title, Author: a.current.author, Pic: a.current.pic}}, a.favorites...)
-		}
-		a.win.Invalidate()
-	})
+	if a.svc.favHas(a.current.bvid) {
+		a.svc.fav.Remove(a.current.bvid)
+	} else {
+		a.svc.fav.Add(favNewEntry(a.current.bvid, a.current.title, a.current.author, a.current.pic, durationSec(0, "")))
+	}
+	a.refreshFavs()
+	a.win.Invalidate()
 }
 
-// isFavItem 指定曲目是否已收藏。
+// isFavItem 指定曲目是否已收藏（SSOT）。
 func (a *app) isFavItem(item bilibili.SearchItem) bool {
-	return a.favMap[item.BVID]
+	return a.svc.favHas(item.BVID)
 }
 
-// toggleFavItem 收藏/取消指定曲目。
+// toggleFavItem 收藏/取消指定曲目（SSOT）。
 func (a *app) toggleFavItem(item bilibili.SearchItem) {
-	bvid := item.BVID
-	a.win.Update(func() {
-		if a.favMap[bvid] {
-			delete(a.favMap, bvid)
-			for i, f := range a.favorites {
-				if f.BVID == bvid {
-					a.favorites = append(a.favorites[:i], a.favorites[i+1:]...)
-					break
-				}
-			}
-		} else {
-			a.favMap[bvid] = true
-			a.favorites = append([]bilibili.SearchItem{{BVID: bvid, Title: bilibili.CleanHTML(item.Title), Author: item.Author, Pic: item.Pic}}, a.favorites...)
-		}
-		a.win.Invalidate()
-	})
+	if a.svc.favHas(item.BVID) {
+		a.svc.fav.Remove(item.BVID)
+	} else {
+		a.svc.fav.Add(favNewEntry(item.BVID, bilibili.CleanHTML(item.Title), item.Author, item.Pic, 0))
+	}
+	a.refreshFavs()
+	a.win.Invalidate()
+}
+
+// refreshFavs 从 fav 域包刷新 favorites 快照（UI 渲染用）。
+func (a *app) refreshFavs() {
+	list := a.svc.fav.List()
+	a.favorites = a.favorites[:0]
+	a.favSet = make(map[string]bool, len(list))
+	for _, f := range list {
+		a.favSet[f.BVID] = true
+		a.favorites = append(a.favorites, bilibili.SearchItem{
+			BVID: f.BVID, Title: f.Title, Author: f.Artist, Pic: f.Cover,
+			Duration: f.Duration,
+		})
+	}
 }
 
 // volumeBar 音量滑块：拖动 SetVolume，点击轨道定位。
@@ -550,11 +549,9 @@ func (a *app) favPage(c *ui.Context) {
 					a.playAll(a.favorites, 0)
 				}
 				if chip(c, "清空收藏").Clicked() {
-					a.win.Update(func() {
-						a.favorites = nil
-						a.favMap = map[string]bool{}
-						a.win.Invalidate()
-					})
+					a.svc.fav.Clear()
+					a.refreshFavs()
+					a.win.Invalidate()
 				}
 			}
 		})
@@ -590,16 +587,9 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 				ui.Text(c, item.Author).FontSize(12).TextColor(clrMuted).MaxLines(1)
 			})
 			if iconButton2(c, icHeart, 32, clrPink).Clicked() {
-				bvid := item.BVID
-				a.win.Update(func() {
-					delete(a.favMap, bvid)
-					for j, f := range a.favorites {
-						if f.BVID == bvid {
-							a.favorites = append(a.favorites[:j], a.favorites[j+1:]...)
-							break
-						}
-					}
-				})
+				a.svc.fav.Remove(item.BVID)
+				a.refreshFavs()
+				a.win.Invalidate()
 			}
 		})
 	})
@@ -685,8 +675,13 @@ func (a *app) settingsPage(c *ui.Context) {
 				// 10 歌词缓存（主线 lyc：记忆歌词源，LRU 50 首）
 				a.setRow(c, "歌词缓存")
 				a.setRowText(c, "字幕条与歌词面板共用：自动记忆你选的歌词源，最多 50 首")
-				a.setRowText(c, "已缓存："+a.lyricCacheCount()+" 首")
-				a.setRowBtns(c, []string{"清空歌词缓存"}, func(i int) {})
+				a.setRowText(c, "已缓存："+a.lyricCacheCount()+" 首 · "+a.lyricCacheSize())
+				a.setRowBtns(c, []string{"清空歌词缓存"}, func(i int) {
+					if a.svc != nil && a.svc.lyricCache != nil {
+						a.svc.lyricCache.ClearAll()
+						a.win.Invalidate()
+					}
+				})
 				// 11 数据（主线：搜索历史 + 清空）
 				a.setRow(c, "数据")
 				a.setRowText(c, "搜索历史（"+a.historyCount()+" 条）")
@@ -787,7 +782,7 @@ func (a *app) clearCache(all bool) {
 		if !all {
 			// 未收藏：文件名形如 mymusic-<bvid>.m4a；收藏的保留
 			bvid := strings.TrimSuffix(strings.TrimPrefix(e.Name(), "mymusic-"), ".m4a")
-			if a.favMap[bvid] {
+			if a.favSet[bvid] {
 				continue
 			}
 		}
@@ -796,9 +791,24 @@ func (a *app) clearCache(all bool) {
 	a.win.Invalidate()
 }
 
-// lyricCacheCount 歌词缓存计数（当前未接歌词域包 → 0）。
+// lyricCacheSize 歌词缓存占用。
+func (a *app) lyricCacheSize() string {
+	if a.svc == nil || a.svc.lyricCache == nil {
+		return "0 B"
+	}
+	n := a.svc.lyricCache.SizeBytes()
+	if n < 1<<20 {
+		return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
+	}
+	return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+}
+
+// lyricCacheCount 歌词缓存计数（SSOT：lyriccache 域包）。
 func (a *app) lyricCacheCount() string {
-	return "0"
+	if a.svc == nil || a.svc.lyricCache == nil {
+		return "0"
+	}
+	return fmt.Sprintf("%d", a.svc.lyricCache.Count())
 }
 
 // historyCount 搜索历史条数。
@@ -895,11 +905,144 @@ func segBtn(c *ui.Context, label string, on bool) ui.Element {
 	return box
 }
 
-// castPage 投屏占位页。
+// castPage 投屏/音箱页：DLNA 设备发现 + 投当前歌 + 小米音箱（SSOT：cast/speaker 域包）。
 func (a *app) castPage(c *ui.Context) {
-	ui.Column(c).Fill().Center().Gap(12).Children(func() {
-		icon(c, icCast, 44, clrMuted)
-		ui.Text(c, "投屏功能开发中").FontSize(17).TextColor(clrMuted)
-		ui.Text(c, "支持 DLNA / AirPlay 投送到电视、音箱").FontSize(13).TextColor(clrMuted)
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
+			ui.Text(c, "投屏 / 音箱").FontSize(20).Bold().TextColor(clrText)
+			ui.Spacer(c).Grow(1)
+			if gradButton(c, "发现设备").Clicked() {
+				go a.discoverCast()
+			}
+		})
+		// 当前投屏状态（对齐主线 d-stop：投屏中可停止）
+		if a.castOn != "" {
+			ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(12).Background(clrCard).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+					icon(c, icCast, 18, clrPink)
+					ui.Text(c, "正在投屏："+a.castOn).FontSize(14).TextColor(clrText).Bold()
+					ui.Spacer(c).Grow(1)
+					if chip(c, "停止投屏").Clicked() {
+						a.stopCast()
+					}
+				})
+			})
+		}
+		ui.Text(c, "DLNA 设备").FontSize(14).Bold().TextColor(clrText).PaddingX(4)
+		if len(a.castDevices) == 0 {
+			ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12).TextColor(clrMuted).PaddingX(4)
+		}
+		ui.Scroll(c).Grow(1).Gap(6).Children(func() {
+			ui.Column(c).Gap(8).Children(func() {
+				for _, d := range a.castDevices {
+					d := d
+					row := ui.Box(c).Fill().Height(56).Radius(12).PaddingX(14).Background(clrCard)
+					if row.Hovered() {
+						row.Background(clrCardHov)
+					}
+					row.Children(func() {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+							icon(c, icCast, 18, clrMuted)
+							ui.Column(c).Grow(1).Gap(2).Children(func() {
+								ui.Text(c, d.Name).FontSize(14).Bold().TextColor(clrText).MaxLines(1)
+								ui.Text(c, d.IP+":"+fmt.Sprintf("%d", d.Port)).FontSize(11).TextColor(clrMuted)
+							})
+							if gradButton(c, "投屏").Clicked() {
+								go a.castTo(d.UDN, d.Name)
+							}
+						})
+					})
+				}
+				// 小米音箱（SSOT speaker：需先扫码登录，登录态由 xiaoai auth 管）
+				if len(a.speakers) > 0 {
+					ui.Spacer(c).Height(6)
+					ui.Text(c, "小米音箱").FontSize(14).Bold().TextColor(clrText).PaddingX(4)
+					for _, sp := range a.speakers {
+						sp := sp
+						row := ui.Box(c).Fill().Height(56).Radius(12).PaddingX(14).Background(clrCard)
+						row.Children(func() {
+							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+								icon(c, icVol, 18, clrMuted)
+								ui.Column(c).Grow(1).Gap(2).Children(func() {
+									ui.Text(c, sp.Name).FontSize(14).Bold().TextColor(clrText).MaxLines(1)
+									ui.Text(c, sp.DID).FontSize(11).TextColor(clrMuted)
+								})
+								if gradButton(c, "播放").Clicked() {
+									go a.playToSpeaker(sp.DID, sp.Name)
+								}
+							})
+						})
+					}
+				}
+			})
+		})
 	})
+}
+
+// discoverCast 发现 DLNA 设备（cast 域包 Discover，后台执行）。
+func (a *app) discoverCast() {
+	if a.svc == nil || a.svc.cast == nil {
+		return
+	}
+	_ = a.svc.cast.Discover()
+	list := a.svc.cast.DeviceList()
+	a.win.Update(func() {
+		a.castDevices = list
+		// 小米音箱设备也拉一次（登录后才有）
+		if a.svc.speaker != nil {
+			a.speakers = a.svc.speaker.ListDevices()
+		}
+		a.win.Invalidate()
+	})
+}
+
+// castTo 投当前播放到指定 DLNA 设备（cast 域包 Cast）。
+func (a *app) castTo(udn, name string) {
+	if a.svc == nil || a.svc.cast == nil || a.current == nil {
+		return
+	}
+	url := "https://www.bilibili.com/video/" + a.current.bvid
+	res, err := a.svc.cast.Cast(url, udn, a.current.title)
+	if err != nil {
+		a.status = "投屏失败：" + err.Error()
+		a.win.Invalidate()
+		return
+	}
+	if code, _ := res["code"].(int); code == 0 {
+		a.castOn = name
+		a.status = "已投屏到 " + name
+	} else {
+		if msg, _ := res["message"].(string); msg != "" {
+			a.status = "投屏失败：" + msg
+		}
+	}
+	a.win.Invalidate()
+}
+
+// stopCast 停止投屏（DLNA Stop 动作）。
+func (a *app) stopCast() {
+	if a.svc == nil || a.svc.cast == nil {
+		return
+	}
+	for _, d := range a.castDevices {
+		a.svc.cast.Control(d.UDN, "stop", "", 0)
+	}
+	a.castOn = ""
+	a.status = "已停止投屏"
+	a.win.Invalidate()
+}
+
+// playToSpeaker 播放当前歌到小米音箱（SSOT speaker.Play：B站 bvid → DASH → 代理 URL）。
+func (a *app) playToSpeaker(did, name string) {
+	if a.svc == nil || a.svc.speaker == nil || a.current == nil {
+		return
+	}
+	opts := speaker.PlayOpts{Title: a.current.title, Duration: 0}
+	if res, err := a.svc.speaker.Play(a.current.bvid, did, 192, opts); err != nil {
+		a.status = "音箱播放失败：" + err.Error()
+	} else if code, _ := res["code"].(int); code == 0 {
+		a.castOn = name
+		a.status = "已在音箱播放：" + name
+	}
+	a.win.Invalidate()
 }

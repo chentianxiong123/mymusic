@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
 )
 
 func TestCardRenders(t *testing.T) {

@@ -14,7 +14,7 @@ import (
 	_ "github.com/egoist/mygo/audio/mp4"
 	"github.com/egoist/mygo/ui"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
 )
 
 // TestLivePlay 验证取流→下载→fMP4 解码闭环（临时验证用，可删）。

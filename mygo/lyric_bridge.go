@@ -4,12 +4,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 
 	"homecast/service/lyric"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
 )
 
 // loadLyricAsync 后台加载歌词：搜候选 → 自动取最优（对齐主线 lyric.js 自动播放最优）。
@@ -26,6 +27,26 @@ func (a *app) loadLyricAsync(bvid string) {
 		kw := bilibili.CleanHTML(a.current.title)
 		if kw == "" {
 			return
+		}
+		// 上次选源优先（SSOT：lyric_sels 表，对齐主线 lyricStore）
+		if a.svc != nil {
+			if sid := a.svc.lyricStore.SelectedSID(bvid); sid > 0 {
+				if sel, ok := a.svc.lyricStore.Get(bvid); ok && sel.BVID == bvid {
+					if r := lyric.GetLyricLines([]string{kw}, sid); r != nil && len(r.Lines) > 0 {
+						a.win.Update(func() {
+							if a.current == nil || a.current.bvid != bvid {
+								return
+							}
+							a.lyricSID = sid
+							a.lyricLines = r.Lines
+							a.lyricOffset = sel.Offset
+							a.win.Invalidate()
+						})
+						a.cacheLyric(bvid, r.Lines)
+						return
+					}
+				}
+			}
 		}
 		cands := lyric.SearchLyricCandidates(lyric.CleanSearchKeyword(kw), 6)
 		if len(cands) == 0 {
@@ -52,6 +73,14 @@ func (a *app) loadLyricAsync(bvid string) {
 			a.win.Invalidate()
 			log.Printf("[lyric] %s → %s - %s (%d 行)", bvid, best.Name, best.Artist, len(best.Lines))
 		})
+		// SSOT：记忆选源（lyric_sels）+ 歌词行缓存（lyriccache）
+		if a.svc != nil {
+			a.svc.lyricStore.SetSelection(bvid, lyric.LyricSel{
+				BVID: bvid, SID: best.ID, Name: best.Name, Artist: best.Artist,
+				Cover: a.current.pic, Duration: best.Duration, Offset: best.Offset,
+			})
+			a.cacheLyric(bvid, best.Lines)
+		}
 	}()
 }
 
@@ -109,6 +138,12 @@ func (a *app) pickLyricSID(bvid string, sid int) {
 			a.lyricSID = sid
 			a.lyricLines = best.Lines
 			a.lyricOffset = best.Offset
+			if a.svc != nil {
+				a.svc.lyricStore.SetSelection(bvid, lyric.LyricSel{
+					BVID: bvid, SID: sid, Name: best.Name, Artist: best.Artist,
+					Cover: a.current.pic, Duration: best.Duration, Offset: best.Offset,
+				})
+			}
 		}
 		a.win.Invalidate()
 	})
@@ -121,8 +156,24 @@ func lyricTimeStr(t float64) string {
 	return fmt.Sprintf("%d:%02d", m, sec)
 }
 
-// nudgeLyric 歌词对齐微调 ±0.5s（对齐主线 ly-nudge 逻辑）。
+// nudgeLyric 歌词对齐微调 ±0.5s（对齐主线 ly-nudge 逻辑；SSOT 持久化 offset）。
 func (a *app) nudgeLyric(delta float64) {
 	a.lyricOffset += delta
+	if a.svc != nil && a.current != nil {
+		a.svc.lyricStore.SetOffset(a.current.bvid, a.lyricOffset)
+	}
 	a.win.Invalidate()
+}
+
+// cacheLyric 歌词行写入 lyriccache（SQLite，LRU 上限），对齐主线 lyricHandler。
+func (a *app) cacheLyric(bvid string, lines []lyric.LyricLine) {
+	if a.svc == nil || len(lines) == 0 {
+		return
+	}
+	// 序列化行（[秒,文本,时长]）为 JSON 存 lyriccache
+	b, err := json.Marshal(lines)
+	if err != nil {
+		return
+	}
+	_ = a.svc.lyricCache.Put(bvid, string(b))
 }

@@ -15,10 +15,12 @@ import (
 	_ "github.com/egoist/mygo/audio/mp4" // m4a / fMP4 解码
 	"github.com/egoist/mygo/ui"
 
+	"homecast/service/cast"
 	"homecast/service/lyric"
 	"homecast/service/playback"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
+	"homecast/xiaoai"
 )
 
 // track 当前曲目。
@@ -34,9 +36,13 @@ type app struct {
 	bili     *bilibili.Client
 
 	// 主线 SSOT 接入：业务状态/队列/模式/持久化全在 playback 域包（MyGo 只渲染+发命令）
-	pb      *playback.PlaybackState
-	mygoOut *MyGoOutput
-	db      *sql.DB
+	pb          *playback.PlaybackState
+	mygoOut     *MyGoOutput
+	db          *sql.DB
+	svc         *services              // 主线域包句柄（fav/lyric/cast/speaker）
+	castOn      string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
+	castDevices []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
+	speakers    []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
 
 	// 搜索
 	query   string
@@ -67,7 +73,7 @@ type app struct {
 	volume     float64
 	loopMode   int // 0 列表循环 1 单曲 2 随机
 	favorites  []bilibili.SearchItem
-	favMap     map[string]bool
+	favSet     map[string]bool
 
 	quality       int      // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
 	lyricSize     int      // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
@@ -467,6 +473,12 @@ func (a *app) playerBar(c *ui.Context) {
 			if iconButton2(c, icNext, brow, clrMuted).Clicked() {
 				go a.next()
 			}
+			// 停止投屏/音箱（对齐主线 d-stop：仅投屏中显示）
+			if a.castOn != "" {
+				if iconButton2(c, icCast, brow, clrPink).Clicked() {
+					a.stopCast()
+				}
+			}
 		})
 	})
 }
@@ -481,13 +493,16 @@ func main() {
 		),
 		covers:       map[string]ui.ImageSource{},
 		coverLoading: map[string]bool{},
-		favMap:       map[string]bool{},
+		favSet:       map[string]bool{},
 		activeTab:    "search",
 		volume:       0.8,
 		captionShown: true,
 	}
 	// 主线 playback 接入：SSOT 状态源 + MyGo 出声后端 + SQLite 持久化
 	a.db = ensureDB()
+	a.svc = newServices(a.db, a.bili)
+	a.favSet = map[string]bool{}
+	a.refreshFavs() // 收藏恢复自 fav 域包（SQLite 持久化）
 	a.pb = playback.NewPlaybackState()
 	a.mygoOut = newMyGoOutput(a.bili)
 	a.pb.SetOutput(a.mygoOut)

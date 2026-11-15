@@ -18,7 +18,7 @@ import (
 	"homecast/service/playback"
 	"homecast/store"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
 )
 
 // ensureDB 打开 SQLite（主线 store 驱动）+ 建 playback 用的 settings 表。
@@ -125,10 +125,12 @@ func (a *app) applyState(st playback.State) {
 // modeToInt 主线 PlayMode → MyGo loopMode（0 列表/1 单曲/2 随机）。
 func modeToInt(m string) int {
 	switch m {
-	case "single":
+	case "loop":
 		return 1
-	case "random":
+	case "single":
 		return 2
+	case "random":
+		return 3
 	default:
 		return 0
 	}
@@ -138,8 +140,10 @@ func modeToInt(m string) int {
 func intToMode(n int) string {
 	switch n {
 	case 1:
-		return "single"
+		return "loop"
 	case 2:
+		return "single"
+	case 3:
 		return "random"
 	default:
 		return "order"

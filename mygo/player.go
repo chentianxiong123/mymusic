@@ -18,7 +18,7 @@ import (
 
 	"homecast/service/playback"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
 )
 
 // search 在 goroutine 里搜，结果经 win.Update 回到主线程。

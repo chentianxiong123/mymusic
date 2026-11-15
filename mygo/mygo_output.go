@@ -15,7 +15,7 @@ import (
 
 	"homecast/service/playback"
 
-	"mymusic-mygo/bilibili"
+	"homecast/bilibili"
 )
 
 // MyGoOutput 实现主线 playback.Output：MyGo 本机出声后端。
