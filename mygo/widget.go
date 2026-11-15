@@ -31,8 +31,8 @@ func (a *app) toggleLyric() {
 		Y:             80,
 		Content:       ui.View(a.lyricView),
 	})
-	// 鼠标穿透：点到歌词等于点到桌面。
-	a.lyricWin.SetIgnoreMouseEvents(true)
+	// 可交互（学主线 subtitle-bar：pointerdown 拖拽 + 悬停浮现关闭；不再鼠标穿透）
+	a.lyricWin.SetIgnoreMouseEvents(false)
 }
 
 // lyricView 挂件内容：透明底 + 当前歌词行（真歌词 KTV 定位）+ 下一行预览 + 进度。
@@ -40,7 +40,19 @@ func (a *app) lyricView(c *ui.Context) {
 	// 挂件透明：mygo ui.View 根默认 theme.Background（不透明），显式置透明
 	// 才对（对齐主线 subtitle-bar 无背景；白字靠 text-shadow 投影兜底）。
 	c.Root().Background(ui.Transparent)
-	ui.Column(c).Fill().Center().Gap(6).Padding(16).Children(func() {
+	// DragWindow：整条作为窗口拖拽句柄（学主线 subtitle.js pointerdown/move 拖动定位）
+	ui.Column(c).Fill().Center().Gap(6).Padding(16).DragWindow().Children(func() {
+		// 悬停浮现关闭按钮（学主线 subtitle-x group-hover）
+		if c.Root().Hovered() {
+			ui.Row(c).Absolute().Top(2).Right(2).Children(func() {
+				if iconButton(c, "✕").Clicked() {
+					a.lyricWin.Close()
+					a.lyricWin = nil
+					a.lyricShown = false
+					a.win.Invalidate()
+				}
+			})
+		}
 		cur, idx := a.lyricAt(a.posSec)
 		text := cur
 		if text == "" {
