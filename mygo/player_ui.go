@@ -455,6 +455,9 @@ func (a *app) queuePage(c *ui.Context) {
 				ui.Text(c, "最近播放").FontSize(16).Bold().TextColor(clrText)
 				ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(12).TextColor(clrMuted)
 				ui.Spacer(c).Grow(1)
+				if chip(c, "查看全部").Clicked() {
+					a.setTab("recent")
+				}
 				if chip(c, "清空").Clicked() {
 					a.recent = nil
 					a.win.Invalidate()
@@ -537,6 +540,41 @@ func (a *app) queuePage(c *ui.Context) {
 	})
 }
 
+// recentPage 最近播放全页（对齐主线 /hx/recent：最多 30 首列表）。
+func (a *app) recentPage(c *ui.Context) {
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
+			ui.Text(c, "最近播放").FontSize(20).Bold().TextColor(clrText)
+			ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(13).TextColor(clrMuted)
+			ui.Spacer(c).Grow(1)
+			if len(a.recent) > 0 {
+				if chip(c, "清空").Clicked() {
+					a.recent = nil
+					a.win.Invalidate()
+				}
+			}
+		})
+		if len(a.recent) == 0 {
+			ui.Column(c).Fill().Center().Gap(10).Children(func() {
+				icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
+				ui.Text(c, "还没有播放记录").FontSize(17).Bold().TextColor(clrText)
+				ui.Text(c, "听过的歌会出现在这里，最多保留 30 首").FontSize(13).TextColor(clrMuted)
+				if gradButton(c, "去搜索").Clicked() {
+					a.setTab("search")
+				}
+			})
+			return
+		}
+		ui.Scroll(c).Grow(1).Children(func() {
+			ui.Column(c).Gap(6).Children(func() {
+				for _, item := range a.recent {
+					a.listRow(c, item)
+				}
+			})
+		})
+	})
+}
+
 // currentToItem 把当前曲目转回 SearchItem（供 play 复用）。
 func (a *app) currentToItem() *bilibili.SearchItem {
 	if a.current == nil {
@@ -560,6 +598,10 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 	box.Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, fmt.Sprintf("%02d", i+1)).FontSize(13).TextColor(clrMuted).Width(26)
+			if btn, ok := box.PressedButton(); ok && btn == 2 {
+				it := item
+				a.openCtxMenu(&it)
+			}
 			a.cover(c, item.BVID, item.Pic, a.resp(44, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
 				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
@@ -621,6 +663,10 @@ func (a *app) favPage(c *ui.Context) {
 func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 	box := ui.Box(c).Fill().Height(64).Radius(12).PaddingX(12).Background(clrCard)
 	box.Children(func() {
+		if btn, ok := box.PressedButton(); ok && btn == 2 {
+			it := item
+			a.openCtxMenu(&it)
+		}
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			a.cover(c, item.BVID, item.Pic, a.resp(44, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
@@ -650,10 +696,11 @@ func (a *app) settingsPage(c *ui.Context) {
 		})
 		ui.Scroll(c).Grow(1).Gap(10).Children(func() {
 			ui.Column(c).Gap(10).Children(func() {
-				// 1 主题模式（主线 THEMES 三态：自动/明亮/暗黑）
+				// 1 主题模式（主线 THEMES 三态：自动/明亮/暗黑；持久化 settings kv）
 				a.setRow(c, "主题模式")
 				a.setRowSeg(c, []string{"自动", "明亮", "暗黑"}, a.themeMode, func(i int) {
 					a.themeMode = i
+					a.savePref("mygo_theme", i)
 					a.win.Invalidate()
 				})
 				// 2 网页字幕条（主线 set-sub 开关）
@@ -664,6 +711,7 @@ func (a *app) settingsPage(c *ui.Context) {
 				a.setRow(c, "音质")
 				a.setRowSeg(c, []string{"64k", "128k", "192k"}, a.quality, func(i int) {
 					a.quality = i
+					a.savePref("mygo_quality", i)
 					a.win.Invalidate()
 				})
 				// 4 播放模式（主线 MODES 四态 + 当前模式名）
@@ -711,6 +759,10 @@ func (a *app) settingsPage(c *ui.Context) {
 				a.setRow(c, "缓存上限")
 				a.setRowSeg(c, []string{"关闭", "200MB", "500MB", "1GB", "2GB"}, a.cacheLimit, func(i int) {
 					a.cacheLimit = i
+					a.savePref("mygo_cachelimit", i)
+					if a.svc != nil && a.svc.cache != nil {
+						a.svc.cache.SetLimitMB([]int{0, 200, 500, 1000, 2000}[i])
+					}
 					a.win.Invalidate()
 				})
 				// 10 歌词缓存（主线 lyc：记忆歌词源，LRU 50 首）

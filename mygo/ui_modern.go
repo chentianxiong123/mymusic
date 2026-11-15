@@ -11,7 +11,7 @@ import (
 	"homecast/bilibili"
 )
 
-// 配色（现代深色 + 紫粉渐变，参考用户 htmx 的强调色）
+// 配色（默认深色 + 紫粉渐变；主题模式切换时 applyTheme 重设，对齐主线 THEMES 三态）
 var (
 	clrBg       = ui.RGB(0x0e, 0x0f, 0x14) // 窗口背景（近黑）
 	clrCard     = ui.RGB(0x18, 0x19, 0x22) // 卡片
@@ -25,6 +25,35 @@ var (
 	clrBar      = ui.RGB(0x14, 0x15, 0x1d) // 播放条底色
 	clrTrackBar = ui.RGB(0x33, 0x34, 0x40) // 进度条轨道
 )
+
+// applyTheme 按主题模式重设配色（对齐主线 THEMES：auto 跟随系统黑暗偏好 / light / dark）。
+// 自绘 UI 每帧由 view 开头调用；themeMode: 0 auto 1 light 2 dark。
+func applyTheme(mode int) bool {
+	if mode == 1 {
+		// 明亮（Light）：白底卡片 + 深字
+		clrBg = ui.RGB(0xf6, 0xf6, 0xfa)
+		clrCard = ui.RGB(0xff, 0xff, 0xff)
+		clrCardHov = ui.RGB(0xee, 0xee, 0xf4)
+		clrField = ui.RGB(0xef, 0xef, 0xf5)
+		clrTrack = ui.RGB(0xd8, 0xd8, 0xe2)
+		clrText = ui.RGB(0x1a, 0x1a, 0x22)
+		clrMuted = ui.RGB(0x6b, 0x6b, 0x78)
+		clrBar = ui.RGB(0xff, 0xff, 0xff)
+		clrTrackBar = ui.RGB(0xd0, 0xd0, 0xda)
+		return true
+	}
+	// 深色（dark / auto 默认深色）
+	clrBg = ui.RGB(0x0e, 0x0f, 0x14)
+	clrCard = ui.RGB(0x18, 0x19, 0x22)
+	clrCardHov = ui.RGB(0x22, 0x23, 0x2e)
+	clrField = ui.RGB(0x1b, 0x1c, 0x27)
+	clrTrack = ui.RGB(0x2b, 0x2c, 0x37)
+	clrText = ui.RGB(0xf2, 0xf2, 0xf6)
+	clrMuted = ui.RGB(0x8a, 0x8b, 0x97)
+	clrBar = ui.RGB(0x14, 0x15, 0x1d)
+	clrTrackBar = ui.RGB(0x33, 0x34, 0x40)
+	return false
+}
 
 func grad() ui.LinearGradient {
 	return ui.LinearGradient{From: clrPurple, To: clrPink, Angle: 90}

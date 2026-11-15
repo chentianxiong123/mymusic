@@ -10,11 +10,13 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
 
+	"homecast/service/conv"
 	"homecast/service/playback"
 	"homecast/store"
 
@@ -92,6 +94,36 @@ func (a *app) progressReporter() {
 			a.pb.SetProgress(info.Pos, info.Dur, info.Playing)
 			a.posSec = info.Pos
 		}
+	}
+}
+
+// savePref 设置键值持久化（settings 表；对齐主线 localStorage hc:* 语义）。
+func (a *app) savePref(key string, v int) {
+	if a.db == nil {
+		return
+	}
+	a.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?`, key, fmt.Sprintf("%d", v), fmt.Sprintf("%d", v))
+}
+
+// loadPref 读取设置键值（缺省返回 def）。
+func (a *app) loadPref(key string, def int) int {
+	if a.db == nil {
+		return def
+	}
+	v, err := conv.LoadLimit(a.db, key, def)
+	if err != nil {
+		return def
+	}
+	return v
+}
+
+// restorePrefs 启动恢复本机偏好（主题/音质/缓存上限，对齐主线 settings.js 持久化）。
+func (a *app) restorePrefs() {
+	a.themeMode = a.loadPref("mygo_theme", 0)
+	a.quality = a.loadPref("mygo_quality", 2)
+	a.cacheLimit = a.loadPref("mygo_cachelimit", 0)
+	if a.svc != nil && a.svc.cache != nil {
+		a.svc.cache.SetLimitMB([]int{0, 200, 500, 1000, 2000}[a.cacheLimit])
 	}
 }
 

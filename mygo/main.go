@@ -149,6 +149,7 @@ func (a *app) resp(normal, narrow float32) float32 {
 }
 
 func (a *app) view(c *ui.Context) {
+	applyTheme(a.themeMode) // 主题三态（对齐主线 THEMES）
 	ui.Column(c).Fill().Background(clrBg).Children(func() {
 		a.navBar(c)
 		switch a.activeTab {
@@ -160,6 +161,8 @@ func (a *app) view(c *ui.Context) {
 			a.castPage(c)
 		case "settings":
 			a.settingsPage(c)
+		case "recent":
+			a.recentPage(c)
 		default:
 			if len(a.results) > 0 {
 				a.resultsHeader(c)
@@ -540,7 +543,8 @@ func main() {
 	}
 	a.svc = newServices(a.db, a.bili, audioDir)
 	a.favSet = map[string]bool{}
-	a.refreshFavs() // 收藏恢复自 fav 域包（SQLite 持久化）
+	a.refreshFavs()  // 收藏恢复自 fav 域包（SQLite 持久化）
+	a.restorePrefs() // 恢复主题/音质/缓存上限（settings 表）
 	a.pb = playback.NewPlaybackState()
 	a.mygoOut = newMyGoOutput(a.bili)
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
