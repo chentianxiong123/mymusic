@@ -160,38 +160,43 @@ func (a *app) view(c *ui.Context) {
 	a.handleShortcuts(c)    // 键盘快捷键（对齐主线 shortcuts.js）
 	ui.Column(c).Fill().Background(clrBg).Children(func() {
 		a.navBar(c)
-		switch a.activeTab {
-		case "queue":
-			a.queuePage(c)
-		case "fav":
-			a.favPage(c)
-		case "cast":
-			a.castPage(c)
-		case "settings":
-			a.settingsPage(c)
-		case "recent":
-			a.recentPage(c)
-		default:
-			if len(a.results) > 0 {
-				// 搜索条常驻（对齐主线 content_search.html：搜索条始终保留在顶部）
-				a.searchBar(c)
-				a.searchChips(c)
-				a.resultsHeader(c)
-				ui.Scroll(c).Grow(1).PaddingX(a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
-					ui.Column(c).Gap(8 * uiScale).Children(func() {
-						for _, r := range a.results {
-							a.listRow(c, r)
-						}
+		// 页面内容：Grow 占剩余（navBar 后 - playerBar），playerBar 固定底部。
+		// 之前 switch 内容直接 Column.Fill() 撑满整窗（含 playerBar 区），
+		// playerBar 被挤出窗口不可见（队列/设置/投屏无控制面板）。
+		ui.Column(c).Grow(1).Fill().Children(func() {
+			switch a.activeTab {
+			case "queue":
+				a.queuePage(c)
+			case "fav":
+				a.favPage(c)
+			case "cast":
+				a.castPage(c)
+			case "settings":
+				a.settingsPage(c)
+			case "recent":
+				a.recentPage(c)
+			default:
+				if len(a.results) > 0 {
+					// 搜索条常驻（对齐主线 content_search.html：搜索条始终保留在顶部）
+					a.searchBar(c)
+					a.searchChips(c)
+					a.resultsHeader(c)
+					ui.Scroll(c).Grow(1).PaddingX(a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
+						ui.Column(c).Gap(8 * uiScale).Children(func() {
+							for _, r := range a.results {
+								a.listRow(c, r)
+							}
+						})
 					})
-				})
-			} else if a.searched {
-				a.searchBar(c)
-				a.searchChips(c)
-				a.searchNotFound(c)
-			} else {
-				a.searchEmpty(c)
+				} else if a.searched {
+					a.searchBar(c)
+					a.searchChips(c)
+					a.searchNotFound(c)
+				} else {
+					a.searchEmpty(c)
+				}
 			}
-		}
+		})
 		a.playerBar(c)
 	})
 	if a.showPlayer {
