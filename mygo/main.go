@@ -362,7 +362,9 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) 
 // searchEmpty 空状态：居中大搜索框 + 热词标签 + 提示。
 // searchBar 常驻胶囊搜索框（对齐主线 content_search.html：搜索结果页顶部也保留）。
 func (a *app) searchBar(c *ui.Context) {
-	ui.Row(c).WidthPercent(a.resp(60, 90)).Height(52 * uiScale).Radius(26 * uiScale).Background(clrField).PaddingX(20 * uiScale).Gap(12 * uiScale).AlignItems(ui.Center).AlignSelf(ui.Center).Children(func() {
+	// 响应式（对齐主线 search_bar：搜索框 flex-grow 弹性 + 按钮固定，
+	// 窗口拉窄时搜索框缩小、按钮不溢出；全宽随窗口拉伸）
+	ui.Row(c).WidthPercent(100).Height(52 * uiScale).Radius(26 * uiScale).Background(clrField).PaddingX(20 * uiScale).Gap(12 * uiScale).AlignItems(ui.Center).AlignSelf(ui.Center).Children(func() {
 		icon(c, icSearch, 20, clrMuted)
 		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).
 			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
