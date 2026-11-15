@@ -87,24 +87,34 @@ func (a *app) cover(c *ui.Context, bvid, url string, size float32) ui.Element {
 				p.Line(r.X+size*0.68, r.Y+size*0.48, r.X+size*0.68, r.Y+size*0.26, size*0.05, clrPink)
 			}
 		})
-		// EQ 跳动频谱（对齐主线 d-eq：播放中封面右下 4 条色柱）
-		if a.eqPhase >= 0 && a.eqPhase%2 != 1 {
-			heights := []float32{0.30, 0.55, 0.40, 0.65}
-			for i, hh := range heights {
-				ph := (a.eqPhase + i*3) % 4
-				f := float32(1.0)
+		// EQ 跳动频谱（对齐主线 d-eq：封面底部黑条 + 5 条粉色柱）
+		if a.eqPhase >= 0 {
+			barH := size * 0.22
+			// 底部黑半透明条
+			p.Fill(ui.Rect{X: r.X, Y: r.Y + r.H - barH, W: r.W, H: barH}, ui.RGBA(0, 0, 0, 0.30), 0)
+			bw := size * 0.06
+			gap := size * 0.045
+			n := 5
+			total := bw*float32(n) + gap*float32(n-1)
+			startX := r.X + (r.W-total)/2
+			for i := 0; i < n; i++ {
+				ph := (a.eqPhase + i*2) % 6
+				f := float32(0.55)
 				switch ph {
 				case 0:
-					f = 0.45
+					f = 0.25
 				case 2:
-					f = 0.8
+					f = 0.85
+				case 4:
+					f = 0.45
+				case 5:
+					f = 0.7
 				}
-				bw := size * 0.07
-				gap := size * 0.05
-				barH := size * hh * f
-				by := r.Y + r.H - barH - 4
-				bx := r.X + r.W - size*0.08 - bw*float32(4-i) - gap*float32(3-i)
-				p.Fill(ui.Rect{X: bx, Y: by, W: bw, H: barH}, ui.RGBA(0xff, 0xff, 0xff, 0.85), bw/2)
+				bh := barH * 0.8 * f
+				bx := startX + bw*float32(i) + gap*float32(i)
+				// 柱底对齐黑条底部内边距（barH-bh)/2
+				by := r.Y + r.H - (barH-bh)/2 - bh
+				p.Fill(ui.Rect{X: bx, Y: by, W: bw, H: bh}, clrPink, bw/2)
 			}
 		}
 	})
