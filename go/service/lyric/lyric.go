@@ -3,7 +3,9 @@
 package lyric
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,6 +19,17 @@ import (
 )
 
 // ── 歌词（对齐桌面播放器：网易云免费源，无需登录/cookie） ──
+
+// neteaseNMTID 匿名设备 id：网易云 web 搜索接口（api/search/get/web）缺 NMTID
+// cookie 会返回 code 405「操作频繁，请稍候再试」（风控限流）；带随机 NMTID
+// + appver/os 即解除。对齐桌面播放器无需登录，用匿名 id 即可。
+var neteaseNMTID = func() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err == nil {
+		return hex.EncodeToString(b)
+	}
+	return "0" + fmt.Sprintf("%x", time.Now().UnixNano())
+}()
 
 // LyricTable lyric_sels 表名
 const LyricTable = "lyric_sels"
@@ -204,6 +217,8 @@ func neteaseGet(u string) (map[string]any, error) {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Referer", "https://music.163.com/")
+	// NMTID 匿名 cookie 免限流（网易云 web 接口 405 风控修复）
+	req.Header.Set("Cookie", "NMTID="+neteaseNMTID+"; appver=8.7.01; os=pc; channel=netease")
 	resp, err := neteaseHC.Do(req)
 	if err != nil {
 		return nil, err
