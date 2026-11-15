@@ -176,25 +176,28 @@ func (a *app) view(c *ui.Context) {
 			case "recent":
 				a.recentPage(c)
 			default:
-				if len(a.results) > 0 {
-					// 搜索条常驻（对齐主线 content_search.html：搜索条始终保留在顶部）
-					a.searchBar(c)
-					a.searchChips(c)
-					a.resultsHeader(c)
-					ui.Scroll(c).Grow(1).PaddingX(a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
-						ui.Column(c).Gap(8 * uiScale).Children(func() {
-							for _, r := range a.results {
-								a.listRow(c, r)
-							}
+				// 搜索页内容整体左右留白（对齐主线内容区 padding 24；搜索栏不撑满窗口）
+				ui.Column(c).Grow(1).Fill().PaddingX(a.resp(24, 12)).PaddingY(12 * uiScale).Gap(8 * uiScale).Children(func() {
+					if len(a.results) > 0 {
+						// 搜索条常驻（对齐主线 content_search.html：搜索条始终保留在顶部）
+						a.searchBar(c)
+						a.searchChips(c)
+						a.resultsHeader(c)
+						ui.Scroll(c).Grow(1).Gap(8 * uiScale).Children(func() {
+							ui.Column(c).Gap(8 * uiScale).Children(func() {
+								for _, r := range a.results {
+									a.listRow(c, r)
+								}
+							})
 						})
-					})
-				} else if a.searched {
-					a.searchBar(c)
-					a.searchChips(c)
-					a.searchNotFound(c)
-				} else {
-					a.searchEmpty(c)
-				}
+					} else if a.searched {
+						a.searchBar(c)
+						a.searchChips(c)
+						a.searchNotFound(c)
+					} else {
+						a.searchEmpty(c)
+					}
+				})
 			}
 		})
 		a.playerBar(c)
@@ -362,9 +365,15 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) 
 // searchEmpty 空状态：居中大搜索框 + 热词标签 + 提示。
 // searchBar 常驻胶囊搜索框（对齐主线 content_search.html：搜索结果页顶部也保留）。
 func (a *app) searchBar(c *ui.Context) {
-	// 响应式（对齐主线 search_bar：搜索框 flex-grow 弹性 + 按钮固定，
-	// 窗口拉窄时搜索框缩小、按钮不溢出；全宽随窗口拉伸）
-	ui.Row(c).WidthPercent(100).Height(52 * uiScale).Radius(26 * uiScale).Background(clrField).PaddingX(20 * uiScale).Gap(12 * uiScale).AlignItems(ui.Center).AlignSelf(ui.Center).Children(func() {
+	// 响应式（对齐主线 max-w-2xl mx-auto：宽窗限宽 672 居中，窄窗撑满内容区；
+	// 搜索框 flex-grow 弹性 + 按钮固定，窗口拉窄时搜索框缩小、按钮不溢出）
+	sb := ui.Row(c).Height(52 * uiScale).Radius(26 * uiScale).Background(clrField).PaddingX(20 * uiScale).Gap(12 * uiScale).AlignItems(ui.Center).AlignSelf(ui.Center)
+	if a.narrow() {
+		sb.WidthPercent(100) // 窄窗撑满内容区（对齐主线窄屏）
+	} else {
+		sb.Width(672) // 宽窗限宽 672（对齐主线 max-w-2xl）居中
+	}
+	sb.Children(func() {
 		icon(c, icSearch, 20, clrMuted)
 		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).
 			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
