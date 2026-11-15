@@ -188,20 +188,20 @@ func (a *app) navBarDesktop(c *ui.Context) {
 		if navTab(c, icSet, "设置", a.activeTab == "settings", false).Clicked() {
 			a.setTab("settings")
 		}
-		ui.Spacer(c).Grow(1)
-		if iconButton2(c, icList, a.resp(32, 28), clrMuted).Clicked() {
-			a.toggleLyric()
-		}
 	})
 }
 
-// navBarMobile 移动导航（主线 md:hidden 同款）：logo + 汉堡按钮，无 tab 行。
+// navBarMobile 移动导航（主线 md:hidden 同款）：歌词开关(左) + logo + 汉堡按钮(右)。
 func (a *app) navBarMobile(c *ui.Context) {
 	ui.Row(c).AlignSelf(ui.Stretch).Height(56).PaddingX(12).Gap(10).AlignItems(ui.Center).Children(func() {
+		// 窄屏才出现的歌词/字幕开关（放左边；主线移动端字幕开关同结构）
+		if iconButton2(c, icMsg, 34, accent(a.lyricShown)).Clicked() {
+			a.toggleLyric()
+		}
 		icon(c, icMusic, 20, clrText)
 		ui.Text(c, "myMusic").FontSize(15).Bold().TextColor(clrText)
 		ui.Spacer(c).Grow(1)
-		if iconButton2(c, icList, 34, clrMuted).Clicked() {
+		if iconButton2(c, icMenu, 34, clrMuted).Clicked() {
 			a.navOpen = !a.navOpen
 			a.win.Invalidate()
 		}
