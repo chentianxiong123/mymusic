@@ -191,13 +191,9 @@ func (a *app) navBarDesktop(c *ui.Context) {
 	})
 }
 
-// navBarMobile 移动导航（主线 md:hidden 同款）：歌词开关(左) + logo + 汉堡按钮(右)。
+// navBarMobile 移动导航（主线 md:hidden 同款）：logo + 汉堡按钮（右），无多余开关。
 func (a *app) navBarMobile(c *ui.Context) {
 	ui.Row(c).AlignSelf(ui.Stretch).Height(56).PaddingX(12).Gap(10).AlignItems(ui.Center).Children(func() {
-		// 窄屏才出现的歌词/字幕开关（放左边；主线移动端字幕开关同结构）
-		if iconButton2(c, icMsg, 34, accent(a.lyricShown)).Clicked() {
-			a.toggleLyric()
-		}
 		icon(c, icMusic, 20, clrText)
 		ui.Text(c, "myMusic").FontSize(15).Bold().TextColor(clrText)
 		ui.Spacer(c).Grow(1)
@@ -423,12 +419,15 @@ func (a *app) playerBar(c *ui.Context) {
 				a.showPlayer = true
 				a.win.Invalidate()
 			}
+			// 字幕开关（对齐主线 dock 的 d-tick；按用户要求：仅窄屏出现、置于控制区左侧）
+			if a.narrow() {
+				if iconButton2(c, icMsg, brow, accent(a.captionShown)).Clicked() {
+					a.toggleCaption()
+				}
+			}
 			if !a.compact() {
 				if iconButton2(c, icHeart, brow, accent(a.isFav())).Clicked() {
 					a.toggleFav()
-				}
-				if iconButton2(c, icMsg, brow, accent(a.captionShown)).Clicked() {
-					a.toggleCaption()
 				}
 			}
 			if iconButton2(c, icPrev, brow, clrMuted).Clicked() {
