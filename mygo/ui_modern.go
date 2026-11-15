@@ -73,17 +73,19 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 		}
 	})
 	box.Children(func() {
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			a.cover(c, item.BVID, item.Pic, 44)
+		ui.Row(c).Gap(a.resp(12, 8)).AlignItems(ui.Center).Children(func() {
+			a.cover(c, item.BVID, item.Pic, a.resp(44, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
-				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(15).Bold().TextColor(clrText).MaxLines(1)
+				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(a.resp(15, 14)).Bold().TextColor(clrText).MaxLines(1)
 				ui.Text(c, item.Author).FontSize(13).TextColor(clrMuted).MaxLines(1)
 			})
-			if iconButton2(c, icHeart, 34, accent(a.isFavItem(item))).Clicked() {
+			if iconButton2(c, icHeart, a.resp(34, 30), accent(a.isFavItem(item))).Clicked() {
 				a.toggleFavItem(item)
 			}
-			if gradButton(c, "播放").Clicked() {
-				go a.play(item)
+			if !a.compact() {
+				if gradButton(c, "播放").Clicked() {
+					go a.play(item)
+				}
 			}
 		})
 	})
@@ -162,10 +164,10 @@ func (a *app) lyricCaption(c *ui.Context) {
 	if !a.captionShown {
 		return
 	}
-	box := ui.Box(c).AlignSelf(ui.Stretch).Height(40).Radius(12).PaddingX(16).Background(clrCard)
+	box := ui.Box(c).AlignSelf(ui.Stretch).Height(a.resp(40, 34)).Radius(12).PaddingX(a.resp(16, 12)).Background(clrCard)
 	box.Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
-			ui.Text(c, a.lyricText).FontSize(16).Bold().TextColor(clrText).MaxLines(1)
+			ui.Text(c, a.lyricText).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
 			ui.Spacer(c).Grow(1)
 			if iconButton(c, "✕").Clicked() {
 				a.toggleCaption()

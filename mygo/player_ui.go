@@ -210,11 +210,11 @@ func (a *app) nowPlaying(c *ui.Context) {
 		}
 
 		// 主体：上（封面+信息）下（歌词），Absolute 定位在中间区域
-		ui.Column(c).Absolute().Left(56).Top(20).Right(56).Bottom(20).Gap(28).Children(func() {
+		ui.Column(c).Absolute().Left(a.resp(56, 24)).Top(20).Right(a.resp(56, 24)).Bottom(20).Gap(a.resp(28, 16)).Children(func() {
 			// 上：左封面 + 右信息/控制
-			ui.Row(c).Gap(52).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(a.resp(52, 24)).AlignItems(ui.Center).Children(func() {
 				// 左：大封面 + 光晕
-				cover := ui.Box(c).Size(250, 250).Radius(24)
+				cover := ui.Box(c).Size(a.resp(250, 170), a.resp(250, 170)).Radius(a.resp(24, 18))
 				cover.Draw(func(p *ui.Painter, r ui.Rect) {
 					p.Shadow(r, 24, 0, 8, 40, 0, ui.RGBA(0x8b, 0x5c, 0xf6, 0.35))
 					p.FillRadii(r, [4]float32{24, 24, 24, 24}, clrCard)
@@ -230,8 +230,8 @@ func (a *app) nowPlaying(c *ui.Context) {
 
 				// 右：信息 + 进度 + 控制 + 音量
 				ui.Column(c).Grow(1).Gap(14).Children(func() {
-					ui.Text(c, a.current.title).FontSize(26).Bold().TextColor(clrText).MaxLines(2)
-					ui.Text(c, a.current.author).FontSize(15).TextColor(clrMuted)
+					ui.Text(c, a.current.title).FontSize(a.resp(26, 20)).Bold().TextColor(clrText).MaxLines(2)
+					ui.Text(c, a.current.author).FontSize(a.resp(15, 13)).TextColor(clrMuted)
 
 					// 大进度条（可 seek）
 					ui.Spacer(c).Height(10)
@@ -243,21 +243,21 @@ func (a *app) nowPlaying(c *ui.Context) {
 					})
 
 					// 控制行：循环 上一首 播放 下一首 收藏
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(18).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(a.resp(18, 12)).Children(func() {
 						ui.Spacer(c).Grow(1)
-						if iconButton2(c, icRepeat, 40, accent(a.loopMode > 0)).Clicked() {
+						if iconButton2(c, icRepeat, a.resp(40, 34), accent(a.loopMode > 0)).Clicked() {
 							a.toggleLoop()
 						}
-						if iconButton2(c, icPrev, 44, clrMuted).Clicked() {
+						if iconButton2(c, icPrev, a.resp(44, 38), clrMuted).Clicked() {
 							go a.prev()
 						}
-						if playCircle(c, a.playing, 72).Clicked() {
+						if playCircle(c, a.playing, a.resp(72, 58)).Clicked() {
 							a.togglePlay()
 						}
-						if iconButton2(c, icNext, 44, clrMuted).Clicked() {
+						if iconButton2(c, icNext, a.resp(44, 38), clrMuted).Clicked() {
 							go a.next()
 						}
-						if iconButton2(c, icHeart, 40, accent(a.isFav())).Clicked() {
+						if iconButton2(c, icHeart, a.resp(40, 34), accent(a.isFav())).Clicked() {
 							a.toggleFav()
 						}
 						ui.Spacer(c).Grow(1)
@@ -266,7 +266,7 @@ func (a *app) nowPlaying(c *ui.Context) {
 					// 音量 + 音质
 					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
 						icon(c, icVol, 18, clrMuted)
-						a.volumeBar(c, 200)
+						a.volumeBar(c, a.resp(200, 130))
 						ui.Spacer(c).Grow(1)
 						ui.Text(c, "192k").FontSize(13).TextColor(clrMuted)
 						ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
@@ -303,7 +303,7 @@ func (a *app) lyricStrip(c *ui.Context) {
 
 // queuePage 队列页：上次在听 + 播放列表。
 func (a *app) queuePage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(24).PaddingY(16).Gap(14).Children(func() {
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
 			ui.Text(c, "播放队列").FontSize(20).Bold().TextColor(clrText)
 			ui.Text(c, fmt.Sprintf("%d 首", len(a.playlist))).FontSize(13).TextColor(clrMuted)
@@ -318,7 +318,7 @@ func (a *app) queuePage(c *ui.Context) {
 		if a.current != nil {
 			ui.Box(c).Fill().Radius(16).PaddingX(18).PaddingY(16).Background(clrCard).Children(func() {
 				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16).Children(func() {
-					a.cover(c, a.current.bvid, a.current.pic, 64)
+					a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
 					ui.Column(c).Grow(1).Gap(4).Children(func() {
 						ui.Text(c, "上次在听").FontSize(12).TextColor(clrMuted)
 						ui.Text(c, a.current.title).FontSize(17).Bold().TextColor(clrText).MaxLines(1)
@@ -369,9 +369,9 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 	box.Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, fmt.Sprintf("%02d", i+1)).FontSize(13).TextColor(clrMuted).Width(26)
-			a.cover(c, item.BVID, item.Pic, 44)
+			a.cover(c, item.BVID, item.Pic, a.resp(44, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
-				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(14).Bold().TextColor(clrText).MaxLines(1)
+				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
 				ui.Text(c, item.Author).FontSize(12).TextColor(clrMuted).MaxLines(1)
 			})
 			if isCur {
@@ -389,7 +389,7 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 
 // favPage 收藏页。
 func (a *app) favPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(24).PaddingY(16).Gap(14).Children(func() {
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10).Children(func() {
 			ui.Text(c, "我的收藏").FontSize(20).Bold().TextColor(clrText)
 			ui.Text(c, fmt.Sprintf("%d 首", len(a.favorites))).FontSize(13).TextColor(clrMuted)
@@ -428,9 +428,9 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 	box := ui.Box(c).Fill().Height(64).Radius(12).PaddingX(12).Background(clrCard)
 	box.Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			a.cover(c, item.BVID, item.Pic, 44)
+			a.cover(c, item.BVID, item.Pic, a.resp(44, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
-				ui.Text(c, item.Title).FontSize(14).Bold().TextColor(clrText).MaxLines(1)
+				ui.Text(c, item.Title).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
 				ui.Text(c, item.Author).FontSize(12).TextColor(clrMuted).MaxLines(1)
 			})
 			if iconButton2(c, icHeart, 32, clrPink).Clicked() {
@@ -454,7 +454,7 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 
 // settingsPage 设置页：简单设置项。
 func (a *app) settingsPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(24).PaddingY(16).Gap(12).Children(func() {
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12).Children(func() {
 		ui.Text(c, "设置").FontSize(20).Bold().TextColor(clrText)
 		ui.Spacer(c).Height(6)
 		a.settingRow(c, "音质", "192k（B站最高音质）", "")
@@ -470,7 +470,7 @@ func (a *app) settingsPage(c *ui.Context) {
 func (a *app) settingRow(c *ui.Context, label, value, hint string) {
 	ui.Box(c).Fill().Height(56).Radius(12).PaddingX(16).Background(clrCard).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, label).FontSize(15).TextColor(clrText).Bold().Width(140)
+			ui.Text(c, label).FontSize(a.resp(15, 14)).TextColor(clrText).Bold().Width(a.resp(140, 104))
 			ui.Text(c, value).FontSize(13).TextColor(clrMuted)
 			ui.Spacer(c).Grow(1)
 			if hint != "" {

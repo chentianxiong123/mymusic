@@ -71,6 +71,23 @@ type app struct {
 	muted        bool
 	lastVolume   float64
 	captionShown bool
+
+	// 分辨率适配：窗口宽度感知（compact 断点 < 860）
+	winW int
+	winH int
+}
+
+// compact 紧凑模式：窗口窄时缩小字号/间距/封面，对齐主线 sm: 断点语义。
+func (a *app) compact() bool {
+	return a.winW > 0 && a.winW < 860
+}
+
+// resp 响应式尺寸：正常值 / 紧凑值按当前窗口宽度选。
+func (a *app) resp(normal, narrow float32) float32 {
+	if a.compact() {
+		return narrow
+	}
+	return normal
 }
 
 func (a *app) view(c *ui.Context) {
@@ -88,7 +105,7 @@ func (a *app) view(c *ui.Context) {
 		default:
 			if len(a.results) > 0 {
 				a.resultsHeader(c)
-				ui.Scroll(c).Grow(1).PaddingX(24).Gap(8).Children(func() {
+				ui.Scroll(c).Grow(1).PaddingX(a.resp(24, 12)).Gap(8).Children(func() {
 					ui.Column(c).Gap(8).Children(func() {
 						for _, r := range a.results {
 							a.listRow(c, r)
@@ -108,9 +125,11 @@ func (a *app) view(c *ui.Context) {
 
 // navBar 顶部导航：logo + 导航 tab（复刻 wails3 的信息架构）。
 func (a *app) navBar(c *ui.Context) {
-	ui.Row(c).AlignSelf(ui.Stretch).Height(64).PaddingX(20).Gap(6).AlignItems(ui.Center).Children(func() {
-		icon(c, icMusic, 24, clrText)
-		ui.Spacer(c).Width(10)
+	px := a.resp(20, 10)
+	navGap := a.resp(6, 2)
+	ui.Row(c).AlignSelf(ui.Stretch).Height(64).PaddingX(px).Gap(navGap).AlignItems(ui.Center).Children(func() {
+		icon(c, icMusic, a.resp(24, 20), clrText)
+		ui.Spacer(c).Width(a.resp(10, 4))
 		if navTab(c, icList, "队列", a.activeTab == "queue").Clicked() {
 			a.setTab("queue")
 		}
@@ -131,7 +150,7 @@ func (a *app) navBar(c *ui.Context) {
 		if a.lyricShown {
 			ly = icList
 		}
-		if iconButton2(c, ly, 32, clrMuted).Clicked() {
+		if iconButton2(c, ly, a.resp(32, 28), clrMuted).Clicked() {
 			a.toggleLyric()
 		}
 	})
@@ -171,8 +190,8 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool) ui.Element {
 
 // searchEmpty 空状态：居中大搜索框 + 热词标签 + 提示。
 func (a *app) searchEmpty(c *ui.Context) {
-	ui.Column(c).Fill().Center().Gap(16).Children(func() {
-		ui.Row(c).WidthPercent(60).Height(52).Radius(26).Background(clrField).PaddingX(20).Gap(12).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Fill().Center().Gap(16).PaddingX(16).Children(func() {
+		ui.Row(c).WidthPercent(a.resp(60, 90)).Height(52).Radius(26).Background(clrField).PaddingX(20).Gap(12).AlignItems(ui.Center).Children(func() {
 			icon(c, icSearch, 20, clrMuted)
 			ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).
 				Placeholder("搜索喜欢的音乐…").TextColor(clrText)
@@ -180,8 +199,8 @@ func (a *app) searchEmpty(c *ui.Context) {
 				go a.search()
 			}
 		})
-		// 热词/历史标签（对齐原项目）
-		ui.Row(c).Gap(8).Children(func() {
+		// 热词/历史标签（对齐原项目；窄窗自动换行）
+		ui.Row(c).Gap(8).Wrap().Children(func() {
 			for _, tag := range []string{"周杰伦", "晴天", "发如雪", "花海"} {
 				t := tag
 				if chip(c, tag).Clicked() {
@@ -212,12 +231,15 @@ func chip(c *ui.Context, label string) ui.Element {
 
 // resultsHeader 结果标题行：数量 + 状态 + 播放全部。
 func (a *app) resultsHeader(c *ui.Context) {
-	ui.Row(c).AlignSelf(ui.Stretch).PaddingX(24).PaddingY(14).AlignItems(ui.Center).Gap(10).Children(func() {
-		ui.Text(c, "搜索结果").FontSize(18).Bold().TextColor(clrText)
+	ui.Row(c).AlignSelf(ui.Stretch).PaddingX(a.resp(24, 12)).PaddingY(a.resp(14, 10)).AlignItems(ui.Center).Gap(10).Children(func() {
+		ui.Text(c, "搜索结果").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
 		ui.Text(c, fmt.Sprintf("%d 首", len(a.results))).FontSize(13).TextColor(clrMuted)
 		ui.Spacer(c).Grow(1)
-		if a.status != "" {
+		if a.status != "" && !a.compact() {
 			ui.Text(c, a.status).FontSize(13).TextColor(clrMuted).MaxLines(1).MaxWidth(260)
+		}
+		if a.compact() {
+			ui.Text(c, a.status).FontSize(12).TextColor(clrMuted).MaxLines(1).MaxWidth(120)
 		}
 		if gradButton(c, "播放全部").Clicked() {
 			if len(a.results) > 0 {
@@ -229,39 +251,45 @@ func (a *app) resultsHeader(c *ui.Context) {
 
 // playerBar 完整播放条（学主线 htmx 结构）：字幕条 + 上排（音质/循环/静音/音量）+ 进度 + 下排（封面/收藏/字幕/上一首/播放/下一首）。
 func (a *app) playerBar(c *ui.Context) {
-	ui.Column(c).AlignSelf(ui.Stretch).Background(clrBar).PaddingX(20).PaddingY(14).Gap(10).Children(func() {
+	px := a.resp(20, 12)   // 横幅内边距
+	gap := a.resp(10, 8)   // 区间距
+	igap := a.resp(12, 8)  // 行内间距
+	brow := a.resp(40, 32) // 下排按钮
+	ui.Column(c).AlignSelf(ui.Stretch).Background(clrBar).PaddingX(px).PaddingY(a.resp(14, 10)).Gap(gap).Children(func() {
 		if a.current == nil {
 			ui.Text(c, "未在播放").TextColor(clrMuted).FontSize(15).PaddingY(24)
 			return
 		}
 		// 字幕条（对齐主线：当前歌词行 + 关闭）
 		a.lyricCaption(c)
-		// 上排：音质 + 循环模式 + 静音 + 音量
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
+		// 上排：音质 + 循环模式 + 静音 + 音量（紧凑时整行最小化；音质 192k 保留）
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(igap).Children(func() {
 			ui.Text(c, "192k").FontSize(13).TextColor(clrMuted)
-			if iconButton2(c, icRepeat, 24, accent(a.loopMode > 0)).Clicked() {
+			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {
 				a.toggleLoop()
 			}
-			ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
+			if !a.compact() {
+				ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
+			}
 			ui.Spacer(c).Grow(1)
-			if iconButton2(c, icVol, 24, accent(a.muted)).Clicked() {
+			if iconButton2(c, icVol, a.resp(24, 20), accent(a.muted)).Clicked() {
 				a.toggleMute()
 			}
-			a.volumeBar(c, 120)
+			a.volumeBar(c, a.resp(120, 84))
 		})
 		// 进度行：时间 + 滑块 + 时长
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, a.posText).FontSize(13).TextColor(clrMuted).Width(44).TextAlign(ui.End)
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(igap).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, a.posText).FontSize(13).TextColor(clrMuted).Width(a.resp(44, 36)).TextAlign(ui.End)
 			a.progressBar(c, a.progress).Grow(1)
-			ui.Text(c, a.durText).FontSize(13).TextColor(clrMuted).Width(44)
+			ui.Text(c, a.durText).FontSize(13).TextColor(clrMuted).Width(a.resp(44, 36))
 		})
 		// 下排：封面 + 标题 | 收藏 + 字幕开关 + 上一首 + 播放 + 下一首
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(16).AlignItems(ui.Center).Children(func() {
-			info := ui.Row(c).Grow(1).Gap(12).AlignItems(ui.Center)
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(a.resp(16, 10)).AlignItems(ui.Center).Children(func() {
+			info := ui.Row(c).Grow(1).Gap(brow / 3).AlignItems(ui.Center)
 			info.Children(func() {
-				a.cover(c, a.current.bvid, a.current.pic, 60)
+				a.cover(c, a.current.bvid, a.current.pic, a.resp(60, 44))
 				ui.Column(c).Grow(1).Gap(3).Children(func() {
-					ui.Text(c, a.current.title).FontSize(16).Bold().TextColor(clrText).MaxLines(1)
+					ui.Text(c, a.current.title).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
 					ui.Text(c, a.current.author).FontSize(13).TextColor(clrMuted).MaxLines(1)
 				})
 			})
@@ -269,19 +297,21 @@ func (a *app) playerBar(c *ui.Context) {
 				a.showPlayer = true
 				a.win.Invalidate()
 			}
-			if iconButton2(c, icHeart, 40, accent(a.isFav())).Clicked() {
-				a.toggleFav()
+			if !a.compact() {
+				if iconButton2(c, icHeart, brow, accent(a.isFav())).Clicked() {
+					a.toggleFav()
+				}
+				if iconButton2(c, icMsg, brow, accent(a.captionShown)).Clicked() {
+					a.toggleCaption()
+				}
 			}
-			if iconButton2(c, icMsg, 40, accent(a.captionShown)).Clicked() {
-				a.toggleCaption()
-			}
-			if iconButton2(c, icPrev, 40, clrMuted).Clicked() {
+			if iconButton2(c, icPrev, brow, clrMuted).Clicked() {
 				go a.prev()
 			}
-			if playCircle(c, a.playing, 60).Clicked() {
+			if playCircle(c, a.playing, a.resp(60, 48)).Clicked() {
 				a.togglePlay()
 			}
-			if iconButton2(c, icNext, 40, clrMuted).Clicked() {
+			if iconButton2(c, icNext, brow, clrMuted).Clicked() {
 				go a.next()
 			}
 		})
@@ -321,6 +351,16 @@ func main() {
 			MinWidth:  720,
 			MinHeight: 520,
 			Content:   ui.View(a.view),
+		})
+		// 分辨率适配：窗口尺寸变化时更新宽度感知（断点切换 compact），仅重绘不重建
+		b := a.win.Bounds()
+		a.winW, a.winH = b.Width, b.Height
+		a.win.OnResize(func() {
+			if nb := a.win.Bounds(); nb.Width != a.winW || nb.Height != a.winH {
+				a.winW, a.winH = nb.Width, nb.Height
+				log.Printf("[resize] %dx%d compact=%v", a.winW, a.winH, a.compact())
+				a.win.Invalidate()
+			}
 		})
 		// 订阅主线状态流 → 渲染；MyGo 本地 audio 进度 → 上报 SSOT
 		go a.pbLoop()
