@@ -339,7 +339,12 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 			})
 		})
 		// KTV 歌词列表（对齐主线 ly-lines：居中 + 当前行粉色渐底逐行进度 + 点击行跳句）
-		ui.Box(c).Grow(1).Fill().Radius(14).Background(clrCardGlass).PaddingX(a.resp(28, 14)).PaddingY(10).Children(func() {
+		// 优化：垂直渐变玻璃（顶 0.78 → 底 0.92）更立体，歌词在玻璃上
+		lyrCard := ui.Box(c).Grow(1).Fill().Radius(14).PaddingX(a.resp(28, 14)).PaddingY(10)
+		lyrCard.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.FillGradient(r, ui.LinearGradient{From: ui.RGBA(0x18, 0x19, 0x22, 0.78), To: ui.RGBA(0x0e, 0x0f, 0x14, 0.92), Angle: 90}, 14)
+		})
+		lyrCard.Children(func() {
 			curIdx, prog := a.lyricProg(a.posSec)
 			ui.Scroll(c).Fill().Gap(10).Children(func() {
 				ui.Column(c).AlignSelf(ui.Stretch).Gap(8).Children(func() {
@@ -361,17 +366,21 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 						active := i == curIdx
 						if active {
 							col = ui.RGB(0xff, 0xff, 0xff)
-							size = a.lyricFontSize() * 1.18
+							size = a.lyricFontSize() * 1.2
 						}
 						// 行容器：居中 + 点击跳句（对齐主线 ly-line cursor-pointer text-center）
-						row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(4).PaddingX(16).Radius(8)
+						row := ui.Box(c).AlignSelf(ui.Stretch).PaddingY(5).PaddingX(16).Radius(8)
 						row.Draw(func(p *ui.Painter, r ui.Rect) {
 							// 卡拉OK渐进底（对齐主线 .ly-line.ly-active --prog 粉色渐底）
+							// 优化：当前行渐底更饱和 + 左右粉/紫装饰竖条（更醒目）
 							if active {
 								p.FillGradient(ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(prog), H: r.H},
-									ui.LinearGradient{From: ui.RGBA(0xec, 0x48, 0x99, 0.30), To: ui.RGBA(0xec, 0x48, 0x99, 0.14), Angle: 0}, 8)
+									ui.LinearGradient{From: ui.RGBA(0xec, 0x48, 0x99, 0.44), To: ui.RGBA(0x8b, 0x5c, 0xf6, 0.18), Angle: 0}, 8)
+								// 左粉 / 右紫装饰竖条（仅当前行）
+								p.Fill(ui.Rect{X: r.X + 4, Y: r.Y + r.H*0.22, W: 3, H: r.H * 0.56}, clrPink, 2)
+								p.Fill(ui.Rect{X: r.X + r.W - 7, Y: r.Y + r.H*0.22, W: 3, H: r.H * 0.56}, clrPurple, 2)
 							}
-							if row.Hovered() {
+							if row.Hovered() && !active {
 								p.Fill(r, ui.RGBA(0xff, 0xff, 0xff, 0.05), 8)
 							}
 						})
