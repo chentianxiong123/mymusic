@@ -46,6 +46,7 @@ type app struct {
 	speakers    []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
 	recent      []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
 	qrStatus    string                 // 音箱扫码登录状态文案
+	searched    bool                   // 是否已执行过搜索（区分空结果态）
 	eqPhase     int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
 	qrImage     string                 // 二维码 data URI（渲染用）
 	ctxItem     *bilibili.SearchItem   // 右键菜单目标（非空=显示）
@@ -174,6 +175,8 @@ func (a *app) view(c *ui.Context) {
 						}
 					})
 				})
+			} else if a.searched {
+				a.searchNotFound(c)
 			} else {
 				a.searchEmpty(c)
 			}
@@ -590,4 +593,20 @@ func main() {
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// searchNotFound 搜索无结果空态（对齐主线 results.html 空态：未找到相关音乐 + 换关键词）。
+func (a *app) searchNotFound(c *ui.Context) {
+	ui.Column(c).Fill().Center().Gap(10).Children(func() {
+		icon(c, icSearch, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
+		ui.Text(c, "未找到相关音乐").FontSize(17).Bold().TextColor(clrText)
+		ui.Text(c, "换个关键词试试").FontSize(13).TextColor(clrMuted)
+		ui.Spacer(c).Height(8)
+		if gradButton(c, "换个词继续搜").Clicked() {
+			a.query = ""
+			a.searched = false
+			a.results = nil
+			a.win.Invalidate()
+		}
+	})
 }

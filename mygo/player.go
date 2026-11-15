@@ -48,6 +48,7 @@ func (a *app) search() {
 	})
 	a.win.Update(func() {
 		a.results = res.Result
+		a.searched = true
 		// 换页清理：保留当前播放曲目的封面，其余驱逐（防止跨页堆积）
 		keep := ""
 		if a.current != nil {
