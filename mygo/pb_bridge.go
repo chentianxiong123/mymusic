@@ -94,6 +94,13 @@ func (a *app) progressReporter() {
 			a.pb.SetProgress(info.Pos, info.Dur, info.Playing)
 			a.posSec = info.Pos
 		}
+		// dock 封面 EQ 频谱相位（播放中跳动；对齐主线 d-eq CSS 动画）
+		if info.Playing {
+			a.eqPhase++
+		} else {
+			a.eqPhase = -1 // -1 = 不显示
+		}
+		a.win.Invalidate()
 	}
 }
 

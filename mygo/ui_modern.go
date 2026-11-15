@@ -73,7 +73,8 @@ func gradButton(c *ui.Context, label string) ui.Element {
 
 // cover 圆角封面图（网络加载 + 占位）。url 为空显示占位。
 func (a *app) cover(c *ui.Context, bvid, url string, size float32) ui.Element {
-	box := ui.Box(c).Size(size, size).Draw(func(p *ui.Painter, r ui.Rect) {
+	box := ui.Box(c).Size(size, size)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Clip(r, size/2, func() {
 			if img, ok := a.covers[bvid]; ok {
 				p.Image(img, r, ui.Contain)
@@ -86,6 +87,26 @@ func (a *app) cover(c *ui.Context, bvid, url string, size float32) ui.Element {
 				p.Line(r.X+size*0.68, r.Y+size*0.48, r.X+size*0.68, r.Y+size*0.26, size*0.05, clrPink)
 			}
 		})
+		// EQ 跳动频谱（对齐主线 d-eq：播放中封面右下 4 条色柱）
+		if a.eqPhase >= 0 && a.eqPhase%2 != 1 {
+			heights := []float32{0.30, 0.55, 0.40, 0.65}
+			for i, hh := range heights {
+				ph := (a.eqPhase + i*3) % 4
+				f := float32(1.0)
+				switch ph {
+				case 0:
+					f = 0.45
+				case 2:
+					f = 0.8
+				}
+				bw := size * 0.07
+				gap := size * 0.05
+				barH := size * hh * f
+				by := r.Y + r.H - barH - 4
+				bx := r.X + r.W - size*0.08 - bw*float32(4-i) - gap*float32(3-i)
+				p.Fill(ui.Rect{X: bx, Y: by, W: bw, H: barH}, ui.RGBA(0xff, 0xff, 0xff, 0.85), bw/2)
+			}
+		}
 	})
 	if url != "" {
 		a.loadCover(bvid, url)
@@ -241,10 +262,11 @@ func qualityChip(c *ui.Context, label string, on bool) ui.Element {
 	return box
 }
 
-// coverWide 4:3 横向封面（对齐主线 results.html 封面 w-12 h-9 / sm:w-20 h-14）。
+// coverWide 4:3 横向封面（对齐主线 results.html 封面 w-12 h-9 / sm:w-20 h-14 + hover 播放遮罩）。
 func (a *app) coverWide(c *ui.Context, bvid, url string, w float32) ui.Element {
 	h := w * 3 / 4
-	box := ui.Box(c).Size(w, h).Draw(func(p *ui.Painter, r ui.Rect) {
+	box := ui.Box(c).Size(w, h)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Clip(r, 10, func() {
 			img, ok := a.covers[bvid]
 			if ok {
@@ -253,6 +275,20 @@ func (a *app) coverWide(c *ui.Context, bvid, url string, w float32) ui.Element {
 				p.FillRadii(r, [4]float32{10, 10, 10, 10}, clrTrack)
 			}
 		})
+		// hover 播放遮罩（对齐主线 group-hover：黑底半透明 + 播放三角）
+		if box.Hovered() {
+			p.Clip(r, 10, func() {
+				p.Fill(r, ui.RGBA(0, 0, 0, 0.35), 0)
+				cx, cy := r.X+r.W/2, r.Y+r.H/2
+				tr := ui.Rect{X: cx - 8, Y: cy - 10, W: 16, H: 20}
+				pp := &ui.Path{}
+				pp.MoveTo(tr.X, tr.Y)
+				pp.LineTo(tr.X+tr.W, tr.Y+tr.H/2)
+				pp.LineTo(tr.X, tr.Y+tr.H)
+				pp.Close()
+				p.FillPath(pp, ui.RGB(0xff, 0xff, 0xff))
+			})
+		}
 	})
 	if url != "" {
 		a.loadCover(bvid, url)
@@ -277,7 +313,7 @@ func (a *app) lyricCaption(c *ui.Context) {
 	box := ui.Box(c).AlignSelf(ui.Stretch).Height(a.resp(40, 34)).Radius(12).PaddingX(a.resp(16, 12)).Background(clrCard)
 	box.Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
-			ui.Text(c, sub).FontSize(a.resp(16, 14)).Bold().TextColor(clrText).MaxLines(1)
+			ui.Text(c, sub).FontSize(a.capFontSize()).Bold().TextColor(clrText).MaxLines(1)
 			ui.Spacer(c).Grow(1)
 			if iconButton(c, "✕").Clicked() {
 				a.toggleCaption()

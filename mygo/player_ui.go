@@ -176,7 +176,25 @@ func (a *app) volumeBar(c *ui.Context, width float32) ui.Element {
 			p.Fill(ui.Rect{X: fr.X + fr.W - 3, Y: r.Y - 3, W: 6, H: 6}, ui.RGB(0xff, 0xff, 0xff), 3)
 		}
 		if x, _, over := box.PointerPosition(); over && (box.Pressed() || box.Dragging()) {
-			a.setVolume(float64(x / r.W))
+			x0 := x
+			if x0 < 0 {
+				x0 = 0
+			}
+			if x0 > r.W {
+				x0 = r.W
+			}
+			a.setVolume(float64(x0 / r.W))
+		}
+		// hover 显示百分比（对齐音量条语义：可见即反馈）
+		if box.Hovered() {
+			pct := int(a.volume * 100)
+			if a.muted {
+				pct = 0
+			}
+			label := fmt.Sprintf("%d%%", pct)
+			bub := ui.Rect{X: r.X + r.W/2 - 16, Y: r.Y - 24, W: 32, H: 18}
+			p.FillRadii(bub, [4]float32{9, 9, 9, 9}, clrTrack)
+			p.Text(bub.X+16, bub.Y+13, label, 10, clrText)
 		}
 	})
 	return box
@@ -323,10 +341,10 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 							continue
 						}
 						col := clrMuted
-						size := a.resp(16, 14)
+						size := a.lyricFontSize()
 						if i == curIdx {
 							col = ui.RGB(0xff, 0xff, 0xff)
-							size = a.resp(22, 18)
+							size = a.lyricFontSize() * 1.35
 						}
 						if a.lyricTime && i == curIdx {
 							ui.Row(c).AlignSelf(ui.Center).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -427,10 +445,10 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 								continue
 							}
 							col := clrMuted
-							size := float32(14)
+							size := a.lyricFontSize()
 							if i == curIdx {
 								col = ui.RGB(0xff, 0xff, 0xff)
-								size = 19
+								size = a.lyricFontSize() * 1.3
 							}
 							ui.Text(c, text).FontSize(size).Bold().TextColor(col)
 						}
@@ -839,6 +857,16 @@ func (a *app) setRowBtns(c *ui.Context, labels []string, cb func(int)) {
 			}
 		}
 	})
+}
+
+// lyricFontSize 歌词字号当前档（对齐主线 LY_SIZES 14/16/18/22/26）。
+func (a *app) lyricFontSize() float32 {
+	return float32([]int{14, 16, 18, 22, 26}[a.lyricSize])
+}
+
+// capFontSize 字幕条字号当前档（对齐主线 SUB_SIZES 16/20/24/28/32）。
+func (a *app) capFontSize() float32 {
+	return float32([]int{16, 20, 24, 28, 32}[a.capSize])
 }
 
 // capSizeLabel 字幕字号档对应的像素值。

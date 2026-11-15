@@ -46,6 +46,7 @@ type app struct {
 	speakers    []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
 	recent      []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
 	qrStatus    string                 // 音箱扫码登录状态文案
+	eqPhase     int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
 	qrImage     string                 // 二维码 data URI（渲染用）
 	ctxItem     *bilibili.SearchItem   // 右键菜单目标（非空=显示）
 	ctxX, ctxY  float32                // 菜单弹出位置（窗口坐标）
