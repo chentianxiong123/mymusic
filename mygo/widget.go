@@ -42,10 +42,26 @@ func (a *app) lyricView(c *ui.Context) {
 	c.Root().Background(ui.Transparent)
 	// DragWindow：整条作为窗口拖拽句柄（学主线 subtitle.js pointerdown/move 拖动定位）
 	ui.Column(c).Fill().Center().Gap(6).Padding(16).DragWindow().Children(func() {
-		// 悬停浮现关闭按钮（学主线 subtitle-x group-hover）
+		// 悬停浮现控制按钮面板（学主线 subtitle-bar group-hover 浮现控制；
+		// 复用 dock 控件：上一首/播放/下一首/收藏/关闭）
 		if c.Root().Hovered() {
-			ui.Row(c).Absolute().Top(2).Right(2).Children(func() {
-				if iconButton(c, "✕").Clicked() {
+			ui.Row(c).Absolute().Top(2).Left(0).Right(0).Justify(ui.Center).Gap(8).Children(func() {
+				if iconButton2(c, icPrev, 26, clrMuted).Clicked() {
+					go a.prev()
+				}
+				if playCircle(c, a.playing, 32).Clicked() {
+					a.togglePlay()
+				}
+				if iconButton2(c, icNext, 26, clrMuted).Clicked() {
+					go a.next()
+				}
+				if iconButton2(c, icHeart, 26, accent(a.isFav())).Clicked() {
+					a.toggleFav()
+				}
+				if iconButton2(c, icMsg, 26, accent(a.captionShown)).Clicked() {
+					a.toggleCaption()
+				}
+				if iconButton2(c, icClose, 26, clrMuted).Clicked() {
 					a.lyricWin.Close()
 					a.lyricWin = nil
 					a.lyricShown = false
