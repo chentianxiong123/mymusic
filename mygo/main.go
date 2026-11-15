@@ -466,10 +466,8 @@ func (a *app) playerBar(c *ui.Context) {
 		// 无歌曲也显示控制面板（对齐主线 dock 始终显示播放控制/音量/进度；
 		// 仅歌曲信息区显示"未在播放"占位）——队列/设置/投屏等页都看到控制面板
 		has := a.current != nil
-		// 字幕条（对齐主线：当前歌词行 + 关闭；有歌才显示）
-		if has {
-			a.lyricCaption(c)
-		}
+		// 页面内歌词栏（dock 字幕条 lyricCaption）已按用户要求移除：
+		// 歌词只保留桌面挂件 / 歌词页，播放控制面板不再显示当前歌词行。
 		// 上排：音质 + 循环模式 + 静音 + 音量（对齐主线 dock-tools：全部右对齐）
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(igap).Children(func() {
 			ui.Spacer(c).Grow(1) // 右对齐（对齐主线工具行在进度条右上方）
