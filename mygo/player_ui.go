@@ -818,7 +818,7 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 		box.Background(clrCard)
 	}
 	box.Children(func() {
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(12).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, fmt.Sprintf("%02d", i+1)).FontSize(13).TextColor(clrMuted).Width(26)
 			if btn, ok := box.PressedButton(); ok && btn == 2 {
 				it := item
@@ -889,7 +889,7 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 			it := item
 			a.openCtxMenu(&it)
 		}
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(12).AlignItems(ui.Center).Children(func() {
 			a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
 				ui.Text(c, item.Title).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)

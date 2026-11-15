@@ -156,6 +156,23 @@ func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLy
 	return box
 }
 
+// rowShell 统一列表行容器：定高圆角卡 + 内容行 Fill 垂直居中。
+// 所有列表行（搜索/收藏/队列）复用，保证内部组件与容器对齐/居中统一。
+func (a *app) rowShell(c *ui.Context, h float32, fn func()) ui.Element {
+	box := ui.Box(c).Fill().Height(h).Radius(12).PaddingX(12)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		if box.Hovered() {
+			p.Fill(r, clrCardHov, 12)
+		}
+	})
+	box.Children(func() {
+		// AlignSelf(Stretch)：内容行填满行高 + AlignItems(Center) 垂直居中
+		// —— 否则 Row 高度=内容，在定高 box 顶部对齐（不居中）
+		ui.Row(c).AlignSelf(ui.Stretch).Gap(a.resp(12, 8)).AlignItems(ui.Center).Children(fn)
+	})
+	return box
+}
+
 // listRow 搜索结果列表行：小封面 + 标题/作者 + 收藏 + 播放。点击行播放。
 func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 	// 标题展开态（对齐主线 hx-title 点击展开/收起完整标题）
@@ -165,41 +182,33 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 	if expanded {
 		rowH = 84
 	}
-	box := ui.Box(c).Fill().Height(rowH).Radius(12).PaddingX(12).Background(clrCard)
-	box.Draw(func(p *ui.Painter, r ui.Rect) {
-		if box.Hovered() {
-			p.Fill(r, clrCardHov, 12)
-		}
-	})
-	box.Children(func() {
-		ui.Row(c).Gap(a.resp(12, 8)).AlignItems(ui.Center).Children(func() {
-			// 封面（对齐主线 w-12 h-9 sm:w-20 sm:h-14 = 48×36 / 80×56 横向）
-			a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
-			ui.Column(c).Grow(1).Gap(2).Children(func() {
-				title := bilibili.CleanHTML(item.Title)
-				tb := ui.Text(c, title).FontSize(a.resp(15, 14)).Bold().TextColor(clrText)
-				if expanded {
-					tb.MaxLines(0)
-				} else {
-					tb.MaxLines(1)
+	box := a.rowShell(c, rowH, func() {
+		// 封面（对齐主线 w-12 h-9 sm:w-20 sm:h-14 = 48×36 / 80×56 横向）
+		a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
+		ui.Column(c).Grow(1).Gap(2).Children(func() {
+			title := bilibili.CleanHTML(item.Title)
+			tb := ui.Text(c, title).FontSize(a.resp(15, 14)).Bold().TextColor(clrText)
+			if expanded {
+				tb.MaxLines(0)
+			} else {
+				tb.MaxLines(1)
+			}
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, item.Author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+				if item.Duration != "" {
+					ui.Text(c, item.Duration).FontSize(12).TextColor(clrMuted)
 				}
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, item.Author).FontSize(13).TextColor(clrMuted).MaxLines(1)
-					if item.Duration != "" {
-						ui.Text(c, item.Duration).FontSize(12).TextColor(clrMuted)
-					}
-				})
 			})
-			if iconButton2(c, icHeart, a.resp(34, 30), accent(a.isFavItem(item))).Clicked() {
-				a.toggleFavItem(item)
-				btnHit = true
-			}
-			// 播放按钮始终显示（对齐主线结果行 hx-play：粉紫渐变圆角 + ▶ + 播放）
-			if playBtn(c).Clicked() {
-				go a.play(item)
-				btnHit = true
-			}
 		})
+		if iconButton2(c, icHeart, a.resp(34, 30), accent(a.isFavItem(item))).Clicked() {
+			a.toggleFavItem(item)
+			btnHit = true
+		}
+		// 播放按钮始终显示（对齐主线结果行 hx-play：粉紫渐变圆角 + ▶ + 播放）
+		if playBtn(c).Clicked() {
+			go a.play(item)
+			btnHit = true
+		}
 	})
 	// 展开标题仅在点击行主体（非 ♥/播放按钮）时触发，避免点收藏却展开（收藏独立生效）
 	if box.Clicked() && !btnHit {
@@ -359,8 +368,9 @@ func (a *app) lyricCaption(c *ui.Context) {
 	box.Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12).Children(func() {
 			// 歌词文字：有阴影投影保证深/浅背景下都可读（对齐 subtitle-bar text-white/95）
+			// 居中（对齐 subtitle-bar justify-center：内部歌词文字水平居中）
 			ui.Text(c, sub).FontSize(a.capFontSize()).Bold().
-				TextColor(ui.RGB(0xff, 0xff, 0xff)).MaxLines(1).Grow(1)
+				TextColor(ui.RGB(0xff, 0xff, 0xff)).MaxLines(1).Grow(1).TextAlign(ui.Center)
 			// 关闭按钮：仅悬停浮现（对齐 subtitle-x group-hover）
 			if box.Hovered() {
 				if iconButton(c, "✕").Clicked() {
