@@ -408,7 +408,7 @@ func (a *app) searchEmpty(c *ui.Context) {
 
 // chip 小圆角标签。
 func chip(c *ui.Context, label string) ui.Element {
-	box := ui.Box(c).Height(30).Radius(15).PaddingX(12)
+	box := ui.Box(c).Height(30).Radius(15).PaddingX(12).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := clrCard
 		if box.Hovered() {

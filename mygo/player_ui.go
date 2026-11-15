@@ -1187,7 +1187,7 @@ func switchToggle(c *ui.Context, on bool) ui.Element {
 
 // segBtn 分段按钮（选中=渐变胶囊）。
 func segBtn(c *ui.Context, label string, on bool) ui.Element {
-	box := ui.Box(c).Height(32).Radius(16).PaddingX(12)
+	box := ui.Box(c).Height(32).Radius(16).PaddingX(12).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if on {
 			p.FillGradient(r, grad(), 16)

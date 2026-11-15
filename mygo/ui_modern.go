@@ -63,7 +63,7 @@ func grad() ui.LinearGradient {
 // gradButton 紫渐变圆角按钮。
 // playBtn 播放按钮（对齐主线结果行 hx-play：粉紫渐变圆角 + 播放三角 + "播放"）。
 func playBtn(c *ui.Context) ui.Element {
-	box := ui.Box(c).Height(34).Radius(17).PaddingX(14).
+	box := ui.Box(c).Height(34).Radius(17).PaddingX(14).AlignItems(ui.Center).Justify(ui.Center).
 		Draw(func(p *ui.Painter, r ui.Rect) {
 			p.FillGradient(r, grad(), r.H/2)
 		})
@@ -78,7 +78,7 @@ func playBtn(c *ui.Context) ui.Element {
 }
 
 func gradButton(c *ui.Context, label string) ui.Element {
-	box := ui.Box(c).Height(42).Radius(21).PaddingX(24).PaddingY(9).
+	box := ui.Box(c).Height(42).Radius(21).PaddingX(24).PaddingY(9).AlignItems(ui.Center).Justify(ui.Center).
 		Draw(func(p *ui.Painter, r ui.Rect) {
 			p.FillGradient(r, grad(), r.H/2)
 		})
@@ -264,7 +264,7 @@ func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
 
 // iconButton 圆形图标按钮（歌词挂件开关等）。
 func iconButton(c *ui.Context, glyph string) ui.Element {
-	box := ui.Box(c).Size(34, 34).Radius(17)
+	box := ui.Box(c).Size(34, 34).Radius(17).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := clrCard
 		if box.Hovered() {
@@ -285,7 +285,7 @@ func (a *app) qualityLabel() string {
 
 // qualityChip 音质小按钮（对齐主线 d-quality：点击循环切换）。
 func qualityChip(c *ui.Context, label string, on bool) ui.Element {
-	box := ui.Box(c).Height(26).Radius(8).PaddingX(8)
+	box := ui.Box(c).Height(26).Radius(8).PaddingX(8).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := ui.RGBA(0, 0, 0, 0)
 		if on || box.Hovered() {
