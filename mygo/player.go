@@ -267,3 +267,29 @@ func (a *app) demo() {
 	time.Sleep(400 * time.Millisecond)
 	mygo.RunOnMain(func() { a.win.Invalidate() })
 }
+
+// handleShortcuts 键盘快捷键（对齐主线 shortcuts.js：空格播放暂停、
+// ←/→ 切歌、M 静音；输入框聚焦时全部忽略）。
+func (a *app) handleShortcuts(c *ui.Context) {
+	if c.FocusTakesText() {
+		return // 正在输入文字，不抢键
+	}
+	if c.Shortcut(0, ui.KeySpace) {
+		if a.current != nil {
+			a.pb.Toggle()
+		}
+		return
+	}
+	if c.Shortcut(0, ui.KeyLeft) {
+		a.pb.Prev()
+		return
+	}
+	if c.Shortcut(0, ui.KeyRight) {
+		a.pb.Next()
+		return
+	}
+	if c.Shortcut(0, ui.KeyM) {
+		a.toggleMute()
+		return
+	}
+}

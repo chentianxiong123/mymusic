@@ -153,6 +153,7 @@ func (a *app) resp(normal, narrow float32) float32 {
 
 func (a *app) view(c *ui.Context) {
 	applyTheme(a.themeMode) // 主题三态（对齐主线 THEMES）
+	a.handleShortcuts(c)    // 键盘快捷键（对齐主线 shortcuts.js）
 	ui.Column(c).Fill().Background(clrBg).Children(func() {
 		a.navBar(c)
 		switch a.activeTab {
