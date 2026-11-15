@@ -66,7 +66,13 @@ func (a *app) cover(c *ui.Context, bvid, url string, size float32) ui.Element {
 
 // listRow 搜索结果列表行：小封面 + 标题/作者 + 收藏 + 播放。点击行播放。
 func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
-	box := ui.Box(c).Fill().Height(60).Radius(12).PaddingX(12).Background(clrCard)
+	// 标题展开态（对齐主线 hx-title 点击展开/收起完整标题）
+	expanded := a.expandedTitle == item.BVID
+	rowH := float32(68)
+	if expanded {
+		rowH = 84
+	}
+	box := ui.Box(c).Fill().Height(rowH).Radius(12).PaddingX(12).Background(clrCard)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if box.Hovered() {
 			p.Fill(r, clrCardHov, 12)
@@ -74,10 +80,22 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 	})
 	box.Children(func() {
 		ui.Row(c).Gap(a.resp(12, 8)).AlignItems(ui.Center).Children(func() {
-			a.cover(c, item.BVID, item.Pic, a.resp(44, 36))
+			// 4:3 封面（对齐主线 w-20 h-14）
+			a.coverWide(c, item.BVID, item.Pic, a.resp(64, 52))
 			ui.Column(c).Grow(1).Gap(2).Children(func() {
-				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(a.resp(15, 14)).Bold().TextColor(clrText).MaxLines(1)
-				ui.Text(c, item.Author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+				title := bilibili.CleanHTML(item.Title)
+				tb := ui.Text(c, title).FontSize(a.resp(15, 14)).Bold().TextColor(clrText)
+				if expanded {
+					tb.MaxLines(0)
+				} else {
+					tb.MaxLines(1)
+				}
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, item.Author).FontSize(13).TextColor(clrMuted).MaxLines(1)
+					if item.Duration != "" {
+						ui.Text(c, item.Duration).FontSize(12).TextColor(clrMuted)
+					}
+				})
 			})
 			if iconButton2(c, icHeart, a.resp(34, 30), accent(a.isFavItem(item))).Clicked() {
 				a.toggleFavItem(item)
@@ -90,7 +108,12 @@ func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
 		})
 	})
 	if box.Clicked() {
-		go a.play(item)
+		if a.expandedTitle == item.BVID {
+			a.expandedTitle = ""
+		} else {
+			a.expandedTitle = item.BVID
+		}
+		a.win.Invalidate()
 	}
 }
 
@@ -156,6 +179,50 @@ func iconButton(c *ui.Context, glyph string) ui.Element {
 	box.Children(func() {
 		ui.Text(c, glyph).TextColor(clrMuted).FontSize(14)
 	})
+	return box
+}
+
+// qualityLabel 当前音质标签（对齐主线 d-quality 三档）。
+func (a *app) qualityLabel() string {
+	return []string{"64k", "128k", "192k"}[a.quality]
+}
+
+// qualityChip 音质小按钮（对齐主线 d-quality：点击循环切换）。
+func qualityChip(c *ui.Context, label string, on bool) ui.Element {
+	box := ui.Box(c).Height(26).Radius(8).PaddingX(8)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		bg := ui.RGBA(0, 0, 0, 0)
+		if on || box.Hovered() {
+			bg = clrField
+		}
+		p.Fill(r, bg, 8)
+	})
+	box.Children(func() {
+		col := clrMuted
+		if on {
+			col = clrPink
+		}
+		ui.Text(c, label).FontSize(12).TextColor(col)
+	})
+	return box
+}
+
+// coverWide 4:3 横向封面（对齐主线 results.html 封面 w-12 h-9 / sm:w-20 h-14）。
+func (a *app) coverWide(c *ui.Context, bvid, url string, w float32) ui.Element {
+	h := w * 3 / 4
+	box := ui.Box(c).Size(w, h).Draw(func(p *ui.Painter, r ui.Rect) {
+		p.Clip(r, 10, func() {
+			img, ok := a.covers[bvid]
+			if ok {
+				p.Image(img, r, ui.Cover)
+			} else {
+				p.FillRadii(r, [4]float32{10, 10, 10, 10}, clrTrack)
+			}
+		})
+	})
+	if url != "" {
+		a.loadCover(bvid, url)
+	}
 	return box
 }
 

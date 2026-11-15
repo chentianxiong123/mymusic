@@ -67,6 +67,10 @@ type app struct {
 	favorites  []bilibili.SearchItem
 	favMap     map[string]bool
 
+	quality       int    // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
+	lyricSize     int    // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
+	expandedTitle string // 搜索结果标题展开态 bvid（对齐主线 hx-title）
+	capSize       int    // 0-4 字幕字号档（对齐主线 16/20/24/28/32px）
 	// 静音 / 字幕条（学主线结构）
 	muted        bool
 	lastVolume   float64
@@ -355,7 +359,14 @@ func (a *app) resultsHeader(c *ui.Context) {
 		if a.compact() {
 			ui.Text(c, a.status).FontSize(12).TextColor(clrMuted).MaxLines(1).MaxWidth(120)
 		}
-		if gradButton(c, "播放全部").Clicked() {
+		// 播放全部（对齐主线 hidden sm:inline：窄屏只图标）
+		if a.compact() {
+			if iconButton2(c, icPlayAll, a.resp(34, 30), clrText).Clicked() {
+				if len(a.results) > 0 {
+					a.playAll(a.results, 0)
+				}
+			}
+		} else if gradButton(c, "播放全部").Clicked() {
 			if len(a.results) > 0 {
 				a.playAll(a.results, 0)
 			}
@@ -381,7 +392,11 @@ func (a *app) playerBar(c *ui.Context) {
 			if a.compact() {
 				ui.Spacer(c).Grow(1)
 			}
-			ui.Text(c, "192k").FontSize(13).TextColor(clrMuted)
+			// 音质按钮（对齐主线 d-quality：点击循环 64/128/192k）
+			if qualityChip(c, a.qualityLabel(), a.quality > 0).Clicked() {
+				a.quality = (a.quality + 1) % 3
+				a.win.Invalidate()
+			}
 			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {
 				a.toggleLoop()
 			}

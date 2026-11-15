@@ -273,7 +273,7 @@ func (a *app) nowPlaying(c *ui.Context) {
 							icon(c, icVol, 18, clrMuted)
 							a.volumeBar(c, a.resp(200, 130))
 							ui.Spacer(c).Grow(1)
-							ui.Text(c, "192k").FontSize(13).TextColor(clrMuted)
+							ui.Text(c, a.qualityLabel()).FontSize(13).TextColor(clrMuted)
 							ui.Text(c, a.loopLabel()).FontSize(13).TextColor(clrMuted)
 						})
 					})
@@ -334,7 +334,7 @@ func (a *app) narrowInfo(c *ui.Context) {
 			icon(c, icVol, 16, clrMuted)
 			a.volumeBar(c, 110)
 			ui.Spacer(c).Grow(1)
-			ui.Text(c, "192k").FontSize(12).TextColor(clrMuted)
+			ui.Text(c, a.qualityLabel()).FontSize(12).TextColor(clrMuted)
 		})
 	})
 }
@@ -390,8 +390,13 @@ func (a *app) queuePage(c *ui.Context) {
 			})
 		}
 		if len(a.playlist) == 0 {
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "队列为空，去搜索添加").TextColor(clrMuted).FontSize(15)
+			ui.Column(c).Fill().Center().Gap(10).Children(func() {
+				icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
+				ui.Text(c, "队列为空").FontSize(17).Bold().TextColor(clrText)
+				ui.Text(c, "随便点一首歌，队列会自动出现在这里").FontSize(13).TextColor(clrMuted)
+				if gradButton(c, "去搜索").Clicked() {
+					a.setTab("search")
+				}
 			})
 			return
 		}
@@ -467,8 +472,13 @@ func (a *app) favPage(c *ui.Context) {
 			}
 		})
 		if len(a.favorites) == 0 {
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "还没有收藏，播放时点 ♥ 收藏").TextColor(clrMuted).FontSize(15)
+			ui.Column(c).Fill().Center().Gap(12).Children(func() {
+				icon(c, icHeart, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
+				ui.Text(c, "收藏夹还是空的").FontSize(17).Bold().TextColor(clrText)
+				ui.Text(c, "听歌时点卡片上的 ♥ 收藏").FontSize(13).TextColor(clrMuted)
+				if gradButton(c, "去搜索").Clicked() {
+					a.setTab("search")
+				}
 			})
 			return
 		}
@@ -511,21 +521,48 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 	}
 }
 
-// settingsPage 设置页：简单设置项。
+// settingsPage 设置页：对齐主线 content_settings.html 完整项
+// （主题模式/网页字幕条/音质/播放模式/歌词字号/字幕字号/缓存）。
 func (a *app) settingsPage(c *ui.Context) {
 	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12).Children(func() {
 		ui.Text(c, "设置").FontSize(20).Bold().TextColor(clrText)
-		ui.Spacer(c).Height(6)
-		a.settingRow(c, "音质", "192k（B站最高音质）", "")
-		a.settingRow(c, "循环模式", a.loopLabel(), "点击切换")
-		a.settingRow(c, "桌面歌词挂件", "", "播放条右上角切换")
-		a.settingRow(c, "缓存目录", "/tmp/mymusic-*.m4a", "临时文件")
-		ui.Spacer(c).Grow(1)
+		ui.Spacer(c).Height(4)
+		ui.Scroll(c).Grow(1).Gap(10).Children(func() {
+			ui.Column(c).Gap(10).Children(func() {
+				// 主题模式（对齐主线：暗黑/自动/明亮）
+				a.settingRow(c, "主题模式", "暗黑", "当前仅深色紫粉主题")
+				// 网页字幕条（主线同款：桌面歌词由挂件承担）
+				a.settingRowSwitch(c, "网页字幕条", a.captionShown, "播放条内歌词条", func(on bool) {
+					a.captionShown = on
+				})
+				// 音质（对齐主线 d-quality 三档）
+				a.settingRowSeg(c, "音质", []string{"64k", "128k", "192k"}, a.quality, func(i int) {
+					a.quality = i
+				})
+				// 播放模式（对齐主线 4 模式）
+				a.settingRowSeg(c, "播放模式", []string{"顺序播放", "列表循环", "单曲循环", "随机播放"}, a.loopMode, func(i int) {
+					a.loopMode = i
+					a.pb.SetMode(intToMode(i))
+				})
+				// 歌词字号（对齐主线 14-26px）
+				a.settingRowSeg(c, "歌词字号", []string{"14px", "16px", "18px", "22px", "26px"}, a.lyricSize, func(i int) {
+					a.lyricSize = i
+				})
+				// 字幕字号（对齐主线横向字幕条 16-32px）
+				a.settingRowSeg(c, "字幕字号", []string{"16px", "20px", "24px", "28px", "32px"}, a.capSize, func(i int) {
+					a.capSize = i
+				})
+				// 歌曲缓存（主线同款：自动缓存播放超 60 秒的歌）
+				a.settingRow(c, "歌曲缓存", "自动缓存播放超过 60 秒的歌", "")
+				a.settingRow(c, "缓存目录", "/tmp/mymusic-*.m4a", "临时文件")
+			})
+		})
+		ui.Spacer(c).Height(4)
 		ui.Text(c, "MyGo 原生版 · 紫粉渐变主题").FontSize(12).TextColor(clrMuted)
 	})
 }
 
-// settingRow 设置项行。
+// settingRow 设置项行（左标签 + 右文案，对齐主线 settings 行布局）。
 func (a *app) settingRow(c *ui.Context, label, value, hint string) {
 	ui.Box(c).Fill().Height(56).Radius(12).PaddingX(16).Background(clrCard).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
@@ -537,6 +574,81 @@ func (a *app) settingRow(c *ui.Context, label, value, hint string) {
 			}
 		})
 	})
+}
+
+// settingRowSwitch 开关行（对齐主线网页字幕条开关）。
+func (a *app) settingRowSwitch(c *ui.Context, label string, on bool, hint string, cb func(bool)) {
+	ui.Box(c).Fill().Height(56).Radius(12).PaddingX(16).Background(clrCard).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, label).FontSize(a.resp(15, 14)).TextColor(clrText).Bold().Width(a.resp(140, 104))
+			ui.Text(c, hint).FontSize(13).TextColor(clrMuted)
+			ui.Spacer(c).Grow(1)
+			if switchToggle(c, on).Clicked() {
+				cb(!on)
+			}
+		})
+	})
+}
+
+// settingRowSeg 分段选择行（对齐主线 settings 的音质/播放模式按钮组）。
+func (a *app) settingRowSeg(c *ui.Context, label string, opts []string, cur int, cb func(int)) {
+	ui.Box(c).Fill().Radius(12).PaddingX(16).PaddingY(10).Background(clrCard).Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8).Children(func() {
+			ui.Text(c, label).FontSize(a.resp(15, 14)).TextColor(clrText).Bold().Width(a.resp(140, 104))
+			ui.Row(c).Gap(6).Children(func() {
+				for i, opt := range opts {
+					i, opt := i, opt
+					if segBtn(c, opt, i == cur).Clicked() {
+						cb(i)
+					}
+				}
+			})
+		})
+	})
+}
+
+// switchToggle 开关（开=紫高亮）。
+func switchToggle(c *ui.Context, on bool) ui.Element {
+	box := ui.Box(c).Size(46, 26).Radius(13)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		if on {
+			p.FillGradient(r, grad(), 13)
+		} else {
+			p.Fill(r, clrField, 13)
+		}
+	})
+	box.Children(func() {
+		knob := ui.Box(c).Size(20, 20).Radius(10).Absolute().Top(3)
+		if on {
+			knob.Left(23)
+		} else {
+			knob.Left(3)
+		}
+		knob.Background(ui.RGB(0xff, 0xff, 0xff))
+	})
+	return box
+}
+
+// segBtn 分段按钮（选中=渐变胶囊）。
+func segBtn(c *ui.Context, label string, on bool) ui.Element {
+	box := ui.Box(c).Height(32).Radius(16).PaddingX(12)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		if on {
+			p.FillGradient(r, grad(), 16)
+		} else if box.Hovered() {
+			p.Fill(r, clrField, 16)
+		} else {
+			p.Fill(r, clrField, 16)
+		}
+	})
+	box.Children(func() {
+		col := clrMuted
+		if on {
+			col = ui.RGB(0xff, 0xff, 0xff)
+		}
+		ui.Text(c, label).FontSize(13).TextColor(col)
+	})
+	return box
 }
 
 // castPage 投屏占位页。
