@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -92,6 +93,11 @@ func (a *app) setVolume(v float64) {
 	if a.mygoOut != nil {
 		a.mygoOut.SetVolume(int(v * 100))
 	}
+	now := time.Now()
+	if now.Sub(a.lastVolSave) > 500*time.Millisecond {
+		a.savePrefFloat("mygo_volume", v)
+		a.lastVolSave = now
+	}
 	a.win.Invalidate()
 }
 
@@ -99,6 +105,7 @@ func (a *app) setVolume(v float64) {
 func (a *app) toggleLoop() {
 	a.loopMode = (a.loopMode + 1) % 4
 	a.pb.SetMode(intToMode(a.loopMode))
+	a.savePref("mygo_loopmode", a.loopMode)
 }
 
 // loopLabel 当前循环模式名。

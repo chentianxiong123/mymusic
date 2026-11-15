@@ -180,11 +180,27 @@ func (a *app) restoreHistory() {
 	}
 }
 
+// savePrefFloat 浮点偏好（音量等）。
+func (a *app) savePrefFloat(key string, v float64) {
+	a.savePref(key, int(v*1000))
+}
+
+// loadPrefFloat 读取浮点偏好（v=千分比存储；缺省返回 0.8）。
+func (a *app) loadPrefFloat(key string, def float64) float64 {
+	n := a.loadPref(key, int(def*1000))
+	return float64(n) / 1000.0
+}
+
 // restorePrefs 启动恢复本机偏好（主题/音质/缓存上限，对齐主线 settings.js 持久化）。
 func (a *app) restorePrefs() {
 	a.themeMode = a.loadPref("mygo_theme", 0)
 	a.quality = a.loadPref("mygo_quality", 2)
 	a.cacheLimit = a.loadPref("mygo_cachelimit", 0)
+	a.loopMode = a.loadPref("mygo_loopmode", 0)
+	a.volume = a.loadPrefFloat("mygo_volume", 0.8)
+	if a.svc != nil && a.svc.speaker != nil && a.loopMode != 0 {
+		a.pb.SetMode(intToMode(a.loopMode))
+	}
 	if a.svc != nil && a.svc.cache != nil {
 		a.svc.cache.SetLimitMB([]int{0, 200, 500, 1000, 2000}[a.cacheLimit])
 	}

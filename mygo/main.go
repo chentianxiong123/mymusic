@@ -45,6 +45,7 @@ type app struct {
 	castDevices []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
 	speakers    []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
 	recent      []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
+	lastVolSave time.Time              // 音量落库节流时间戳
 	qrStatus    string                 // 音箱扫码登录状态文案
 	searched    bool                   // 是否已执行过搜索（区分空结果态）
 	eqPhase     int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
@@ -80,7 +81,7 @@ type app struct {
 	playIndex  int
 	posSec     float64 // 当前播放秒（歌词定位用）
 	volume     float64
-	loopMode   int // 0 列表循环 1 单曲 2 随机
+	loopMode   int // 0 顺序 1 列表循环 2 单曲 3 随机（对齐主线 4 态）
 	favorites  []bilibili.SearchItem
 	favSet     map[string]bool
 
@@ -560,6 +561,7 @@ func main() {
 	a.mygoOut = newMyGoOutput(a.bili)
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
 	a.mygoOut.qualFn = func() int { return a.quality } // 音质档实时读取（60k/128k/192k）
+	a.mygoOut.SetVolume(int(a.volume * 100))           // 恢复音量（restorePrefs 后 mygoOut 才存在）
 	a.pb.SetOutput(a.mygoOut)
 	a.pb.SetDB(a.db)
 	a.pb.Restore(a.db)
