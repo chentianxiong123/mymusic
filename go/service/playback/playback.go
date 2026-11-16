@@ -11,16 +11,18 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"homecast/service/conv"
 )
 
 // Song 歌曲（对齐前端 song / fav.FavSong 字段）
 type Song struct {
-	BVID     string `json:"bvid"`
-	Title    string `json:"title"`
-	FullTitle string `json:"fullTitle,omitempty"`
-	Artist   string `json:"artist"`
-	Cover    string `json:"cover"`
-	Duration float64 `json:"duration,omitempty"`
+	BVID      string  `json:"bvid"`
+	Title     string  `json:"title"`
+	FullTitle string  `json:"fullTitle,omitempty"`
+	Artist    string  `json:"artist"`
+	Cover     string  `json:"cover"`
+	Duration  float64 `json:"duration,omitempty"`
 }
 
 // SSE 广播载荷（对齐 widget.SSEMsg）
@@ -31,19 +33,19 @@ type SSEMsg struct {
 
 // State 唯一状态源快照（前端渲染依据）
 type State struct {
-	Source   string `json:"source"`   // web | speaker
-	BVID     string `json:"bvid"`
-	Title    string `json:"title"`
-	Artist   string `json:"artist"`
-	Cover    string `json:"cover"`
-	Playing  bool   `json:"playing"`
+	Source   string  `json:"source"` // web | speaker
+	BVID     string  `json:"bvid"`
+	Title    string  `json:"title"`
+	Artist   string  `json:"artist"`
+	Cover    string  `json:"cover"`
+	Playing  bool    `json:"playing"`
 	Position float64 `json:"position"`
 	Duration float64 `json:"duration"`
-	PlayMode string `json:"play_mode"` // order/loop/single/random
-	Queue    []Song `json:"queue"`
-	QIdx     int    `json:"qidx"`
-	SpkDID   string `json:"spk_did,omitempty"` // source=speaker 时目标设备 did
-	Volume   int    `json:"volume"` // 音量 0-100（仅 source=speaker 有意义；web 音量走前端本地 audio）。不加 omitempty：volume=0(静音)是合法值必须广播
+	PlayMode string  `json:"play_mode"` // order/loop/single/random
+	Queue    []Song  `json:"queue"`
+	QIdx     int     `json:"qidx"`
+	SpkDID   string  `json:"spk_did,omitempty"` // source=speaker 时目标设备 did
+	Volume   int     `json:"volume"`            // 音量 0-100（仅 source=speaker 有意义；web 音量走前端本地 audio）。不加 omitempty：volume=0(静音)是合法值必须广播
 }
 
 // PlaybackState 统一状态管理器（线程安全）
@@ -54,9 +56,9 @@ type PlaybackState struct {
 	db   *sql.DB // 持久化（settings kv），可选注入
 	// out 当前激活的播放后端（web=NullOutput 前端 audio 接管；speaker=SpeakerOutput；cast=CastOutput）
 	// 统一调度：核心只认 Output 接口，不再用 source 分支判断（对接归位）
-	out        Output
-	outFactory OutputFactory // 创建绑定 did 的输出（SwitchSpeaker 用）
-	prevWebPlaying bool // 切走前 web 播放态（SwitchWeb 续播用，非持久化）
+	out            Output
+	outFactory     OutputFactory // 创建绑定 did 的输出（SwitchSpeaker 用）
+	prevWebPlaying bool          // 切走前 web 播放态（SwitchWeb 续播用，非持久化）
 	// manualSwitchAt 主动切歌（Next/Prev）时刻：projectProgress 的防污染窗口用。
 	// 主动切歌时序 = 核心先换新歌+bcastSnapshot，后 out.Play 音箱才换——中间窗口
 	// progressLoop tick 会读到音箱还播旧歌，若一律跟随会把核心刷回旧歌（前端歌名/进度
@@ -74,9 +76,9 @@ type PlaybackState struct {
 // NewPlaybackState 构造
 func NewPlaybackState() *PlaybackState {
 	p := &PlaybackState{
-		cur:  State{Source: "web", PlayMode: "order", QIdx: -1, Queue: []Song{}},
-		subs: make(map[chan SSEMsg]struct{}),
-		out:  NullOutput{}, // 默认 web：前端 audio 接管
+		cur:        State{Source: "web", PlayMode: "order", QIdx: -1, Queue: []Song{}},
+		subs:       make(map[chan SSEMsg]struct{}),
+		out:        NullOutput{}, // 默认 web：前端 audio 接管
 		wantVolume: -1,
 	}
 	go p.progressLoop() // 后台：音箱本地模拟进度 → SSOT（一切以我为准，不查音箱）
@@ -250,7 +252,7 @@ func (p *PlaybackState) persistNow() {
 		return
 	}
 	b := p.persist()
-	if _, err := db.Exec(`INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, stateKey, string(b)); err != nil {
+	if err := conv.SaveSetting(db, stateKey, string(b)); err != nil {
 		log.Printf("[playback] save state: %v", err)
 	}
 }
@@ -262,8 +264,8 @@ func (p *PlaybackState) Play(s Song) {
 	p.mu.Lock()
 	// 快照（含队列副本：Play 会去重+入队尾，失败必须整体回滚，只还原 QIdx 会导致元素错位）
 	old := songSnapshot{
-		QIdx: p.cur.QIdx,
-		Song: Song{BVID: p.cur.BVID, Title: p.cur.Title, Artist: p.cur.Artist, Cover: p.cur.Cover, Duration: p.cur.Duration},
+		QIdx:     p.cur.QIdx,
+		Song:     Song{BVID: p.cur.BVID, Title: p.cur.Title, Artist: p.cur.Artist, Cover: p.cur.Cover, Duration: p.cur.Duration},
 		Position: p.cur.Position,
 		Duration: p.cur.Duration,
 		Playing:  p.cur.Playing,
@@ -463,7 +465,7 @@ func (p *PlaybackState) Next() {
 	song := p.cur.Queue[p.cur.QIdx]
 	p.applyLocked(song)
 	p.manualSwitchAt = time.Now() // 主动切歌：开防污染窗（projectProgress 跳过滞后旧歌投影）
-	p.prevBVID = old.Song.BVID // 守卫只挡音箱还报这首（滞后），放行蓝牙领先
+	p.prevBVID = old.Song.BVID    // 守卫只挡音箱还报这首（滞后），放行蓝牙领先
 	nextBVID := p.nextBVIDLocked()
 	out := p.out
 	p.mu.Unlock()
@@ -504,7 +506,7 @@ func (p *PlaybackState) Prev() {
 	song := p.cur.Queue[p.cur.QIdx]
 	p.applyLocked(song)
 	p.manualSwitchAt = time.Now() // 主动切歌：开防污染窗
-	p.prevBVID = old.Song.BVID // 守卫只挡音箱还报这首（滞后），放行蓝牙领先
+	p.prevBVID = old.Song.BVID    // 守卫只挡音箱还报这首（滞后），放行蓝牙领先
 	nextBVID := p.nextBVIDLocked()
 	out := p.out
 	p.mu.Unlock()
@@ -828,8 +830,8 @@ func (p *PlaybackState) Restore(db *sql.DB) {
 	if db == nil {
 		return
 	}
-	var v string
-	if err := db.QueryRow(`SELECT value FROM settings WHERE key=?`, stateKey).Scan(&v); err != nil {
+	v, ok := conv.LoadSetting(db, stateKey)
+	if !ok {
 		return // 无历史，保留默认
 	}
 	var d struct {

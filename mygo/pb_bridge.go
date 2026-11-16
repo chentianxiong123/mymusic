@@ -125,11 +125,12 @@ func (a *app) progressReporter() {
 }
 
 // savePref 设置键值持久化（settings 表；对齐主线 localStorage hc:* 语义）。
+// savePref 写设置整数（settings 唯一写入入口 conv.SaveSetting：主线改表自动跟上）。
 func (a *app) savePref(key string, v int) {
 	if a.db == nil {
 		return
 	}
-	a.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?`, key, fmt.Sprintf("%d", v), fmt.Sprintf("%d", v))
+	_ = conv.SaveSetting(a.db, key, fmt.Sprintf("%d", v))
 }
 
 // loadPref 读取设置键值（缺省返回 def）。
@@ -153,8 +154,7 @@ func (a *app) saveRecent() {
 	if err != nil {
 		return
 	}
-	a.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?`,
-		"mygo_recent", string(data), string(data))
+	_ = conv.SaveSetting(a.db, "mygo_recent", string(data))
 }
 
 // restoreRecent 启动恢复最近播放。
@@ -162,8 +162,8 @@ func (a *app) restoreRecent() {
 	if a.db == nil {
 		return
 	}
-	var v string
-	if err := a.db.QueryRow(`SELECT value FROM settings WHERE key=?`, "mygo_recent").Scan(&v); err != nil {
+	v, ok := conv.LoadSetting(a.db, "mygo_recent")
+	if !ok {
 		return
 	}
 	var list []bilibili.SearchItem
@@ -181,8 +181,7 @@ func (a *app) saveHistory() {
 	if err != nil {
 		return
 	}
-	a.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?`,
-		"mygo_history", string(data), string(data))
+	_ = conv.SaveSetting(a.db, "mygo_history", string(data))
 }
 
 // restoreHistory 启动恢复搜索历史。
@@ -190,8 +189,8 @@ func (a *app) restoreHistory() {
 	if a.db == nil {
 		return
 	}
-	var v string
-	if err := a.db.QueryRow(`SELECT value FROM settings WHERE key=?`, "mygo_history").Scan(&v); err != nil {
+	v, ok := conv.LoadSetting(a.db, "mygo_history")
+	if !ok {
 		return
 	}
 	var list []string
@@ -215,7 +214,7 @@ func (a *app) loadPrefFloat(key string, def float64) float64 {
 func (a *app) restorePrefs() {
 	a.themeMode = a.loadPref("mygo_theme", 0)
 	a.quality = a.loadPref("mygo_quality", 2)
-	a.cacheLimit = a.loadPref("mygo_cachelimit", 0)
+	a.cacheLimit = a.loadPref("mygo_cachelimit", 2) // 档位索引 2=500MB（对齐主线 hc:cachelimit 默认 500）
 	a.loopMode = a.loadPref("mygo_loopmode", 0)
 	a.lyricSize = a.loadPref("mygo_lyricsize", 2)
 	a.volume = a.loadPrefFloat("mygo_volume", 0.8)

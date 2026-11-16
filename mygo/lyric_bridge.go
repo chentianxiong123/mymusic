@@ -4,12 +4,13 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"regexp"
 	"strings"
 
 	"homecast/service/lyric"
+	"homecast/service/playlist"
+	"homecast/service/widget"
 )
 
 // loadLyricAsync 后台加载歌词：走主线 LyricHandler 端点（/api/v1/music/lyric），
@@ -62,26 +63,22 @@ func (a *app) loadLyricAsync(bvid string) {
 	}()
 }
 
-// lyricAt 当前秒对应的歌词文本（未匹配返回空串；对齐主线 ktv 当前行逻辑）。
+// linesAnyMygo []lyric.LyricLine → [][3]any（widget.PickLineIndex 入参类型桥；
+// 类型不同（数组 vs 切片）但同构，仅转换无逻辑）。
+func linesAnyMygo(lines []lyric.LyricLine) [][3]any {
+	out := make([][3]any, len(lines))
+	for i, ln := range lines {
+		out[i] = ln
+	}
+	return out
+}
+
+// lyricAt 当前秒对应的歌词文本+索引（未匹配返回空串）。
+// 定位复用主线 widget.PickLineIndex（sec<=t 最后一行，唯一实现住后端；主线改定位
+// mygo 自动接上）。旧版自创循环（还带 0.3s 容差+int 截断）已删。
 func (a *app) lyricAt(sec float64) (string, int) {
-	if len(a.lyricLines) == 0 {
-		return "", -1
-	}
-	t := sec + a.lyricOffset
-	idx, cur := -1, ""
-	for i, ln := range a.lyricLines {
-		ls, ok := ln[0].(float64)
-		if !ok {
-			continue
-		}
-		if float64(int(t)) >= ls-0.3 {
-			idx = i
-			if s, ok := ln[1].(string); ok {
-				cur = s
-			}
-		}
-	}
-	return cur, idx
+	idx, line := widget.PickLineIndex(linesAnyMygo(a.lyricLines), sec+a.lyricOffset)
+	return line, idx
 }
 
 // lyricLineText 第 i 行歌词文本。
@@ -140,10 +137,9 @@ func (a *app) pickLyricSID(bvid string, sid int) {
 }
 
 // lyricTimeStr 秒 → m:ss（对齐主线歌词时间戳显示）。
+// lyricTimeStr 秒 → m:ss。复用主线 playlist.FormatDuration（同公式，主线改自动接上）。
 func lyricTimeStr(t float64) string {
-	m := int(t) / 60
-	sec := int(t) % 60
-	return fmt.Sprintf("%d:%02d", m, sec)
+	return playlist.FormatDuration(int(t))
 }
 
 // nudgeLyric 歌词对齐微调 ±0.5s（对齐主线 ly-nudge 逻辑；SSOT 持久化 offset）。
@@ -190,23 +186,14 @@ func (a *app) lyricSourceText() string {
 // yrc 用自带时长 l[2]，LRC 用下一行时间差估算）。
 // 返回当前行下标 + 0~1 进度；无歌词行时 -1,0。
 func (a *app) lyricProg(sec float64) (int, float64) {
-	if len(a.lyricLines) == 0 {
-		return -1, 0
-	}
-	t := sec + a.lyricOffset
-	idx := -1
-	for i, ln := range a.lyricLines {
-		ls, ok := ln[0].(float64)
-		if !ok {
-			continue
-		}
-		if t >= ls-0.3 {
-			idx = i
-		}
-	}
+	// 当前行定位复用主线 widget.PickLineIndex（唯一实现住后端）；进度计算是显示层
+	// 逻辑（对齐主线 lyric.js sync：yrc 自带时长 l[2]，LRC 用下一行时间差估算），
+	// 主线 Go 侧无此函数（前端 JS 算），mygo 保留公式但行定位不重复实现。
+	_, idx := a.lyricAt(sec)
 	if idx < 0 {
 		return -1, 0
 	}
+	t := sec + a.lyricOffset
 	start, _ := a.lyricLines[idx][0].(float64)
 	dur := 0.0
 	if d, ok := a.lyricLines[idx][2].(float64); ok && d > 0 {
@@ -262,5 +249,5 @@ func candDurText(dur int) string {
 	if dur <= 0 {
 		return "--:--"
 	}
-	return fmt.Sprintf("%d:%02d", dur/60, dur%60)
+	return playlist.FormatDuration(dur)
 }

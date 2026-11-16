@@ -56,14 +56,10 @@ func favNewEntry(bvid, title, artist, cover string, durSec int) fav.FavSong {
 	return fav.FavSong{BVID: bvid, Title: title, Artist: artist, Cover: cover, DurationSec: durSec}
 }
 
-// durationSec 由进度+时长文本估算秒数（收藏条目用；无则 0）。
+// durationSec 时长文本 → 秒（收藏条目用；无则 0）。
+// 复用主线 music.ParseDurationSec（m:ss / h:mm:ss 都支持，主线改解析 mygo 自动跟上）。
 func durationSec(progress float32, durText string) int {
-	// 简单解析 m:ss
-	var m, s int
-	if _, err := fmt.Sscanf(durText, "%d:%d", &m, &s); err == nil {
-		return m*60 + s
-	}
-	return 0
+	return music.ParseDurationSec(durText)
 }
 
 // newServices 构造主线域包（对齐主线 server.go 的组装方式）。

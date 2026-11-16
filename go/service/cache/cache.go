@@ -131,8 +131,7 @@ func (s *CacheService) SetLimitMB(v int) {
 	}
 	s.mu.Lock()
 	s.limitMB = v
-	s.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?`,
-		limitKey, conv.Itoa(v), conv.Itoa(v))
+	_ = conv.SaveSetting(s.db, limitKey, conv.Itoa(v))
 	s.evictLocked() // 降低上限可能触发立即淘汰
 	s.mu.Unlock()
 }
@@ -305,7 +304,7 @@ func (s *CacheService) ClearAll() {
 // （chunked 响应为 -1/0，见 http.Response.ContentLength）。完整性双判：
 //   - 有 Content-Length：字节数 == contentLength（下载中断/seek 断连的截断文件直接丢弃，不污染缓存）；
 //   - chunked/未知长度：io.Copy 无错误返回即读到完整 EOF（客户端断开会写 w 失败返回 err）才缓存；
-//  否则一律丢弃（截断文件被 serve 后浏览器 seek 超范围→416→跳末尾→误切歌）。
+//     否则一律丢弃（截断文件被 serve 后浏览器 seek 超范围→416→跳末尾→误切歌）。
 func (s *CacheService) StreamAndCache(w io.Writer, bvid string, quality int, body io.Reader, contentLength int64) {
 	tmp := s.filePath(bvid) + ".tmp"
 	if err := os.MkdirAll(s.audioDir, 0o755); err != nil {

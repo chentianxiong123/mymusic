@@ -42,9 +42,9 @@ type Entry struct {
 
 // LyricCache 歌词行缓存（SQLite，LRU + 上限 + 双清除）
 type LyricCache struct {
-	mu      sync.Mutex
-	db      *sql.DB
-	limit   int
+	mu    sync.Mutex
+	db    *sql.DB
+	limit int
 }
 
 // NewLyricCache 构造（limit<0 用默认或持久化值）
@@ -73,11 +73,9 @@ func (s *LyricCache) SetLimit(v int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.limit = v
-	s.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?`,
-		limitKey, conv.Itoa(v), conv.Itoa(v))
+	_ = conv.SaveSetting(s.db, limitKey, conv.Itoa(v))
 	s.evictLocked() // 降低上限可能触发立即淘汰
 }
-
 
 // Get 命中返回 Entry + 刷新 last_used（LRU 触碰）；未命中 ok=false
 func (s *LyricCache) Get(bvid string) (Entry, bool) {

@@ -54,7 +54,7 @@ func (a *app) search() {
 			})
 		}
 	}
-	// 搜索历史（对齐主线 search-history：去重置顶，最多 10 条）
+	// 搜索历史（对齐主线 search-history.js MAX=8：去重置顶，最多 8 条）
 	mygo.RunOnMain(func() {
 		hist := make([]string, 0, len(a.searchHistory)+1)
 		hist = append(hist, kw)
@@ -63,8 +63,8 @@ func (a *app) search() {
 				hist = append(hist, h)
 			}
 		}
-		if len(hist) > 10 {
-			hist = hist[:10]
+		if len(hist) > 8 {
+			hist = hist[:8]
 		}
 		a.searchHistory = hist
 		a.saveHistory()

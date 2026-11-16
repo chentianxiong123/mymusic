@@ -222,6 +222,13 @@ func (w *WidgetState) ensureLines(bvid string) {
 // t=ct+offset，找 sec<=t 的最后一行。对齐 web lyric.js/subtitle.js（sec<=t 指哪打哪，
 // KTV 进度由行 dur 字段，显示层处理；这里只定行）。
 func pickLineAny(lines [][3]any, t float64) string {
+	_, line := pickLineIndexAny(lines, t)
+	return line
+}
+
+// pickLineIndexAny 位置→行索引+文本（唯一实现住后端）：lines=[[sec,text,dur],...]，
+// t=ct+offset，找 sec<=t 的最后一行；无歌词/无行 → idx=-1, 文本空。
+func pickLineIndexAny(lines [][3]any, t float64) (int, string) {
 	idx := -1
 	for k, l := range lines {
 		if toFloat3(l[0]) <= t {
@@ -231,16 +238,21 @@ func pickLineAny(lines [][3]any, t float64) string {
 		}
 	}
 	if idx < 0 {
-		return ""
+		return -1, ""
 	}
-	if s, ok := lines[idx][1].(string); ok {
-		return s
+	s := ""
+	if v, ok := lines[idx][1].(string); ok {
+		s = v
 	}
-	return ""
+	return idx, s
 }
 
 // PickLine 公开包装（单测用）：位置→行 定位（唯一一份，住后端）
 func PickLine(lines [][3]any, t float64) string { return pickLineAny(lines, t) }
+
+// PickLineIndex 公开包装：位置→行索引+文本（唯一一份，住后端）。
+// 显示层需要“当前是第几行”（高亮/卡拉OK进度）时复用，不自创定位算法。
+func PickLineIndex(lines [][3]any, t float64) (int, string) { return pickLineIndexAny(lines, t) }
 
 // BroadcastLyricState 歌词状态变化（Set 时触发）：推送最新快照给挂件订阅者，
 // 带后端算好的当前行 line（多平台统一：显示层只渲染 line，不本地定位）。
