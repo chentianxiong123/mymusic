@@ -4,19 +4,18 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"regexp"
 	"strings"
 
 	"homecast/service/lyric"
-
-	"homecast/bilibili"
 )
 
-// loadLyricAsync 后台加载歌词：搜候选 → 自动取最优（对齐主线 lyric.js 自动播放最优）。
-// bvid 变化/重放时重新拉取；结果经 RunOnMain 回填渲染。
+// loadLyricAsync 后台加载歌词：走主线 LyricHandler 端点（/api/v1/music/lyric），
+// 与主线 web 端 loadBackendLyric 完全同源——服务端 keywordsFor（Music.LyricKeywords
+// 分P标题优先）→ LyricCache 透明缓存 → SelectedSID/GetLyricLines 自动最优。
+// bvid 变化/重放时重新拉取；结果经 win.Update 回填渲染。
 func (a *app) loadLyricAsync(bvid string) {
 	if a.lyricLoading {
 		return
@@ -24,65 +23,42 @@ func (a *app) loadLyricAsync(bvid string) {
 	a.lyricLoading = true
 	defer func() { a.lyricLoading = false }()
 
-	// 未播放中止（window 关闭后还在跑的 goroutine 不再回填）
 	go func() {
-		kw := bilibili.CleanHTML(a.current.title)
-		if kw == "" {
+		if a.current == nil {
 			return
 		}
-		// 上次选源优先（SSOT：lyric_sels 表，对齐主线 lyricStore）
-		if a.svc != nil {
-			if sid := a.svc.lyricStore.SelectedSID(bvid); sid > 0 {
-				if sel, ok := a.svc.lyricStore.Get(bvid); ok && sel.BVID == bvid {
-					if r := lyric.GetLyricLines([]string{kw}, sid); r != nil && len(r.Lines) > 0 {
-						a.win.Update(func() {
-							if a.current == nil || a.current.bvid != bvid {
-								return
-							}
-							a.lyricSID = sid
-							a.lyricLines = r.Lines
-							a.lyricOffset = sel.Offset
-							a.win.Invalidate()
-						})
-						a.cacheLyric(bvid, r.Lines)
-						return
-					}
-				}
-			}
+		// 关键词对齐主线 lyric.js load()：titleToSong(标题) + ' ' + 歌手
+		// （服务端 bvid 非空会用分P标题覆盖，这边只是 fallback）
+		kwRaw := titleToSongMygo(a.current.title) + " " + a.current.author
+		kw := urlQE(kwRaw)
+		// 1) 选定源行列表（同挂件/歌词页：服务端选源+透明缓存权威）
+		res, err := a.lyricGetBVID(bvid, kw)
+		if err != nil {
+			log.Printf("[lyric] %s 取词失败: %v", bvid, err)
 		}
-		cands := lyric.SearchLyricCandidates(lyric.CleanSearchKeyword(kw), 6)
-		if len(cands) == 0 {
-			return
-		}
-		best := lyric.GetLyricLines([]string{kw}, cands[0].ID)
-		if best == nil || len(best.Lines) == 0 {
-			return
-		}
-		// 候选列表回填（别名/时长展示用）
-		sel := cands[0]
-		if sel.Name != "" && sel.Artist != "" {
-			sel.Lines = best.Lines
-			sel.Offset = best.Offset
+		// 2) 候选栏元数据（交互数据；行显示权威走后端选定源）
+		cands, cerr := a.lyricCandsViaHTTP(kw, bvid, 8)
+		if cerr != nil {
+			log.Printf("[lyric] %s 候选失败: %v", bvid, cerr)
 		}
 		a.win.Update(func() {
 			if a.current == nil || a.current.bvid != bvid {
 				return
 			}
-			a.lyricCands = cands
-			a.lyricSID = best.ID
-			a.lyricLines = best.Lines
-			a.lyricOffset = best.Offset
+			if len(cands) > 0 {
+				a.lyricCands = cands
+			}
+			if res != nil && len(res.Lines) > 0 {
+				a.lyricLines = res.Lines
+				a.lyricSID = res.ID
+				a.lyricOffset = res.Offset
+				log.Printf("[lyric] %s → sid=%d (%d 行)", bvid, res.ID, len(res.Lines))
+			} else {
+				a.lyricLines = nil
+				a.lyricSID = 0
+			}
 			a.win.Invalidate()
-			log.Printf("[lyric] %s → %s - %s (%d 行)", bvid, best.Name, best.Artist, len(best.Lines))
 		})
-		// SSOT：记忆选源（lyric_sels）+ 歌词行缓存（lyriccache）
-		if a.svc != nil {
-			a.svc.lyricStore.SetSelection(bvid, lyric.LyricSel{
-				BVID: bvid, SID: best.ID, Name: best.Name, Artist: best.Artist,
-				Cover: a.current.pic, Duration: best.Duration, Offset: best.Offset,
-			})
-			a.cacheLyric(bvid, best.Lines)
-		}
 	}()
 }
 
@@ -130,22 +106,34 @@ func lyricLineTime(ln lyric.LyricLine) float64 {
 
 // pickLyricSID 选择候选 sid（对齐主线 ly-cand-list 点选换源）。
 func (a *app) pickLyricSID(bvid string, sid int) {
-	kw := bilibili.CleanHTML(a.current.title)
-	best := lyric.GetLyricLines([]string{kw}, sid)
+	if a.current == nil {
+		return
+	}
+	// 选源上报主线端点（POST /lyric/select：SQLite 持久化 + 清该歌歌词缓存 + 广播），
+	// 与主线 web 端 lyric.js selectSource 同源（选源变 → 后端重拉行列表）。
+	var cand *lyric.LyricResult
+	for i := range a.lyricCands {
+		if a.lyricCands[i].ID == sid {
+			cand = &a.lyricCands[i]
+			break
+		}
+	}
+	if err := a.lyricSelect(bvid, cand); err != nil {
+		log.Printf("[lyric] select %d 失败: %v", sid, err)
+	}
+	kwRaw := titleToSongMygo(a.current.title) + " " + a.current.author
+	res, err := a.lyricGetBVID(bvid, urlQE(kwRaw))
+	if err != nil {
+		log.Printf("[lyric] 选源后重拉失败: %v", err)
+	}
 	a.win.Update(func() {
 		if a.current == nil || a.current.bvid != bvid {
 			return
 		}
-		if best != nil {
-			a.lyricSID = sid
-			a.lyricLines = best.Lines
-			a.lyricOffset = best.Offset
-			if a.svc != nil {
-				a.svc.lyricStore.SetSelection(bvid, lyric.LyricSel{
-					BVID: bvid, SID: sid, Name: best.Name, Artist: best.Artist,
-					Cover: a.current.pic, Duration: best.Duration, Offset: best.Offset,
-				})
-			}
+		if res != nil && len(res.Lines) > 0 {
+			a.lyricSID = res.ID
+			a.lyricLines = res.Lines
+			a.lyricOffset = res.Offset
 		}
 		a.win.Invalidate()
 	})
@@ -164,26 +152,16 @@ func (a *app) nudgeLyric(delta float64) {
 	a.setLyricOffset(a.lyricOffset)
 }
 
-// setLyricOffset 设置歌词对齐偏移（含归零；SSOT：lyric_sels 表持久化）。
+// setLyricOffset 设置歌词对齐偏移（含归零）：POST /lyric/offset 主线端点持久化
+// （SQLite + 清缓存 + 广播，与主线 web 端 ly-nudge 同源）。
 func (a *app) setLyricOffset(v float64) {
 	a.lyricOffset = v
-	if a.svc != nil && a.current != nil {
-		a.svc.lyricStore.SetOffset(a.current.bvid, v)
+	if a.current != nil {
+		if err := a.lyricSetOffsetHTTP(a.current.bvid, v); err != nil {
+			log.Printf("[lyric] offset %f 失败: %v", v, err)
+		}
 	}
 	a.win.Invalidate()
-}
-
-// cacheLyric 歌词行写入 lyriccache（SQLite，LRU 上限），对齐主线 lyricHandler。
-func (a *app) cacheLyric(bvid string, lines []lyric.LyricLine) {
-	if a.svc == nil || len(lines) == 0 {
-		return
-	}
-	// 序列化行（[秒,文本,时长]）为 JSON 存 lyriccache
-	b, err := json.Marshal(lines)
-	if err != nil {
-		return
-	}
-	_ = a.svc.lyricCache.Put(bvid, string(b))
 }
 
 // lyricSourceText 中栏来源行（对齐主线 lyric.js setSource：
