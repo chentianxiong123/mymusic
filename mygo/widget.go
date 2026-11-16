@@ -27,8 +27,8 @@ func (a *app) toggleLyric() {
 		AlwaysOnTop:   true,
 		SkipTaskbar:   true,
 		DisableShadow: true,
-		Width:         560,
-		Height:        130,
+		Width:         int(560 * uiScale),
+		Height:        int(130 * uiScale),
 		X:             200,
 		Y:             80,
 		Content:       ui.View(a.lyricView),
@@ -99,19 +99,19 @@ func (a *app) lyricView(c *ui.Context) {
 		// 复用 dock 控件：上一首/播放/下一首/收藏/关闭）
 		if a.lyricHot {
 			ui.Row(c).Absolute().Top(2).Left(0).Right(0).Justify(ui.Center).Gap(8 * uiScale).Children(func() {
-				if iconButton2(c, icPrev, 26, clrMuted).Clicked() {
+				if iconButton2(c, icPrev, 26*uiScale, clrMuted).Clicked() {
 					go a.prev()
 				}
-				if playCircle(c, a.playing, 32).Clicked() {
+				if playCircle(c, a.playing, 32*uiScale).Clicked() {
 					a.togglePlay()
 				}
-				if iconButton2(c, icNext, 26, clrMuted).Clicked() {
+				if iconButton2(c, icNext, 26*uiScale, clrMuted).Clicked() {
 					go a.next()
 				}
-				if iconButton2(c, icHeart, 26, accent(a.isFav())).Clicked() {
+				if iconButton2(c, icHeart, 26*uiScale, accent(a.isFav())).Clicked() {
 					a.toggleFav()
 				}
-				if iconButton2(c, icClose, 26, clrMuted).Clicked() {
+				if iconButton2(c, icClose, 26*uiScale, clrMuted).Clicked() {
 					a.lyricWin.Close()
 					a.lyricWin = nil
 					a.lyricShown = false
@@ -127,8 +127,9 @@ func (a *app) lyricView(c *ui.Context) {
 		if text == "" {
 			text = "未在播放"
 		}
-		// 字号档位（对齐设置页 14/16/18/22/26 + 挂件放大 1.5x）
-		size := float32([]int{14, 16, 18, 22, 26}[a.lyricSize]) * 1.5
+		// 字号档位（对齐设置页 14/16/18/22/26）× 挂件 1.5 基线 × 系统 uiScale
+		// （之前写死 *1.5 没跟系统缩放 → 桌面歌词字体不被 150% 放大）
+		size := float32([]int{14, 16, 18, 22, 26}[a.lyricSize]) * 1.5 * uiScale
 		ui.Text(c, text).FontSize(size).Bold().MaxLines(1).TextAlign(ui.Center).TextColor(ui.RGB(0xff, 0xff, 0xff)).
 			TextShadow(0, 1, 3, ui.RGBA(0, 0, 0, 0.95))
 		// 下一行预览（对齐主线挂件双行语义）
