@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -73,10 +74,11 @@ type app struct {
 	lyricShown bool
 	// 桌面挂件聚焦（事件驱动，无轮询）：默认窗口只有左边缘把手区接收鼠标
 	// （其余穿透），鼠标进把手 1 秒（AfterFunc）→ 全窗口可交互，移出恢复穿透
-	lyricHot        bool
-	lyricHoverStart time.Time
-	lyricHoverTimer *time.Timer
-	lyricLooping    bool // 桌面挂件聚焦轮询 goroutine 在跑（防重复启动）
+	lyricHot          bool
+	lyricHoverTimer   *time.Timer    // 进入挂件后 1 秒取消穿透（AfterFunc，非轮询）
+	lyricRectMu       sync.Mutex     // 保护 lyricRect（X11 motion 回调读，主线程写）
+	lyricRect         mygo.Rectangle // 挂件屏幕矩形（缓存，供事件回调判断 inside）
+	lyricMotionCancel func()         // 取消 X11 全局鼠标移动监听
 
 	// 封面缓存（主线程；异步加载经 win.Update 写）
 	covers       map[string]ui.ImageSource

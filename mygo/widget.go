@@ -14,6 +14,10 @@ import (
 // + 鼠标穿透，一行选项就够，无需任何 cgo。
 func (a *app) toggleLyric() {
 	if a.lyricWin != nil {
+		if a.lyricMotionCancel != nil {
+			a.lyricMotionCancel()
+			a.lyricMotionCancel = nil
+		}
 		a.lyricWin.Close()
 		a.lyricWin = nil
 		a.lyricShown = false
@@ -33,55 +37,71 @@ func (a *app) toggleLyric() {
 		Y:             80,
 		Content:       ui.View(a.lyricView),
 	})
-	// 默认鼠标穿透：整窗 SetIgnoreMouseEvents(true)，鼠标穿过歌词点到下层窗口/桌面。
-	// 聚焦改用全局光标轮询 lyricHoverLoop（见下），不用 SetInputRegion——实测 X11
-	// SHAPE 下穿透窗口 Hovered() 不触发（把手悬停 2.5s 控制按钮不出），不可靠。
+	// 默认整窗鼠标穿透；聚焦用 X11 全局鼠标移动事件（事件驱动、零轮询）。
+	// 缓存挂件屏幕矩形（OnMove/OnResize 更新），供事件回调判断鼠标是否在挂件上。
 	a.lyricHot = false
-	a.lyricHoverStart = time.Time{}
-	a.lyricWin.SetIgnoreMouseEvents(true)
-	if !a.lyricLooping {
-		a.lyricLooping = true
-		go a.lyricHoverLoop()
+	if a.lyricHoverTimer != nil {
+		a.lyricHoverTimer.Stop()
+		a.lyricHoverTimer = nil
 	}
+	a.lyricWin.SetIgnoreMouseEvents(true)
+	a.setLyricRect(200, 80, 560, 130)
+	w := a.lyricWin
+	updateRect := func() {
+		b := w.Bounds()
+		a.setLyricRect(b.X, b.Y, b.Width, b.Height)
+	}
+	w.OnMove(updateRect)
+	w.OnResize(updateRect)
+	// 事件驱动：注册 X11 全局鼠标移动回调（root window XSelectInput + XNextEvent）。
+	// 进入挂件 → AfterFunc 1 秒取消穿透；移出 → 恢复穿透。零轮询。
+	a.lyricMotionCancel = addX11MotionCB(a.lyricMotionCB)
 }
 
-// lyricHoverLoop 全局光标轮询（100ms）：检测鼠标是否在挂件矩形内，进入持续
-// 1 秒 → 取消穿透（SetIgnoreMouseEvents(false)，可拖拽+控制），移出恢复穿透。
-//
-// 为什么轮询：X11 上 SetIgnoreMouseEvents(true) 的窗口收不到任何鼠标事件
-// （mygo 也无全局鼠标进入回调），要检测"鼠标移到挂件上"只能查全局光标位置
-// mygo.Screen.CursorScreenPoint()——轻量 100ms 轮询，比 SetInputRegion+Hovered
-// （实测不触发）可靠。
-func (a *app) lyricHoverLoop() {
-	defer func() { a.lyricLooping = false }()
-	for a.lyricWin != nil {
-		time.Sleep(100 * time.Millisecond)
-		w := a.lyricWin
-		if w == nil {
-			return
+func (a *app) setLyricRect(x, y, w, h int) {
+	a.lyricRectMu.Lock()
+	a.lyricRect = mygo.Rectangle{X: x, Y: y, Width: w, Height: h}
+	a.lyricRectMu.Unlock()
+}
+
+func (a *app) getLyricRect() mygo.Rectangle {
+	a.lyricRectMu.Lock()
+	defer a.lyricRectMu.Unlock()
+	return a.lyricRect
+}
+
+// lyricMotionCB X11 全局鼠标移动回调（在 XNextEvent goroutine，非主线程）。
+// 判断鼠标是否在挂件矩形内：进入 → 启动 1 秒 AfterFunc 取消穿透；移出 → 取消
+// 定时器并恢复穿透。SetIgnoreMouseEvents/Invalidate 内部投递主线程，线程安全。
+func (a *app) lyricMotionCB(x, y int32) {
+	if a.lyricWin == nil {
+		return
+	}
+	r := a.getLyricRect()
+	inside := x >= int32(r.X) && x <= int32(r.X+r.Width) && y >= int32(r.Y) && y <= int32(r.Y+r.Height)
+	if inside {
+		if !a.lyricHot && a.lyricHoverTimer == nil {
+			a.lyricHoverTimer = time.AfterFunc(time.Second, func() {
+				if a.lyricWin != nil {
+					a.lyricHot = true
+					a.lyricWin.SetIgnoreMouseEvents(false) // 取消穿透：可拖拽 + 控制按钮
+					a.win.Invalidate()
+				}
+			})
 		}
-		p := mygo.Screen.CursorScreenPoint()
-		wx, wy := w.Position()
-		ww, wh := w.Size()
-		inside := p.X >= wx && p.X <= wx+ww && p.Y >= wy && p.Y <= wy+wh
-		now := time.Now()
-		if inside {
-			if a.lyricHoverStart.IsZero() {
-				a.lyricHoverStart = now
-			}
-			if !a.lyricHot && now.Sub(a.lyricHoverStart) >= time.Second {
-				a.lyricHot = true
-				w.SetIgnoreMouseEvents(false) // 取消穿透：可拖拽 + 控制按钮
-				a.win.Invalidate()
-			}
-		} else {
-			a.lyricHoverStart = time.Time{}
-			if a.lyricHot {
-				a.lyricHot = false
-				w.SetIgnoreMouseEvents(true) // 恢复穿透
-				a.win.Invalidate()
-			}
+		return
+	}
+	// 移出挂件矩形
+	if a.lyricHoverTimer != nil {
+		a.lyricHoverTimer.Stop()
+		a.lyricHoverTimer = nil
+	}
+	if a.lyricHot {
+		a.lyricHot = false
+		if a.lyricWin != nil {
+			a.lyricWin.SetIgnoreMouseEvents(true) // 恢复穿透
 		}
+		a.win.Invalidate()
 	}
 }
 
@@ -110,6 +130,10 @@ func (a *app) lyricView(c *ui.Context) {
 					a.toggleFav()
 				}
 				if iconButton2(c, icClose, 26, clrMuted).Clicked() {
+					if a.lyricMotionCancel != nil {
+						a.lyricMotionCancel()
+						a.lyricMotionCancel = nil
+					}
 					a.lyricWin.Close()
 					a.lyricWin = nil
 					a.lyricShown = false
