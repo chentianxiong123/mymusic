@@ -634,6 +634,10 @@ func main() {
 		})
 		// 恢复队列（window 就绪后再恢复，自动播放的进度上报不会撞未创建窗口）
 		a.pb.Restore(a.db)
+		// restore 只写后端 p.cur 不广播（主线 GUI 页面载人时自行拉状态，不依赖 push）；
+		// mygo 靠事件流渲染 → 主动拉一次快照喂 applyState，否则队列页启动显示 0，
+		// 要等用户播一首触发广播才补上（bug）。
+		a.win.Update(func() { a.applyState(a.pb.Snapshot()) })
 		// 音箱：已有持久化 token（与主线 web 共用 speaker.json）→ 刷新设备
 		if a.svc != nil && a.svc.speakerLoggedIn() {
 			go a.refreshSpeakers()
