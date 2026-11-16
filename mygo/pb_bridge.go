@@ -227,6 +227,13 @@ func (a *app) restorePrefs() {
 
 // applyState 把主线 State 快照写入 app 状态字段（UI 兼容，读 a.current/a.playlist 等不变）。
 func (a *app) applyState(st playback.State) {
+	// 切歌检测（BVID 变化）→ 自动加载歌词（对齐主线 lyric.js 切歌自动搜最优；
+	// 之前只在歌词页打开时 loadLyricAsync → 首次进入系统歌词不自动刷新，进歌词页才刷）
+	if a.current == nil || a.current.bvid != st.BVID {
+		if st.BVID != "" && !a.lyricLoading {
+			go a.loadLyricAsync(st.BVID)
+		}
+	}
 	a.current = &track{bvid: st.BVID, title: st.Title, author: st.Artist, pic: st.Cover}
 	a.playing = st.Playing
 	a.playlist = toSearchItems(st.Queue)
