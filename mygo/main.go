@@ -594,13 +594,24 @@ func main() {
 	a.restoreHistory() // 恢复搜索历史
 	a.pb = playback.NewPlaybackState()
 	a.mygoOut = newMyGoOutput(a.bili)
+	if a.svc != nil && a.svc.music != nil {
+		a.mygoOut.setMusic(a.svc.music) // 取流复用主线（view 缓存）
+	}
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
 	a.mygoOut.qualFn = func() int { return a.quality } // 音质档实时读取（60k/128k/192k）
 	a.mygoOut.SetVolume(int(a.volume * 100))           // 恢复音量（restorePrefs 后 mygoOut 才存在）
 	a.pb.SetOutput(a.mygoOut)
 	a.pb.SetDB(a.db)
-	// 播完自动连播（MyGoOutput.OnEnd → 核心 Next）
-	a.mygoOut.SetEndedHook(func() { a.pb.Next() })
+	// 播完自动连播（对齐主线 audio ended：single 前端 currentTime=0 重播当前歌，
+	// 其余 cmd('next') 后端顺序环绕）。single 用 seek(0)+Resume 重播（MyGo 本地 audio）。
+	a.mygoOut.SetEndedHook(func() {
+		if a.loopMode == 2 { // 单曲循环：重播当前歌
+			a.seek(0)
+			_ = a.mygoOut.Resume()
+			return
+		}
+		a.pb.Next()
+	})
 
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{

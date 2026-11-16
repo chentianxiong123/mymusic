@@ -3,7 +3,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -15,7 +14,9 @@ import (
 	"github.com/egoist/mygo/audio"
 
 	"homecast/service/cache"
+	"homecast/service/music"
 	"homecast/service/playback"
+	"homecast/service/playlist"
 
 	"homecast/bilibili"
 )
@@ -29,6 +30,7 @@ import (
 // 在这里取流+解码出声（不走浏览器），这是"原生前端"的天然接缝。
 type MyGoOutput struct {
 	bili    *bilibili.Client
+	music   *music.MusicService // 主线音乐域（GetAudioStream：view 缓存 + 取流，取流自创的替代）
 	cache   *cache.CacheService // 主线缓存域包（可空：命中→秒开）
 	qualFn  func() int          // 当前音质档（0=64k 1=128k 2=192k，默认 192k）
 	qualMu  sync.Mutex
@@ -47,6 +49,11 @@ func newMyGoOutput(bili *bilibili.Client) *MyGoOutput {
 	return &MyGoOutput{bili: bili}
 }
 
+// setMusic 注入主线音乐域（main 初始化 svc 后调用；取流走 GetAudioStream）。
+func (o *MyGoOutput) setMusic(m *music.MusicService) {
+	o.music = m
+}
+
 // Play 异步：立即返回（UI 不卡），后台取流→下载→解码→出声。
 // gen 递增使旧下载任务作废（快速切歌时 A 下载中切 B，A 完成后自动丢弃）。
 func (o *MyGoOutput) Play(bvid string, opts playback.PlayOpts) error {
@@ -59,12 +66,7 @@ func (o *MyGoOutput) Play(bvid string, opts playback.PlayOpts) error {
 }
 
 func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
-	// 取流
-	info, err := o.bili.GetVideoInfo(bvid)
-	if err != nil {
-		log.Printf("[mygo-output] 取视频信息失败 %s: %v", bvid, err)
-		return
-	}
+	// 音质档：0=64k 1=128k 2=192k（默认）
 	qn := bilibili.PreferredQuality
 	if o.qualFn != nil {
 		switch o.qualFn() {
@@ -76,7 +78,20 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 			qn = bilibili.Audio192K
 		}
 	}
-	stream, err := o.bili.GetBestAudioURL(bvid, info.CID, qn)
+	// 取流复用主线 music.GetAudioStream（VideoInfo 5min 缓存 + GetBestAudioURL；
+	// 替代自创 GetVideoInfo+GetBestAudioURL 每次打 view API）
+	var stream *bilibili.AudioStreamResult
+	var err error
+	if o.music != nil {
+		stream, err = o.music.GetAudioStream(bvid, qn)
+	} else {
+		info, ierr := o.bili.GetVideoInfo(bvid)
+		if ierr != nil {
+			log.Printf("[mygo-output] 取视频信息失败 %s: %v", bvid, ierr)
+			return
+		}
+		stream, err = o.bili.GetBestAudioURL(bvid, info.CID, qn)
+	}
 	if err != nil {
 		log.Printf("[mygo-output] 取流失败 %s: %v", bvid, err)
 		return
@@ -266,10 +281,10 @@ func (o *MyGoOutput) SetEndedHook(fn func()) {
 func (o *MyGoOutput) Name() string { return "mygo" }
 
 // fmtDurMygo 秒→"m:ss"（UI 用；与主线 fmtDur 对齐）
+// fmtDurMygo 秒 → m:ss。复用主线 playlist.FormatDuration（同公式），sec<=0 给 0:00。
 func fmtDurMygo(sec float64) string {
 	if sec <= 0 {
 		return "0:00"
 	}
-	s := int(sec)
-	return fmt.Sprintf("%d:%02d", s/60, s%60)
+	return playlist.FormatDuration(int(sec))
 }

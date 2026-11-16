@@ -121,6 +121,23 @@ func (s *services) speakerUserID() string {
 	return s.qrAuth.UserID()
 }
 
+// importSpeakerToken 粘贴 token 登录（对齐主线 /api/v1/speaker/token/import：
+// 解析 miservice.Tokens → LoginWithToken → RefreshDevices）。多端免扫码复用。
+func (s *services) importSpeakerToken(token string) error {
+	if s.qrAuth == nil {
+		return fmt.Errorf("音箱 auth 未就绪")
+	}
+	var t miservice.Tokens
+	if err := json.Unmarshal([]byte(token), &t); err != nil {
+		return fmt.Errorf("token 解析失败: %w", err)
+	}
+	if err := s.qrAuth.LoginWithToken(&t); err != nil {
+		return fmt.Errorf("token 登录失败: %w", err)
+	}
+	_, _ = s.speaker.RefreshDevices()
+	return nil
+}
+
 // exportSpeakerToken 导出 token JSON（多端复用，对齐主线 /api/v1/speaker/token/export）。
 func (s *services) exportSpeakerToken() (string, error) {
 	if s.qrAuth == nil {

@@ -27,12 +27,25 @@ func (a *app) search() {
 	a.loading.Store(true)
 	var kw string
 	mygo.RunOnMain(func() { kw = a.query; a.status = "搜索中…" })
-	res, err := a.bili.Search(kw, 1, 30)
-	a.loading.Store(false)
-	// 非歌过滤（对齐主线 music.FilterSongs：剔除翻唱/伴奏/教学/合集/卡点等非歌
-	// 视频，听歌场景宁缺毋滥；搜索结果混入"不是歌"的杂质要过滤）
-	if err == nil && len(res.Result) > 0 {
-		items := make([]music.MusicItem, 0, len(res.Result))
+	// 复用主线 music.Search（同 server 端 /music/search）：时长解析 + 时长升序/rank 排序
+	// + 非歌过滤（FilterSongs 剔除翻唱/伴奏/教学/合集/卡点，宁缺毋滥）+ VideoInfo 缓存
+	// （VideoInfoCache TTL 5min：连续取流/搜索同歌不走重复 API）。返回 []MusicItem。
+	var items []music.MusicItem
+	if a.svc != nil && a.svc.music != nil {
+		r, err := a.svc.music.Search(kw, 1, 30)
+		a.loading.Store(false)
+		if err != nil {
+			a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
+			return
+		}
+		items = r.List
+	} else {
+		res, err := a.bili.Search(kw, 1, 30)
+		a.loading.Store(false)
+		if err != nil {
+			a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
+			return
+		}
 		for _, r := range res.Result {
 			items = append(items, music.MusicItem{
 				BVID: r.BVID, Title: r.Title, Artist: r.Author, Cover: r.Pic,
@@ -40,20 +53,6 @@ func (a *app) search() {
 				PlayCount: r.Play, Typename: r.Typename,
 			})
 		}
-		filtered := music.FilterSongs(items, true)
-		if len(filtered) != len(res.Result) {
-			res.Result = res.Result[:0]
-			for _, it := range filtered {
-				res.Result = append(res.Result, bilibili.SearchItem{
-					BVID: it.BVID, Title: it.Title, Author: it.Artist, Pic: it.Cover,
-					Duration: it.Duration, Typename: it.Typename, Play: it.PlayCount,
-				})
-			}
-		}
-	}
-	if err != nil {
-		a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
-		return
 	}
 	// 搜索历史（对齐主线 search-history：去重置顶，最多 10 条）
 	mygo.RunOnMain(func() {
@@ -71,7 +70,14 @@ func (a *app) search() {
 		a.saveHistory()
 	})
 	a.win.Update(func() {
-		a.results = res.Result
+		// MusicItem → SearchItem（UI 渲染用 SearchItem 字段）
+		a.results = a.results[:0]
+		for _, it := range items {
+			a.results = append(a.results, bilibili.SearchItem{
+				BVID: it.BVID, Title: it.Title, Author: it.Artist, Pic: it.Cover,
+				Duration: it.Duration, Typename: it.Typename, Play: it.PlayCount,
+			})
+		}
 		a.searched = true
 		// 换页清理：保留当前播放曲目的封面，其余驱逐（防止跨页堆积）
 		keep := ""
@@ -88,7 +94,7 @@ func (a *app) search() {
 		if keep != "" {
 			a.coverOrder = append(a.coverOrder, keep)
 		}
-		a.status = fmt.Sprintf("找到 %d 条", len(res.Result))
+		a.status = fmt.Sprintf("找到 %d 条", len(items))
 	})
 }
 

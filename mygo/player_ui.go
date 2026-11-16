@@ -5,15 +5,17 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 
 	"homecast/service/lyric"
-	"homecast/service/playback"
 	"homecast/service/speaker"
+
+	"homecast/service/fav"
 
 	"homecast/bilibili"
 )
@@ -32,41 +34,16 @@ func accent(b bool) ui.Color {
 	return clrMuted
 }
 
-// playAt 播放队列第 i 项（循环取模）：SetQueue 定位（不乱序移动）。
-func (a *app) playAt(i int) {
-	if len(a.playlist) == 0 {
-		return
-	}
-	n := len(a.playlist)
-	i = ((i % n) + n) % n
-	a.pb.SetQueue(toSongList(a.playlist), i)
-}
-
-// next 下一首（按循环模式）。顺序走 pb.Next（SSOT 队列走位）；随机走 SetQueue 定位。
+// next 下一首。对齐主线 d-next / cmd('next')：后端 Next 纯环绕顺序
+// （(QIdx+1)%len），random 只是 UI 图标（主线后端 Next 不随机，前端也直接 cmd('next')），
+// 不自创随机跳转。
 func (a *app) next() {
-	if len(a.playlist) == 0 {
-		return
-	}
-	if a.loopMode == 3 { // 随机
-		a.playAt(rand.Intn(len(a.playlist)))
-		return
-	}
 	a.pb.Next()
 }
 
-// prev 上一首（按循环模式；>3s 回到开头）。
+// prev 上一首。对齐主线 d-prev / cmd('prev')：后端 Prev 纯环绕顺序
+// （(QIdx-1+len)%len），无 ">3s 回到开头" 自创逻辑。
 func (a *app) prev() {
-	if len(a.playlist) == 0 {
-		return
-	}
-	if a.loopMode == 2 {
-		a.playAt(rand.Intn(len(a.playlist)))
-		return
-	}
-	if a.pb.Snapshot().Position > 3 {
-		a.seek(0)
-		return
-	}
 	a.pb.Prev()
 }
 
@@ -847,7 +824,9 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 		})
 	})
 	if box.Clicked() {
-		a.playAt(i)
+		// 对齐主线队列 hx-play：hcBus.emit('play') → Pb.Play（去重+移队尾+播放），
+		// 不是自创 SetQueue 保序定位。
+		go a.pb.Play(toSong(item))
 	}
 }
 
@@ -1107,7 +1086,7 @@ func (a *app) clearCache(all bool) {
 	if all {
 		a.svc.cache.ClearAll()
 	} else {
-		a.svc.cache.ClearUnfav("favs") // favs 表名（fav 域包常量；保留收藏的缓存）
+		a.svc.cache.ClearUnfav(fav.FavTable) // 收藏表名常量（fav 域包；保留收藏的缓存）
 	}
 	a.win.Invalidate()
 }
@@ -1300,6 +1279,11 @@ func (a *app) castPage(c *ui.Context) {
 					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
 						icon(c, icMsg, 18, clrMuted)
 						ui.Text(c, "小爱音箱未登录").FontSize(13 * uiScale).TextColor(clrText).Grow(1)
+						// 已有 token 粘贴复用（对齐主线 speaker_login.html sp-token-input：
+						// 读剪贴板 → /speaker/token/import，多端免重复扫码）
+						if chip(c, "粘贴 token 登录").Clicked() {
+							go a.importTokenFromClipboard()
+						}
 						if gradButton(c, "扫码登录").Clicked() {
 							go a.startSpeakerLogin()
 						}
@@ -1405,6 +1389,34 @@ func (a *app) startSpeakerLogin() {
 			}
 		}
 	}()
+}
+
+// importTokenFromClipboard 从剪贴板读 token 粘贴登录（对齐主线 speaker_login.html
+// 的 sp-token-input 粘贴入口 + POST /api/v1/speaker/token/import）。
+func (a *app) importTokenFromClipboard() {
+	if a.svc == nil || a.svc.qrAuth == nil {
+		return
+	}
+	data, err := mygo.Clipboard.Read(transfer.Text)
+	if err != nil {
+		a.win.Update(func() { a.status = "读取剪贴板失败：" + err.Error() })
+		return
+	}
+	text, _ := data.Read(transfer.Text)
+	tok := strings.TrimSpace(string(text))
+	if tok == "" {
+		a.win.Update(func() { a.status = "剪贴板为空，请先复制音箱 token" })
+		a.win.Invalidate()
+		return
+	}
+	if err := a.svc.importSpeakerToken(tok); err != nil {
+		a.win.Update(func() { a.status = err.Error() })
+		a.win.Invalidate()
+		return
+	}
+	a.win.Update(func() { a.status = "token 登录成功，正在刷新设备…" })
+	go a.refreshSpeakers()
+	a.win.Invalidate()
 }
 
 // refreshSpeakers 刷新小米音箱设备列表（speaker 域包 ListDevices）。
@@ -1553,19 +1565,10 @@ func (a *app) ctxMenu(c *ui.Context) {
 // playNext 下一首播放（对齐主线 play-next：插到当前歌后面 → 这里等价"立即播完这首接它"，
 // MyGo 用 SetQueue 语义：取当前队列，把 item 插到 playIndex+1，重新 SetQueue）
 func (a *app) playNext(item bilibili.SearchItem) {
-	snap := a.pb.Snapshot()
-	idx := snap.QIdx
-	if idx < 0 || idx+1 > len(snap.Queue) {
-		// 无队列：直接播放
-		go a.play(item)
-		return
-	}
-	q := make([]playback.Song, 0, len(snap.Queue)+1)
-	q = append(q, snap.Queue[:idx+1]...)
-	q = append(q, toSong(item))
-	q = append(q, snap.Queue[idx+1:]...)
-	a.pb.SetQueue(q, idx)
-	a.win.Invalidate()
+	// 对齐主线：右键"下一首播放"= play-next → hcState.cmd('play') → Pb.Play。
+	// 主线 Pb.Play 语义=去重后入队尾+定位播放（无"插到当前歌后"的插队概念）；
+	// 旧版自创 SetQueue 手动插队（与主线不一致）。直接走 SSOT Play。
+	go a.pb.Play(toSong(item))
 }
 
 // copyLink 复制 B站链接到剪贴板（mygo Clipboard.WriteText）。
