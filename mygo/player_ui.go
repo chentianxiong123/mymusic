@@ -297,7 +297,7 @@ func (a *app) lyrCandCol(c *ui.Context) {
 			if len(a.lyricCands) == 0 {
 				ui.Text(c, LaodingTag()).FontSize(12 * uiScale).TextColor(clrMuted).PaddingY(20 * uiScale)
 			} else {
-				ui.Scroll(c).Grow(1).Gap(4 * uiScale).Children(func() {
+				ui.Scroll(c).Grow(1).Gap(4 * uiScale).Scrollbars(true).Children(func() {
 					ui.Column(c).Gap(4 * uiScale).Children(func() {
 						for _, cand := range a.lyricCands {
 							cand := cand
@@ -356,7 +356,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 		})
 		lyrCard.Children(func() {
 			curIdx, prog := a.lyricProg(a.posSec)
-			ui.Scroll(c).Fill().Gap(10 * uiScale).Children(func() {
+			ui.Scroll(c).Fill().Gap(10 * uiScale).Scrollbars(true).Children(func() {
 				ui.Column(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Children(func() {
 					if len(a.lyricLines) == 0 {
 						ui.Column(c).AlignSelf(ui.Stretch).Children(func() {
@@ -548,7 +548,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 							ui.Text(c, LaodingTag()).FontSize(12 * uiScale).TextColor(clrMuted)
 							return
 						}
-						ui.Scroll(c).MaxHeight(200).Gap(4 * uiScale).Children(func() {
+						ui.Scroll(c).MaxHeight(200).Gap(4 * uiScale).Scrollbars(true).Children(func() {
 							ui.Column(c).Gap(4 * uiScale).Children(func() {
 								for _, cand := range a.lyricCands {
 									cand := cand
@@ -614,7 +614,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 			// KTV 歌词（居中 + 渐底 + 点击跳句，同中栏）
 			ui.Box(c).Grow(1).Fill().Radius(12 * uiScale).Background(clrCardGlass).PaddingX(12 * uiScale).PaddingY(10 * uiScale).Children(func() {
 				curIdx, prog := a.lyricProg(a.posSec)
-				ui.Scroll(c).Fill().Gap(8 * uiScale).Children(func() {
+				ui.Scroll(c).Fill().Gap(8 * uiScale).Scrollbars(true).Children(func() {
 					ui.Column(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Children(func() {
 						if len(a.lyricLines) == 0 {
 							ui.Text(c, "歌词加载中…").FontSize(14 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(30 * uiScale)
@@ -694,7 +694,7 @@ func (a *app) queuePage(c *ui.Context) {
 					a.win.Invalidate()
 				}
 			})
-			ui.Scroll(c).AlignSelf(ui.Stretch).Gap(10 * uiScale).Children(func() {
+			ui.Scroll(c).AlignSelf(ui.Stretch).Gap(10 * uiScale).Scrollbars(true).Children(func() {
 				ui.Row(c).Gap(10 * uiScale).Children(func() {
 					n := len(a.recent)
 					if n > 10 {
@@ -761,7 +761,7 @@ func (a *app) queuePage(c *ui.Context) {
 			})
 			return
 		}
-		ui.Scroll(c).Grow(1).Children(func() {
+		ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
 			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for i, item := range a.playlist {
 					a.queueRow(c, i, item)
@@ -797,7 +797,7 @@ func (a *app) recentPage(c *ui.Context) {
 			})
 			return
 		}
-		ui.Scroll(c).Grow(1).Children(func() {
+		ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
 			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for _, item := range a.recent {
 					a.listRow(c, item)
@@ -881,7 +881,7 @@ func (a *app) favPage(c *ui.Context) {
 			})
 			return
 		}
-		ui.Scroll(c).Grow(1).Children(func() {
+		ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
 			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for _, item := range a.favorites {
 					a.favRow(c, item)
@@ -926,7 +926,7 @@ func (a *app) settingsPage(c *ui.Context) {
 			ui.Spacer(c).Grow(1)
 			ui.Text(c, "自动 ／ 明亮 ／ 暗黑（点击切换）").FontSize(12 * uiScale).TextColor(clrMuted)
 		})
-		ui.Scroll(c).Grow(1).Gap(10 * uiScale).Children(func() {
+		ui.Scroll(c).Grow(1).Gap(10 * uiScale).Scrollbars(true).Children(func() {
 			ui.Column(c).Gap(10 * uiScale).Children(func() {
 				// 1 主题模式（主线 THEMES 三态：自动/明亮/暗黑；持久化 settings kv）
 				a.setRow(c, "主题模式")
@@ -1329,7 +1329,7 @@ func (a *app) castPage(c *ui.Context) {
 		if len(a.castDevices) == 0 {
 			ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 		}
-		ui.Scroll(c).Grow(1).Gap(6 * uiScale).Children(func() {
+		ui.Scroll(c).Grow(1).Gap(6 * uiScale).Scrollbars(true).Children(func() {
 			ui.Column(c).Gap(8 * uiScale).Children(func() {
 				for _, d := range a.castDevices {
 					d := d

@@ -189,7 +189,7 @@ func (a *app) view(c *ui.Context) {
 						a.searchBar(c)
 						a.searchChips(c)
 						a.resultsHeader(c)
-						ui.Scroll(c).Grow(1).Gap(8 * uiScale).Children(func() {
+						ui.Scroll(c).Grow(1).Gap(8 * uiScale).Scrollbars(true).Children(func() {
 							ui.Column(c).Gap(8 * uiScale).Children(func() {
 								for _, r := range a.results {
 									a.listRow(c, r)
