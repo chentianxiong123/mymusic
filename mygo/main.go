@@ -381,7 +381,9 @@ func (a *app) searchBar(c *ui.Context) {
 	}
 	sb.Children(func() {
 		icon(c, icSearch, 20, clrMuted)
-		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).
+		// 输入框：透明背景 + 去边框（对齐主线 outline-none bg-transparent；
+		// 之前 TextInput 默认边框 → 图1 输入框有浅色描边，主线无）
+		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).Border(0, ui.Transparent).
 			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
 		if gradButton(c, "搜索").Clicked() {
 			go a.search()
