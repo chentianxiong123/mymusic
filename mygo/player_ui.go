@@ -178,15 +178,23 @@ func (a *app) volumeBar(c *ui.Context, width float32) ui.Element {
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.FillRadii(r, [4]float32{r.H / 2, r.H / 2, r.H / 2, r.H / 2}, clrTrackBar)
 		v := float32(a.volume)
+		if v < 0 {
+			v = 0
+		}
+		if v > 1 {
+			v = 1
+		}
 		if v > 0 {
 			fr := ui.Rect{X: r.X, Y: r.Y, W: r.W * v, H: r.H}
 			p.FillGradient(fr, grad(), r.H/2)
-			// 圆形 thumb（对齐主线原生 range 把手 ~12px，白底描边）
-			cy := r.Y + r.H/2
-			th := ui.Rect{X: fr.X + fr.W - 6, Y: cy - 6, W: 12, H: 12}
-			p.FillRadii(th, [4]float32{6, 6, 6, 6}, ui.RGB(0xff, 0xff, 0xff))
-			p.FillRadii(ui.Rect{X: th.X + 1, Y: th.Y + 1, W: th.W - 2, H: th.H - 2}, [4]float32{5, 5, 5, 5}, clrPink)
 		}
+		// 圆形 thumb 始终显示（对齐主线原生 range：volume 0 时 thumb 也在最左可见；
+		// 之前 volume 0 不画 thumb → 深色轨道在深色 bar 上不可见 → "放歌就没了"）
+		cx := r.X + r.W*v
+		cy := r.Y + r.H/2
+		th := ui.Rect{X: cx - 6, Y: cy - 6, W: 12, H: 12}
+		p.FillRadii(th, [4]float32{6, 6, 6, 6}, ui.RGB(0xff, 0xff, 0xff))
+		p.FillRadii(ui.Rect{X: th.X + 1, Y: th.Y + 1, W: th.W - 2, H: th.H - 2}, [4]float32{5, 5, 5, 5}, clrPink)
 		if x, _, over := box.PointerPosition(); over && (box.Pressed() || box.Dragging()) {
 			x0 := x
 			if x0 < 0 {
