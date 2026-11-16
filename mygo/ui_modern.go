@@ -241,23 +241,45 @@ func (a *app) progressBar(c *ui.Context, frac float64) ui.Element {
 	return a.progressBarSized(c, frac, 5, true)
 }
 
-// progressBarSized 进度条；seek=true 时点击/拖动跳转。
+// progressBarSized 进度条；seek=true 时可拖跳转（原生 SliderBase）。
 func (a *app) progressBarSized(c *ui.Context, frac float64, h float32, seek bool) ui.Element {
-	box := ui.Box(c).AlignSelf(ui.Stretch).Height(h).Radius(h / 2)
-	box.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.FillRadii(r, [4]float32{r.H / 2, r.H / 2, r.H / 2, r.H / 2}, clrTrackBar)
-		if frac > 0 {
-			fr := ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(frac), H: r.H}
-			p.FillGradient(fr, grad(), r.H/2)
-			p.Fill(ui.Rect{X: fr.X + fr.W - 5, Y: r.Y - 3, W: 10, H: 10}, ui.RGB(0xff, 0xff, 0xff), 5)
-		}
-		if seek {
-			if x, _, over := box.PointerPosition(); over && (box.Pressed() || box.Dragging()) {
-				a.seek(float64(x / r.W))
+	// 只读进度（歌词页/挂件）：Box 显示，不可拖
+	if !seek {
+		box := ui.Box(c).AlignSelf(ui.Stretch).Height(h).Radius(h / 2)
+		box.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.FillRadii(r, [4]float32{r.H / 2, r.H / 2, r.H / 2, r.H / 2}, clrTrackBar)
+			if frac > 0 {
+				fr := ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(frac), H: r.H}
+				p.FillGradient(fr, grad(), r.H/2)
+				p.Fill(ui.Rect{X: fr.X + fr.W - 5, Y: r.Y - 3, W: 10, H: 10}, ui.RGB(0xff, 0xff, 0xff), 5)
 			}
+		})
+		return box
+	}
+	// 可拖 seek（playerBar）：改用 mygo 原生 SliderBase（flagDraggable，绑定 &a.progress
+	// 双向）；之前自定义 Box+PointerPosition 拖不动。拖动中标记 scrubbing 暂停 pbLoop
+	// 覆盖 a.progress（避免 thumb 跳回），Changed 时 seek。
+	pad := h + 3
+	s := ui.SliderBase(c, &a.progress, 0, 1).AlignSelf(ui.Stretch).Height(h + 2*pad).PaddingX(pad)
+	a.scrubbing = s.Dragging()
+	s.Draw(func(p *ui.Painter, r ui.Rect) {
+		track := ui.Rect{X: r.X, Y: r.Y + (r.H-h)/2, W: r.W, H: h}
+		p.FillRadii(track, [4]float32{h / 2, h / 2, h / 2, h / 2}, clrTrackBar)
+		if a.progress > 0 {
+			fr := ui.Rect{X: track.X, Y: track.Y, W: track.W * float32(a.progress), H: h}
+			p.FillGradient(fr, grad(), h/2)
 		}
+		// 圆形 thumb 始终显示（对齐主线进度滑块）
+		cx := track.X + track.W*float32(a.progress)
+		cy := track.Y + h/2
+		th := ui.Rect{X: cx - 5, Y: cy - 5, W: 10, H: 10}
+		p.FillRadii(th, [4]float32{5, 5, 5, 5}, ui.RGB(0xff, 0xff, 0xff))
+		p.FillRadii(ui.Rect{X: th.X + 1, Y: th.Y + 1, W: th.W - 2, H: th.H - 2}, [4]float32{4, 4, 4, 4}, clrPink)
 	})
-	return box
+	if s.Changed() {
+		a.seek(a.progress) // 拖动改 a.progress 后跳转
+	}
+	return s
 }
 
 // playCircle 大号圆形播放/暂停按钮。

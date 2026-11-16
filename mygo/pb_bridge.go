@@ -83,7 +83,9 @@ func (a *app) pbLoop() {
 						if f > 1 {
 							f = 1
 						}
-						a.progress = f
+						if !a.scrubbing {
+							a.progress = f // 拖动中不覆盖（避免 thumb 跳回）
+						}
 					}
 					a.posText = fmtDurMygo(pr.Position)
 					a.durText = fmtDurMygo(pr.Duration)

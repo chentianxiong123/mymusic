@@ -66,6 +66,7 @@ type app struct {
 	current    *track
 	playing    bool
 	progress   float64 // 0..1
+	scrubbing  bool    // 进度条拖动中（暂停 pbLoop 覆盖 a.progress，避免 thumb 跳回）
 	posText    string
 	durText    string
 	lyricText  string

@@ -173,51 +173,48 @@ func (a *app) refreshFavs() {
 
 // volumeBar 音量滑块：拖动 SetVolume，点击轨道定位。
 func (a *app) volumeBar(c *ui.Context, width float32) ui.Element {
-	// 对齐主线 d-vol：w-20 h-1.5 accent-pink-500（宽80 高6 粉色 + 原生 range 圆形 thumb）
-	box := ui.Box(c).Width(width).Height(6 * uiScale).Radius(3 * uiScale)
-	box.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.FillRadii(r, [4]float32{r.H / 2, r.H / 2, r.H / 2, r.H / 2}, clrTrackBar)
-		v := float32(a.volume)
+	// 对齐主线 d-vol：<input type=range> 原生可拖。改用 mygo 原生 SliderBase
+	// （flagDraggable，绑定 &a.volume 双向）：之前自定义 Box+PointerPosition 拖不动。
+	// Draw 自定义轨道/填充/thumb（高 6 粉渐变 + 12px 圆 thumb，thumb 始终显示）。
+	const h = float32(6)
+	pad := float32(10) // 半 thumb 宽 padding，让 thumb 不出界
+	s := ui.SliderBase(c, &a.volume, 0, 1).Width(width).Height(h + 2*pad).PaddingX(pad)
+	s.Draw(func(p *ui.Painter, r ui.Rect) {
+		track := ui.Rect{X: r.X, Y: r.Y + (r.H-h)/2, W: r.W, H: h}
+		p.FillRadii(track, [4]float32{h / 2, h / 2, h / 2, h / 2}, clrTrackBar)
+		v := a.volume
 		if v < 0 {
 			v = 0
 		}
 		if v > 1 {
 			v = 1
 		}
+		cy := track.Y + h/2
 		if v > 0 {
-			fr := ui.Rect{X: r.X, Y: r.Y, W: r.W * v, H: r.H}
-			p.FillGradient(fr, grad(), r.H/2)
+			fr := ui.Rect{X: track.X, Y: track.Y, W: track.W * float32(v), H: h}
+			p.FillGradient(fr, grad(), h/2)
 		}
-		// 圆形 thumb 始终显示（对齐主线原生 range：volume 0 时 thumb 也在最左可见；
-		// 之前 volume 0 不画 thumb → 深色轨道在深色 bar 上不可见 → "放歌就没了"）
-		cx := r.X + r.W*v
-		cy := r.Y + r.H/2
+		// 圆形 thumb 始终显示（volume 0 也在最左，对齐主线 range thumb 常驻）
+		cx := track.X + track.W*float32(v)
 		th := ui.Rect{X: cx - 6, Y: cy - 6, W: 12, H: 12}
 		p.FillRadii(th, [4]float32{6, 6, 6, 6}, ui.RGB(0xff, 0xff, 0xff))
 		p.FillRadii(ui.Rect{X: th.X + 1, Y: th.Y + 1, W: th.W - 2, H: th.H - 2}, [4]float32{5, 5, 5, 5}, clrPink)
-		if x, _, over := box.PointerPosition(); over && (box.Pressed() || box.Dragging()) {
-			x0 := x
-			if x0 < 0 {
-				x0 = 0
-			}
-			if x0 > r.W {
-				x0 = r.W
-			}
-			a.setVolume(float64(x0 / r.W))
-		}
-		// hover 显示百分比（对齐音量条语义：可见即反馈）
-		if box.Hovered() {
+		// hover 百分比气泡
+		if s.Hovered() {
 			pct := int(a.volume * 100)
 			if a.muted {
 				pct = 0
 			}
 			label := fmt.Sprintf("%d%%", pct)
-			bub := ui.Rect{X: r.X + r.W/2 - 16, Y: r.Y - 24, W: 32, H: 18}
+			bub := ui.Rect{X: r.X + r.W/2 - 16, Y: r.Y - 22, W: 32, H: 18}
 			p.FillRadii(bub, [4]float32{9, 9, 9, 9}, clrTrack)
 			p.Text(bub.X+16, bub.Y+13, label, 10, clrText)
 		}
 	})
-	return box
+	if s.Changed() {
+		a.setVolume(a.volume) // 拖动改 a.volume 后应用音频音量
+	}
+	return s
 }
 
 // nowPlaying 正在播放歌词页：对齐主线 lyric-panel 竖屏歌词面板结构
