@@ -672,7 +672,9 @@ func (a *app) queuePage(c *ui.Context) {
 						a.win.Invalidate()
 					}
 				})
-				ui.Row(c).Gap(10 * uiScale).Children(func() {
+				// 最近播放横向滑动栏（超出窗口宽度可横滑，不挤行；上限 10 张与主线
+				// recent.js"最多 10 显示"一致，全部 30 条在最近页）。
+				ui.ScrollHorizontal(c).Scrollbars(true).Gap(10 * uiScale).Children(func() {
 					n := len(a.recent)
 					if n > 10 {
 						n = 10
