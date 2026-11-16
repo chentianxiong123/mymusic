@@ -173,14 +173,19 @@ func (a *app) refreshFavs() {
 
 // volumeBar 音量滑块：拖动 SetVolume，点击轨道定位。
 func (a *app) volumeBar(c *ui.Context, width float32) ui.Element {
-	box := ui.Box(c).Width(width).Height(4 * uiScale).Radius(2 * uiScale)
+	// 对齐主线 d-vol：w-20 h-1.5 accent-pink-500（宽80 高6 粉色 + 原生 range 圆形 thumb）
+	box := ui.Box(c).Width(width).Height(6 * uiScale).Radius(3 * uiScale)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.FillRadii(r, [4]float32{r.H / 2, r.H / 2, r.H / 2, r.H / 2}, clrTrackBar)
 		v := float32(a.volume)
 		if v > 0 {
 			fr := ui.Rect{X: r.X, Y: r.Y, W: r.W * v, H: r.H}
 			p.FillGradient(fr, grad(), r.H/2)
-			p.Fill(ui.Rect{X: fr.X + fr.W - 3, Y: r.Y - 3, W: 6, H: 6}, ui.RGB(0xff, 0xff, 0xff), 3)
+			// 圆形 thumb（对齐主线原生 range 把手 ~12px，白底描边）
+			cy := r.Y + r.H/2
+			th := ui.Rect{X: fr.X + fr.W - 6, Y: cy - 6, W: 12, H: 12}
+			p.FillRadii(th, [4]float32{6, 6, 6, 6}, ui.RGB(0xff, 0xff, 0xff))
+			p.FillRadii(ui.Rect{X: th.X + 1, Y: th.Y + 1, W: th.W - 2, H: th.H - 2}, [4]float32{5, 5, 5, 5}, clrPink)
 		}
 		if x, _, over := box.PointerPosition(); over && (box.Pressed() || box.Dragging()) {
 			x0 := x
