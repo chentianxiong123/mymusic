@@ -19,6 +19,7 @@ import (
 	"homecast/service/cast"
 	"homecast/service/lyric"
 	"homecast/service/playback"
+	spk "homecast/service/speaker"
 
 	"homecast/bilibili"
 	"homecast/xiaoai"
@@ -602,6 +603,27 @@ func main() {
 	a.mygoOut.SetVolume(int(a.volume * 100))           // 恢复音量（restorePrefs 后 mygoOut 才存在）
 	a.pb.SetOutput(a.mygoOut)
 	a.pb.SetDB(a.db)
+	// 音箱输出工厂：SwitchSpeaker(did) 时创建绑定该 did 的 SpeakerOutput（对齐主线
+	// server.go SetOutputFactory）。缺失时 SwitchSpeaker 的 outFactory 分支直接跳过
+	// → 核心 out 不换，progressLoop 读不到音箱进度、切回 web 双响（主线注释同款）。
+	// SpeakerOutput.Position 从 svc.Progress(did) 读音箱本地模拟进度（startProgress）。
+	if a.svc != nil && a.svc.speaker != nil {
+		a.pb.SetOutputFactory(func(did string) playback.Output {
+			out := spk.NewSpeakerOutput(a.svc.speaker, did)
+			out.SetEndedHook(func() { a.pb.Next() }) // 核心自动连播（对齐主线）
+			return out
+		})
+		// 音箱播完钩子（对齐主线 server.go EndedHook）：定时器到点唯一出口——
+		// 有下一首 → 核心自动连播；无下一首（单曲/最后一首）→ 核心落停播态。
+		// 缺此钩子：播完什么都不做，核心一直“播放中”，设备卡永远撒谎。
+		a.svc.speaker.EndedHook = func(did, nextBVID string) {
+			if nextBVID == "" {
+				a.pb.SpeakerFinished(did)
+				return
+			}
+			a.pb.Next()
+		}
+	}
 	// 播完自动连播（对齐主线 audio ended：single 前端 currentTime=0 重播当前歌，
 	// 其余 cmd('next') 后端顺序环绕）。single 用 seek(0)+Resume 重播（MyGo 本地 audio）。
 	a.mygoOut.SetEndedHook(func() {

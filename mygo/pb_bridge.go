@@ -91,6 +91,7 @@ func (a *app) pbLoop() {
 					}
 					a.posText = fmtDurMygo(pr.Position)
 					a.durText = fmtDurMygo(pr.Duration)
+					a.posSec = pr.Position // 歌词/桌面挂件随进度走（音箱模式进度只经核心广播来）
 					a.playing = pr.Playing
 					a.win.Invalidate()
 				})
@@ -102,7 +103,9 @@ func (a *app) pbLoop() {
 // progressReporter MyGo 本地 audio 进度 → 上报 SSOT（等价 web timeupdate）。
 // 仅 source=web 接受（MyGo 默认 web 语义），与音箱模式隔离。
 func (a *app) progressReporter() {
-	t := time.NewTicker(500 * time.Millisecond)
+	// 上报频率对齐主线 player.js timeupdate：低频 250ms（不是越小越好，SSE 广播 + 挂件
+	// 重绘都吃这个；主线注释原话"低频 250ms"）。旧版 500ms 会让 EQ/歌词动效偏卡。
+	t := time.NewTicker(250 * time.Millisecond)
 	defer t.Stop()
 	for range t.C {
 		info := a.mygoOut.Position()

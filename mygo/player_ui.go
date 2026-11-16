@@ -1489,12 +1489,29 @@ func (a *app) playToSpeaker(did, name string) {
 	if a.svc == nil || a.svc.speaker == nil || a.current == nil {
 		return
 	}
-	opts := speaker.PlayOpts{Title: a.current.title, Duration: 0}
-	if res, err := a.svc.speaker.Play(a.current.bvid, did, 192, opts); err != nil {
+	// 自动连播：NextBVID 非空 = 音箱播完由 speaker 域包定时器触发 hook 切下一首
+	// （对齐主线 hx/speaker.go：next 为空则 NextBVID() 取核心队列下一首；
+	// 核心队列 SSOT 算 next，不依赖前端传参）。
+	opts := speaker.PlayOpts{Title: a.current.title, Duration: 0, NextBVID: a.pb.NextBVID()}
+	// 音质 mock：主线 hx/speaker.go 固定 30280（= bilibili.Audio192K，B站 qn 码，
+	// 不是"192k"这个字面量）；旧版传 192 会走 GetBestAudioURL 回退链才拿到 30280。
+	qn := bilibili.Audio192K
+	if a.quality == 0 {
+		qn = bilibili.Audio64K
+	} else if a.quality == 1 {
+		qn = bilibili.Audio128K
+	}
+	if res, err := a.svc.speaker.Play(a.current.bvid, did, qn, opts); err != nil {
 		a.status = "音箱播放失败：" + err.Error()
 	} else if code, _ := res["code"].(int); code == 0 {
 		a.castOn = name
 		a.status = "已在音箱播放：" + name
+		// 投送成功 → 同步切核心 source=speaker（对齐主线 hx/speaker.go 注释：
+		// “消除双响窗口——分两步时前端在‘音箱已响但核心还是 web/playing’的间隙
+		// 让手机也开播”）。SwitchSpeaker 内 prevOut(本地 MyGoOutput).Stop() 停本地
+		// 出声 + 状态切音箱 + SpeakerOutput 接管进度投影。缺它：音箱在响核心却说
+		// web/playing，本地也在播 = 真双响。
+		a.pb.SwitchSpeaker(did)
 	}
 	a.win.Invalidate()
 }
