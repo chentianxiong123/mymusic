@@ -205,10 +205,9 @@ func (a *app) volumeBar(c *ui.Context, width float32) ui.Element {
 			if a.muted {
 				pct = 0
 			}
+			// 纯数字百分比，不带外框（用户：外框气泡有点崩，纯数字即可）
 			label := fmt.Sprintf("%d%%", pct)
-			bub := ui.Rect{X: r.X + r.W/2 - 16, Y: r.Y - 22, W: 32, H: 18}
-			p.FillRadii(bub, [4]float32{9, 9, 9, 9}, clrTrack)
-			p.Text(bub.X+16, bub.Y+13, label, 10, clrText)
+			p.Text(r.X+r.W/2-6, r.Y-14, label, 11, clrText)
 		}
 	})
 	if s.Changed() {
