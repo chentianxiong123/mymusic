@@ -16,6 +16,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"homecast/service/music"
 	"homecast/service/playback"
 
 	"homecast/bilibili"
@@ -28,6 +29,28 @@ func (a *app) search() {
 	mygo.RunOnMain(func() { kw = a.query; a.status = "搜索中…" })
 	res, err := a.bili.Search(kw, 1, 30)
 	a.loading.Store(false)
+	// 非歌过滤（对齐主线 music.FilterSongs：剔除翻唱/伴奏/教学/合集/卡点等非歌
+	// 视频，听歌场景宁缺毋滥；搜索结果混入"不是歌"的杂质要过滤）
+	if err == nil && len(res.Result) > 0 {
+		items := make([]music.MusicItem, 0, len(res.Result))
+		for _, r := range res.Result {
+			items = append(items, music.MusicItem{
+				BVID: r.BVID, Title: r.Title, Artist: r.Author, Cover: r.Pic,
+				Duration: r.Duration, DurationSec: music.ParseDurationSec(r.Duration),
+				PlayCount: r.Play, Typename: r.Typename,
+			})
+		}
+		filtered := music.FilterSongs(items, true)
+		if len(filtered) != len(res.Result) {
+			res.Result = res.Result[:0]
+			for _, it := range filtered {
+				res.Result = append(res.Result, bilibili.SearchItem{
+					BVID: it.BVID, Title: it.Title, Author: it.Artist, Pic: it.Cover,
+					Duration: it.Duration, Typename: it.Typename, Play: it.PlayCount,
+				})
+			}
+		}
+	}
 	if err != nil {
 		a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
 		return

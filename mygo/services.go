@@ -15,8 +15,11 @@ import (
 	"homecast/service/fav"
 	"homecast/service/lyric"
 	"homecast/service/lyriccache"
+	"homecast/service/music"
+	"homecast/service/sites"
 	"homecast/service/speaker"
 	"homecast/service/token"
+	"homecast/service/transcode"
 	"homecast/xiaoai"
 
 	"homecast/bilibili"
@@ -32,7 +35,10 @@ type services struct {
 	tokens     *token.TokenStore
 	cache      *cache.CacheService
 	qr         *xiaoai.QRLogin
-	qrAuth     *xiaoai.SpeakerAuth // 与 speaker 共用同一 auth（主线程组装，避免双实例）
+	qrAuth     *xiaoai.SpeakerAuth   // 与 speaker 共用同一 auth（主线程组装，避免双实例）
+	sites      *sites.SitesService   // 站点嗅探配置（SSOT：~/.config/homecast/sites.json）
+	music      *music.MusicService   // 音乐域（B站搜索/取流/非歌过滤，供给端点用 GetAudioStream）
+	xcoder     *transcode.Transcoder // 音箱软转码 mp3 秒开（供给端点 /stream 用）
 }
 
 // favHas 收藏查询（薄封装，UI 侧只读）。
@@ -64,6 +70,11 @@ func durationSec(progress float32, durText string) int {
 func newServices(db *sql.DB, client *bilibili.Client, audioDir string) *services {
 	tokens := token.NewTokenStore()
 	spAuth := xiaoai.NewSpeakerAuth() // 单一 auth 实例：QR 登录后与 speaker 共享
+	// maudio-mp3 转码缓存目录（音箱秒开 mp3；与音频缓存同根目录）
+	mp3Dir := audioDir + "-mp3"
+	if audioDir == "" {
+		mp3Dir = ""
+	}
 	return &services{
 		fav:        fav.NewFavService(db),
 		lyricStore: lyric.NewLyricStore(db),
@@ -74,6 +85,9 @@ func newServices(db *sql.DB, client *bilibili.Client, audioDir string) *services
 		cache:      cache.NewCacheService(db, audioDir, -1), // -1=默认上限
 		qr:         xiaoai.NewQRLogin(),
 		qrAuth:     spAuth,
+		sites:      sites.NewSitesService(""), // 默认 ~/.config/homecast
+		music:      &music.MusicService{Client: client},
+		xcoder:     transcode.NewTranscoder(db, mp3Dir, -1), // -1=默认上限
 	}
 }
 

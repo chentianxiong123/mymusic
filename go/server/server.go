@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"homecast/hx"
-	"homecast/internal/api"
+	"homecast/api"
 	"homecast/bilibili"
 	"homecast/service/cache"
 	"homecast/service/cast"

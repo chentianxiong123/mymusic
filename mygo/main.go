@@ -586,6 +586,7 @@ func main() {
 		os.MkdirAll(audioDir, 0o755)
 	}
 	a.svc = newServices(a.db, a.bili, audioDir)
+	a.startStreamServer() // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
 	a.favSet = map[string]bool{}
 	a.refreshFavs()    // 收藏恢复自 fav 域包（SQLite 持久化）
 	a.restorePrefs()   // 恢复主题/音质/缓存上限（settings 表）

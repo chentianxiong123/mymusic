@@ -22,6 +22,7 @@ import (
 	"homecast/service/lyric"
 	"homecast/service/lyriccache"
 	"homecast/service/playback"
+	"homecast/service/transcode"
 	"homecast/store"
 
 	"homecast/bilibili"
@@ -48,6 +49,7 @@ func ensureDB() *sql.DB {
 		fav.FavSchema,
 		lyric.LyricSchema,
 		cache.CacheSchema,
+		transcode.Schema, // 音箱 mp3 转码缓存表（供给端点 Xcoder 用）
 		cache.SettingsSchema,
 		lyriccache.CacheSchema,
 	}, nil); err != nil {

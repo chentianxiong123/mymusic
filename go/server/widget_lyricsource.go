@@ -1,7 +1,7 @@
 package server
 
 import (
-	"homecast/internal/api"
+	"homecast/api"
 	"homecast/service/lyric"
 	"homecast/service/widget"
 )
