@@ -47,12 +47,17 @@ func (a *app) toggleLyric() {
 	}
 }
 
-// lyricHoverLoop 全局光标轮询（100ms）：鼠标在挂件矩形内持续 1 秒 → 取消穿透
-// （SetIgnoreMouseEvents(false)，可拖拽 + 控制按钮）；移出 → 恢复穿透。
+// lyricHoverMs 悬停浮现控制条的时长（对齐主线 widget.go HoverMs = 1200ms）
+const lyricHoverMs = 1200 * time.Millisecond
+
+// lyricHoverLoop 全局光标轮询（150ms，对齐主线 g_timeout_add(150)）：鼠标在挂件
+// 矩形内持续 lyricHoverMs（1.2 秒，对齐主线 HoverMs）→ 取消穿透（可拖拽 + 控制
+// 按钮）；移出 → 恢复穿透。与主线 widget.go 同源方案（CursorInside 也走
+// XQueryPointer），性能损耗主线已真机验证可接受。
 func (a *app) lyricHoverLoop() {
 	defer func() { a.lyricLooping = false }()
 	for a.lyricWin != nil {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 		w := a.lyricWin
 		if w == nil {
 			return
@@ -66,7 +71,7 @@ func (a *app) lyricHoverLoop() {
 			if a.lyricHoverStart.IsZero() {
 				a.lyricHoverStart = now
 			}
-			if !a.lyricHot && now.Sub(a.lyricHoverStart) >= time.Second {
+			if !a.lyricHot && now.Sub(a.lyricHoverStart) >= lyricHoverMs {
 				a.lyricHot = true
 				w.SetIgnoreMouseEvents(false) // 取消穿透：可拖拽 + 控制按钮
 				a.win.Invalidate()
