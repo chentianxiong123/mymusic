@@ -678,23 +678,24 @@ func selColor(on bool, yes, no ui.Color) ui.Color {
 
 // queuePage 队列页：最近播放 + 上次在听 + 播放列表（对齐主线 last-view/recent-view/queue-view）。
 func (a *app) queuePage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
-		// 最近播放横排小卡（对齐主线 recent-view：最多 10 显示 + 清空）
-		if len(a.recent) > 0 {
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-				ui.Text(c, "最近播放").FontSize(16 * uiScale).Bold().TextColor(clrText)
-				ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(12 * uiScale).TextColor(clrMuted)
-				ui.Spacer(c).Grow(1)
-				if chip(c, "查看全部").Clicked() {
-					a.setTab("recent")
-				}
-				if chip(c, "清空").Clicked() {
-					a.recent = nil
-					a.saveRecent()
-					a.win.Invalidate()
-				}
-			})
-			ui.Scroll(c).AlignSelf(ui.Stretch).Gap(10 * uiScale).Scrollbars(true).Children(func() {
+	// 整页滚动条：整页内容包一个 Scroll，不做组件内部滚动条（最近播放横排/队列列表不再单独 Scroll）
+	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
+			// 最近播放横排小卡（对齐主线 recent-view：最多 10 显示 + 清空）
+			if len(a.recent) > 0 {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+					ui.Text(c, "最近播放").FontSize(16 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(12 * uiScale).TextColor(clrMuted)
+					ui.Spacer(c).Grow(1)
+					if chip(c, "查看全部").Clicked() {
+						a.setTab("recent")
+					}
+					if chip(c, "清空").Clicked() {
+						a.recent = nil
+						a.saveRecent()
+						a.win.Invalidate()
+					}
+				})
 				ui.Row(c).Gap(10 * uiScale).Children(func() {
 					n := len(a.recent)
 					if n > 10 {
@@ -722,46 +723,44 @@ func (a *app) queuePage(c *ui.Context) {
 						}
 					}
 				})
-			})
-		}
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-			ui.Text(c, "播放队列").FontSize(20 * uiScale).Bold().TextColor(clrText)
-			ui.Text(c, fmt.Sprintf("%d 首", len(a.playlist))).FontSize(13 * uiScale).TextColor(clrMuted)
-			ui.Spacer(c).Grow(1)
-			if len(a.playlist) > 0 {
-				if chip(c, "清空队列").Clicked() {
-					a.pb.ClearQueue()
-				}
 			}
-		})
-		// 上次在听（对齐原项目）
-		if a.current != nil {
-			ui.Box(c).Fill().Radius(16 * uiScale).PaddingX(18 * uiScale).PaddingY(16 * uiScale).Background(clrCardGlass).Children(func() {
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
-					a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
-					ui.Column(c).Grow(1).Gap(4 * uiScale).Children(func() {
-						ui.Text(c, "上次在听").FontSize(12 * uiScale).TextColor(clrMuted)
-						ui.Text(c, a.current.title).FontSize(17 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-						ui.Text(c, a.current.author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+				ui.Text(c, "播放队列").FontSize(20 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, fmt.Sprintf("%d 首", len(a.playlist))).FontSize(13 * uiScale).TextColor(clrMuted)
+				ui.Spacer(c).Grow(1)
+				if len(a.playlist) > 0 {
+					if chip(c, "清空队列").Clicked() {
+						a.pb.ClearQueue()
+					}
+				}
+			})
+			// 上次在听（对齐原项目）
+			if a.current != nil {
+				ui.Box(c).Fill().Radius(16 * uiScale).PaddingX(18 * uiScale).PaddingY(16 * uiScale).Background(clrCardGlass).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
+						a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
+						ui.Column(c).Grow(1).Gap(4 * uiScale).Children(func() {
+							ui.Text(c, "上次在听").FontSize(12 * uiScale).TextColor(clrMuted)
+							ui.Text(c, a.current.title).FontSize(17 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+							ui.Text(c, a.current.author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
+						})
+						if gradButton(c, "继续播放").Clicked() {
+							go a.play(*a.currentToItem())
+						}
 					})
-					if gradButton(c, "继续播放").Clicked() {
-						go a.play(*a.currentToItem())
+				})
+			}
+			if len(a.playlist) == 0 {
+				ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
+					icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
+					ui.Text(c, "队列为空").FontSize(17 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, "随便点一首歌，队列会自动出现在这里").FontSize(13 * uiScale).TextColor(clrMuted)
+					if gradButton(c, "去搜索").Clicked() {
+						a.setTab("search")
 					}
 				})
-			})
-		}
-		if len(a.playlist) == 0 {
-			ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
-				icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-				ui.Text(c, "队列为空").FontSize(17 * uiScale).Bold().TextColor(clrText)
-				ui.Text(c, "随便点一首歌，队列会自动出现在这里").FontSize(13 * uiScale).TextColor(clrMuted)
-				if gradButton(c, "去搜索").Clicked() {
-					a.setTab("search")
-				}
-			})
-			return
-		}
-		ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+				return
+			}
 			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for i, item := range a.playlist {
 					a.queueRow(c, i, item)
@@ -773,31 +772,32 @@ func (a *app) queuePage(c *ui.Context) {
 
 // recentPage 最近播放全页（对齐主线 /hx/recent：最多 30 首列表）。
 func (a *app) recentPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-			ui.Text(c, "最近播放").FontSize(20 * uiScale).Bold().TextColor(clrText)
-			ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(13 * uiScale).TextColor(clrMuted)
-			ui.Spacer(c).Grow(1)
-			if len(a.recent) > 0 {
-				if chip(c, "清空").Clicked() {
-					a.recent = nil
-					a.saveRecent()
-					a.win.Invalidate()
-				}
-			}
-		})
-		if len(a.recent) == 0 {
-			ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
-				icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-				ui.Text(c, "还没有播放记录").FontSize(17 * uiScale).Bold().TextColor(clrText)
-				ui.Text(c, "听过的歌会出现在这里，最多保留 30 首").FontSize(13 * uiScale).TextColor(clrMuted)
-				if gradButton(c, "去搜索").Clicked() {
-					a.setTab("search")
+	// 整页滚动条（对齐主线）：整页内容包一个 Scroll，不做组件内部滚动条
+	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+				ui.Text(c, "最近播放").FontSize(20 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(13 * uiScale).TextColor(clrMuted)
+				ui.Spacer(c).Grow(1)
+				if len(a.recent) > 0 {
+					if chip(c, "清空").Clicked() {
+						a.recent = nil
+						a.saveRecent()
+						a.win.Invalidate()
+					}
 				}
 			})
-			return
-		}
-		ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+			if len(a.recent) == 0 {
+				ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
+					icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
+					ui.Text(c, "还没有播放记录").FontSize(17 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, "听过的歌会出现在这里，最多保留 30 首").FontSize(13 * uiScale).TextColor(clrMuted)
+					if gradButton(c, "去搜索").Clicked() {
+						a.setTab("search")
+					}
+				})
+				return
+			}
 			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for _, item := range a.recent {
 					a.listRow(c, item)
@@ -854,34 +854,35 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 
 // favPage 收藏页。
 func (a *app) favPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-			ui.Text(c, "我的收藏").FontSize(20 * uiScale).Bold().TextColor(clrText)
-			ui.Text(c, fmt.Sprintf("%d 首", len(a.favorites))).FontSize(13 * uiScale).TextColor(clrMuted)
-			ui.Spacer(c).Grow(1)
-			if len(a.favorites) > 0 {
-				if gradButton(c, "播放全部").Clicked() {
-					a.playAll(a.favorites, 0)
-				}
-				if chip(c, "清空收藏").Clicked() {
-					a.svc.fav.Clear()
-					a.refreshFavs()
-					a.win.Invalidate()
-				}
-			}
-		})
-		if len(a.favorites) == 0 {
-			ui.Column(c).Fill().Center().Gap(12 * uiScale).Children(func() {
-				icon(c, icHeart, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-				ui.Text(c, "收藏夹还是空的").FontSize(17 * uiScale).Bold().TextColor(clrText)
-				ui.Text(c, "听歌时点卡片上的 ♥ 收藏").FontSize(13 * uiScale).TextColor(clrMuted)
-				if gradButton(c, "去搜索").Clicked() {
-					a.setTab("search")
+	// 整页滚动条（对齐主线）：整页内容包一个 Scroll，不做组件内部滚动条
+	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+				ui.Text(c, "我的收藏").FontSize(20 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, fmt.Sprintf("%d 首", len(a.favorites))).FontSize(13 * uiScale).TextColor(clrMuted)
+				ui.Spacer(c).Grow(1)
+				if len(a.favorites) > 0 {
+					if gradButton(c, "播放全部").Clicked() {
+						a.playAll(a.favorites, 0)
+					}
+					if chip(c, "清空收藏").Clicked() {
+						a.svc.fav.Clear()
+						a.refreshFavs()
+						a.win.Invalidate()
+					}
 				}
 			})
-			return
-		}
-		ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+			if len(a.favorites) == 0 {
+				ui.Column(c).Fill().Center().Gap(12 * uiScale).Children(func() {
+					icon(c, icHeart, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
+					ui.Text(c, "收藏夹还是空的").FontSize(17 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, "听歌时点卡片上的 ♥ 收藏").FontSize(13 * uiScale).TextColor(clrMuted)
+					if gradButton(c, "去搜索").Clicked() {
+						a.setTab("search")
+					}
+				})
+				return
+			}
 			ui.Column(c).Gap(6 * uiScale).Children(func() {
 				for _, item := range a.favorites {
 					a.favRow(c, item)
@@ -1228,108 +1229,110 @@ func segBtn(c *ui.Context, label string, on bool) ui.Element {
 
 // castPage 投屏/音箱页：DLNA 设备发现 + 投当前歌 + 小米音箱（SSOT：cast/speaker 域包）。
 func (a *app) castPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12 * uiScale).Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-			ui.Text(c, "投屏 / 音箱").FontSize(20 * uiScale).Bold().TextColor(clrText)
-			ui.Spacer(c).Grow(1)
-			if gradButton(c, "发现设备").Clicked() {
-				go a.discoverCast()
-			}
-		})
-		// 当前投屏状态（对齐主线 d-stop：投屏中可停止）
-		if a.castOn != "" {
-			ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
-					icon(c, icCast, 18, clrPink)
-					ui.Text(c, "正在投屏："+a.castOn).FontSize(14 * uiScale).TextColor(clrText).Bold()
-					ui.Spacer(c).Grow(1)
-					if chip(c, "停止投屏").Clicked() {
-						a.stopCast()
-					}
-				})
+	// 整页滚动条（对齐主线页面滚动条）：整页内容包一个 Scroll，内容超出窗口
+	// 时整页滚动；不做组件内部滚动条（DLNA 列表不再单独 Scroll）。
+	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12 * uiScale).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+				ui.Text(c, "投屏 / 音箱").FontSize(20 * uiScale).Bold().TextColor(clrText)
+				ui.Spacer(c).Grow(1)
+				if gradButton(c, "发现设备").Clicked() {
+					go a.discoverCast()
+				}
 			})
-		}
-		// 小米音箱（SSOT：xiaoai auth 登录态；未登录→扫码；已登录→账户头+刷新+导出 token）
-		loggedIn := a.svc != nil && a.svc.speakerLoggedIn()
-		if loggedIn {
-			ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-					icon(c, icMsg, 18, clrPurple)
-					ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-						ui.Text(c, "小爱音箱").FontSize(14 * uiScale).Bold().TextColor(clrText)
-						uid := a.svc.speakerUserID()
-						ui.Text(c, "已登录 · "+uid).FontSize(11 * uiScale).TextColor(clrMuted)
-					})
-					if chip(c, "刷新设备").Clicked() {
-						go a.refreshSpeakers()
-					}
-					if chip(c, "复制 token").Clicked() {
-						if tok, err := a.svc.exportSpeakerToken(); err == nil {
-							mygo.Clipboard.WriteText(tok)
-							a.status = "已复制音箱 token（多端免扫码复用）"
-						} else {
-							a.status = err.Error()
-						}
-						a.win.Invalidate()
-					}
-				})
-			})
-		} else {
-			if a.qrImage != "" {
+			// 当前投屏状态（对齐主线 d-stop：投屏中可停止）
+			if a.castOn != "" {
 				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
-						// 二维码图（UI 解码 data URI）
-						ui.Box(c).Size(120, 120).Draw(func(p *ui.Painter, r ui.Rect) {
-							if img, ok := a.covers["__qr__"]; ok {
-								p.Clip(r, 8, func() { p.Image(img, r, ui.Cover) })
-							}
-							p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
-						})
-						ui.Column(c).Grow(1).Gap(6 * uiScale).Children(func() {
-							ui.Text(c, "小米音箱扫码登录").FontSize(14 * uiScale).Bold().TextColor(clrText)
-							ui.Text(c, "用米家 App 扫描二维码登录").FontSize(12 * uiScale).TextColor(clrMuted)
-							ui.Text(c, a.qrStatus).FontSize(12 * uiScale).TextColor(clrPink)
-						})
-					})
-				})
-			}
-			ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-					icon(c, icMsg, 18, clrMuted)
-					ui.Text(c, "小爱音箱未登录").FontSize(13 * uiScale).TextColor(clrText).Grow(1)
-					if gradButton(c, "扫码登录").Clicked() {
-						go a.startSpeakerLogin()
-					}
-				})
-			})
-		}
-		// 音箱设备列表（登录后展示，SSOT speaker）
-		if loggedIn {
-			if len(a.speakers) == 0 {
-				ui.Text(c, "音箱：点「刷新设备」获取设备列表").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
-			}
-			for _, sp := range a.speakers {
-				sp := sp
-				row := ui.Box(c).Fill().Height(56 * uiScale).Radius(12 * uiScale).PaddingX(14 * uiScale).Background(clrCard)
-				row.Children(func() {
 					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
-						icon(c, icVol, 18, clrMuted)
-						ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-							ui.Text(c, sp.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-							ui.Text(c, sp.DID).FontSize(11 * uiScale).TextColor(clrMuted)
-						})
-						if gradButton(c, "播放").Clicked() {
-							go a.playToSpeaker(sp.DID, sp.Name)
+						icon(c, icCast, 18, clrPink)
+						ui.Text(c, "正在投屏："+a.castOn).FontSize(14 * uiScale).TextColor(clrText).Bold()
+						ui.Spacer(c).Grow(1)
+						if chip(c, "停止投屏").Clicked() {
+							a.stopCast()
 						}
 					})
 				})
 			}
-		}
-		ui.Text(c, "DLNA 设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
-		if len(a.castDevices) == 0 {
-			ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
-		}
-		ui.Scroll(c).Grow(1).Gap(6 * uiScale).Scrollbars(true).Children(func() {
+			// 小米音箱（SSOT：xiaoai auth 登录态；未登录→扫码；已登录→账户头+刷新+导出 token）
+			loggedIn := a.svc != nil && a.svc.speakerLoggedIn()
+			if loggedIn {
+				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+						icon(c, icMsg, 18, clrPurple)
+						ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+							ui.Text(c, "小爱音箱").FontSize(14 * uiScale).Bold().TextColor(clrText)
+							uid := a.svc.speakerUserID()
+							ui.Text(c, "已登录 · "+uid).FontSize(11 * uiScale).TextColor(clrMuted)
+						})
+						if chip(c, "刷新设备").Clicked() {
+							go a.refreshSpeakers()
+						}
+						if chip(c, "复制 token").Clicked() {
+							if tok, err := a.svc.exportSpeakerToken(); err == nil {
+								mygo.Clipboard.WriteText(tok)
+								a.status = "已复制音箱 token（多端免扫码复用）"
+							} else {
+								a.status = err.Error()
+							}
+							a.win.Invalidate()
+						}
+					})
+				})
+			} else {
+				if a.qrImage != "" {
+					ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
+							// 二维码图（UI 解码 data URI）
+							ui.Box(c).Size(120, 120).Draw(func(p *ui.Painter, r ui.Rect) {
+								if img, ok := a.covers["__qr__"]; ok {
+									p.Clip(r, 8, func() { p.Image(img, r, ui.Cover) })
+								}
+								p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
+							})
+							ui.Column(c).Grow(1).Gap(6 * uiScale).Children(func() {
+								ui.Text(c, "小米音箱扫码登录").FontSize(14 * uiScale).Bold().TextColor(clrText)
+								ui.Text(c, "用米家 App 扫描二维码登录").FontSize(12 * uiScale).TextColor(clrMuted)
+								ui.Text(c, a.qrStatus).FontSize(12 * uiScale).TextColor(clrPink)
+							})
+						})
+					})
+				}
+				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+						icon(c, icMsg, 18, clrMuted)
+						ui.Text(c, "小爱音箱未登录").FontSize(13 * uiScale).TextColor(clrText).Grow(1)
+						if gradButton(c, "扫码登录").Clicked() {
+							go a.startSpeakerLogin()
+						}
+					})
+				})
+			}
+			// 音箱设备列表（登录后展示，SSOT speaker）
+			if loggedIn {
+				if len(a.speakers) == 0 {
+					ui.Text(c, "音箱：点「刷新设备」获取设备列表").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
+				}
+				for _, sp := range a.speakers {
+					sp := sp
+					row := ui.Box(c).Fill().Height(56 * uiScale).Radius(12 * uiScale).PaddingX(14 * uiScale).Background(clrCard)
+					row.Children(func() {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
+							icon(c, icVol, 18, clrMuted)
+							ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+								ui.Text(c, sp.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+								ui.Text(c, sp.DID).FontSize(11 * uiScale).TextColor(clrMuted)
+							})
+							if gradButton(c, "播放").Clicked() {
+								go a.playToSpeaker(sp.DID, sp.Name)
+							}
+						})
+					})
+				}
+			}
+			ui.Text(c, "DLNA 设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
+			if len(a.castDevices) == 0 {
+				ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
+			}
 			ui.Column(c).Gap(8 * uiScale).Children(func() {
 				for _, d := range a.castDevices {
 					d := d

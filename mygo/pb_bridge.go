@@ -232,7 +232,9 @@ func (a *app) applyState(st playback.State) {
 	a.playlist = toSearchItems(st.Queue)
 	a.playIndex = st.QIdx
 	a.loopMode = modeToInt(st.PlayMode)
-	a.volume = float64(st.Volume) / 100.0
+	// 音量不被广播覆盖（st.Volume 是主线后端音量，音箱模式可能 0/音箱值，
+	// 覆盖会音量条归 0 但实际 mygoOut 音频没变 → "有声音但音量条 0"）。
+	// 音量只由用户 setVolume / 持久化 mygo_volume 控制。
 	if st.Duration > 0 {
 		f := st.Position / st.Duration
 		if f < 0 {
