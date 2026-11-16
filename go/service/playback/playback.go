@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -461,7 +462,7 @@ func (p *PlaybackState) Next() {
 		Duration: p.cur.Duration,
 		Playing:  p.cur.Playing,
 	}
-	p.cur.QIdx = (p.cur.QIdx + 1) % len(p.cur.Queue)
+	p.cur.QIdx = p.nextQIdxLocked()
 	song := p.cur.Queue[p.cur.QIdx]
 	p.applyLocked(song)
 	p.manualSwitchAt = time.Now() // 主动切歌：开防污染窗（projectProgress 跳过滞后旧歌投影）
@@ -481,12 +482,45 @@ func (p *PlaybackState) Next() {
 	p.bcastSnapshot()
 }
 
-// nextBVIDLocked 当前 QIdx 的下一首 bvid（循环；需持锁）
+// nextQIdxLocked 下一首下标（random 模式随机选 ≠ 当前；其余顺序循环；需持锁）。
+func (p *PlaybackState) nextQIdxLocked() int {
+	if p.cur.PlayMode == "random" {
+		return randomIndex(len(p.cur.Queue), p.cur.QIdx)
+	}
+	return (p.cur.QIdx + 1) % len(p.cur.Queue)
+}
+
+// prevQIdxLocked 上一首下标（random 模式随机选 ≠ 当前；其余逆序循环；需持锁）。
+func (p *PlaybackState) prevQIdxLocked() int {
+	if p.cur.PlayMode == "random" {
+		return randomIndex(len(p.cur.Queue), p.cur.QIdx)
+	}
+	return (p.cur.QIdx - 1 + len(p.cur.Queue)) % len(p.cur.Queue)
+}
+
+// randomIndex 随机选 [0,n) 中 ≠ exclude 的下标（n<=1 时回 0；random 模式用）。
+// 调用方需保证 n>=1；exclude 越界（含 -1）时全区间随机。
+func randomIndex(n, exclude int) int {
+	if n <= 1 {
+		return 0
+	}
+	if exclude < 0 || exclude >= n {
+		return rand.Intn(n)
+	}
+	for {
+		i := rand.Intn(n)
+		if i != exclude {
+			return i
+		}
+	}
+}
+
+// nextBVIDLocked 当前 QIdx 的下一首 bvid（循环；random 随机；需持锁）
 func (p *PlaybackState) nextBVIDLocked() string {
 	if len(p.cur.Queue) < 2 {
 		return ""
 	}
-	return p.cur.Queue[(p.cur.QIdx+1)%len(p.cur.Queue)].BVID
+	return p.cur.Queue[p.nextQIdxLocked()].BVID
 }
 
 func (p *PlaybackState) Prev() {
@@ -502,7 +536,7 @@ func (p *PlaybackState) Prev() {
 		Duration: p.cur.Duration,
 		Playing:  p.cur.Playing,
 	}
-	p.cur.QIdx = (p.cur.QIdx - 1 + len(p.cur.Queue)) % len(p.cur.Queue)
+	p.cur.QIdx = p.prevQIdxLocked()
 	song := p.cur.Queue[p.cur.QIdx]
 	p.applyLocked(song)
 	p.manualSwitchAt = time.Now() // 主动切歌：开防污染窗
@@ -798,7 +832,7 @@ func (p *PlaybackState) NextBVID() string {
 	if len(p.cur.Queue) < 2 || p.cur.QIdx < 0 {
 		return ""
 	}
-	return p.cur.Queue[(p.cur.QIdx+1)%len(p.cur.Queue)].BVID
+	return p.cur.Queue[p.nextQIdxLocked()].BVID
 }
 
 // ---- 持久化（settings kv，key=playback_state）：存队列/播放模式/上次歌，重启恢复 ----

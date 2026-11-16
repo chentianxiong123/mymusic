@@ -674,31 +674,40 @@ func (a *app) queuePage(c *ui.Context) {
 				})
 				// 最近播放横向滑动栏（超出窗口宽度可横滑，不挤行；上限 10 张与主线
 				// recent.js"最多 10 显示"一致，全部 30 条在最近页）。
-				ui.ScrollHorizontal(c).Scrollbars(true).Gap(10 * uiScale).Children(func() {
+				// 显式高度 = 封面 88 + 标题行 + 歌手行 + 间距，避免横向容器把文字裁掉（"一半被遮" bug）。
+				cardW := 96 * uiScale
+				coverH := 88 * uiScale
+				rowH := coverH + 20*uiScale + 16*uiScale + 8*uiScale
+				ui.ScrollHorizontal(c).Height(rowH).Scrollbars(true).Gap(10 * uiScale).Children(func() {
 					n := len(a.recent)
 					if n > 10 {
 						n = 10
 					}
 					for _, r := range a.recent[:n] {
 						r := r
-						box := ui.Box(c).Width(88 * uiScale).Height(88 * uiScale).Radius(12 * uiScale)
-						box.Draw(func(p *ui.Painter, b ui.Rect) {
-							p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
-							if img, ok := a.covers[r.BVID]; ok {
-								p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
-							} else {
-								p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
-							}
-						})
-						a.loadCover(r.BVID, r.Pic)
-						if box.Clicked() {
-							go a.play(r)
-						}
-						if box.Hovered() {
+						// 卡片：方形封面为主 + 标题/歌手文字次之（对齐主线 recent.js 卡片结构）
+						ui.Column(c).Width(cardW).Gap(4 * uiScale).Children(func() {
+							box := ui.Box(c).Width(cardW).Height(coverH).Radius(12 * uiScale)
 							box.Draw(func(p *ui.Painter, b ui.Rect) {
-								p.FillRadii(b, [4]float32{12, 12, 12, 12}, ui.RGBA(0, 0, 0, 0.25))
+								p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
+								if img, ok := a.covers[r.BVID]; ok {
+									p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
+								}
 							})
-						}
+							a.loadCover(r.BVID, r.Pic)
+							// 悬浮高亮：粉紫描边（对齐主线 group-hover 提亮，不用黑色遮罩）
+							if box.Hovered() {
+								box.Draw(func(p *ui.Painter, b ui.Rect) {
+									p.Stroke(b, clrPink, 12, 2*uiScale)
+								})
+							}
+							if box.Clicked() {
+								go a.play(r)
+							}
+							// 标题（主）+ 歌手（次）
+							ui.Text(c, bilibili.CleanHTML(r.Title)).FontSize(12 * uiScale).TextColor(clrText).MaxLines(1)
+							ui.Text(c, r.Author).FontSize(10 * uiScale).TextColor(clrMuted).MaxLines(1)
+						})
 					}
 				})
 			}
@@ -713,21 +722,7 @@ func (a *app) queuePage(c *ui.Context) {
 				}
 			})
 			// 上次在听（对齐原项目）
-			if a.current != nil {
-				ui.Box(c).Fill().Radius(16 * uiScale).PaddingX(18 * uiScale).PaddingY(16 * uiScale).Background(clrCardGlass).Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
-						a.cover(c, a.current.bvid, a.current.pic, a.resp(64, 48))
-						ui.Column(c).Grow(1).Gap(4 * uiScale).Children(func() {
-							ui.Text(c, "上次在听").FontSize(12 * uiScale).TextColor(clrMuted)
-							ui.Text(c, a.current.title).FontSize(17 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-							ui.Text(c, a.current.author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
-						})
-						if gradButton(c, "继续播放").Clicked() {
-							go a.play(*a.currentToItem())
-						}
-					})
-				})
-			}
+			// 上次在听栏已移除（用户要求：不占队列页空间，最近播放已够）
 			if len(a.playlist) == 0 {
 				ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
 					icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
@@ -776,13 +771,69 @@ func (a *app) recentPage(c *ui.Context) {
 				})
 				return
 			}
-			ui.Column(c).Gap(6 * uiScale).Children(func() {
+			// 网格卡片（列数按 tier 对应主线 grid-cols-3 sm:4 md:6）
+			cols := a.recentGridCols()
+			tracks := make([]ui.Track, cols)
+			for i := range tracks {
+				tracks[i] = ui.Fr(1)
+			}
+			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
 				for _, item := range a.recent {
-					a.listRow(c, item)
+					a.recentCard(c, item)
 				}
 			})
 		})
 	})
+}
+
+// recentGridCols 最近播放网格列数（对齐主线 grid-cols-3 sm:4 md:6）。
+func (a *app) recentGridCols() int {
+	switch a.tier() {
+	case 0: // 手机（<768）
+		return 3
+	case 1: // 紧凑（768-1024）
+		return 4
+	default: // 桌面（>=1024）
+		return 6
+	}
+}
+
+// recentCard 最近播放网格卡片：方形封面为主 + 标题/歌手文字次之（对齐主线 recent.js 卡片）。
+func (a *app) recentCard(c *ui.Context, item bilibili.SearchItem) {
+	// 封面（方形，随网格宽度自适应）
+	size := a.recentCardSize()
+	box := ui.Box(c).Width(size).Height(size).Radius(12 * uiScale)
+	box.Draw(func(p *ui.Painter, b ui.Rect) {
+		p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
+		if img, ok := a.covers[item.BVID]; ok {
+			p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
+		}
+	})
+	a.loadCover(item.BVID, item.Pic)
+	if box.Hovered() {
+		box.Draw(func(p *ui.Painter, b ui.Rect) {
+			p.FillRadii(b, [4]float32{12, 12, 12, 12}, ui.RGBA(0, 0, 0, 0.25))
+		})
+	}
+	if box.Clicked() {
+		go a.play(item)
+	}
+	// 标题（主）+ 歌手（次）
+	ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(12 * uiScale).TextColor(clrText).MaxLines(1)
+	ui.Text(c, item.Author).FontSize(10 * uiScale).TextColor(clrMuted).MaxLines(1)
+}
+
+// recentCardSize 网格卡片封面边长（桌面 6 列时 ~120，紧凑/手机随列数自适应）。
+func (a *app) recentCardSize() float32 {
+	// 窗口宽 / 列数，减去间距（12*2），留封面方边。用固定档位避免过度计算。
+	switch a.tier() {
+	case 0:
+		return a.resp(96, 88)
+	case 1:
+		return a.resp(112, 96)
+	default:
+		return a.resp(132, 112)
+	}
 }
 
 // currentToItem 把当前曲目转回 SearchItem（供 play 复用）。
@@ -1292,27 +1343,53 @@ func (a *app) castPage(c *ui.Context) {
 					})
 				})
 			}
-			// 音箱设备列表（登录后展示，SSOT speaker）
+			// 音箱设备列表（登录后展示，SSOT speaker）——对齐主线 speaker_devices.html：
+			// 网格卡片（图标+名称+硬件型号+在线/离线徽标+「投送当前歌」+「停止」），非单行列表。
 			if loggedIn {
 				if len(a.speakers) == 0 {
 					ui.Text(c, "音箱：点「刷新设备」获取设备列表").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 				}
-				for _, sp := range a.speakers {
-					sp := sp
-					row := ui.Box(c).Fill().Height(56 * uiScale).Radius(12 * uiScale).PaddingX(14 * uiScale).Background(clrCard)
-					row.Children(func() {
-						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
-							icon(c, icVol, 18, clrMuted)
-							ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-								ui.Text(c, sp.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-								ui.Text(c, sp.DID).FontSize(11 * uiScale).TextColor(clrMuted)
+				// 网格（2 列等分，对齐主线 grid sm:grid-cols-2）
+				ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1)).Gap(10 * uiScale).Fill().Children(func() {
+					for _, sp := range a.speakers {
+						sp := sp
+						card := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrCard)
+						card.Children(func() {
+							ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
+								// 头部：图标 + 名称/硬件 + 在线徽标（对齐主线 sp 卡片头部）
+								ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+									icon(c, icVol, 18, clrMuted)
+									ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+										ui.Text(c, sp.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+										// 硬件型号（对齐主线 {{.Hardware}}；旧版显示 DID 不对齐）
+										ui.Text(c, sp.Hardware).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
+									})
+									// 在线/离线徽标（对齐主线 sp 卡片右侧，绿点在线/灰点离线）
+									if sp.IsOnline {
+										ui.Row(c).AlignItems(ui.Center).Gap(4 * uiScale).Children(func() {
+											ui.Box(c).Size(6*uiScale, 6*uiScale).Radius(3 * uiScale).Background(clrGreen)
+											ui.Text(c, "在线").FontSize(10 * uiScale).TextColor(clrGreen)
+										})
+									} else {
+										ui.Row(c).AlignItems(ui.Center).Gap(4 * uiScale).Children(func() {
+											ui.Box(c).Size(6*uiScale, 6*uiScale).Radius(3 * uiScale).Background(clrMuted)
+											ui.Text(c, "离线").FontSize(10 * uiScale).TextColor(clrMuted)
+										})
+									}
+								})
+								// 按钮行：「投送当前歌」（粉色渐变，对齐主线 sp-play-btn）+「停止」
+								ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+									if gradButton(c, "投送当前歌").Clicked() {
+										go a.playToSpeaker(sp.DID, sp.Name)
+									}
+									if chip(c, "停止").Clicked() {
+										go a.stopSpeaker(sp.DID)
+									}
+								})
 							})
-							if gradButton(c, "播放").Clicked() {
-								go a.playToSpeaker(sp.DID, sp.Name)
-							}
 						})
-					})
-				}
+					}
+				})
 			}
 			ui.Text(c, "DLNA 设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
 			if len(a.castDevices) == 0 {
@@ -1515,6 +1592,18 @@ func (a *app) playToSpeaker(did, name string) {
 		// web/playing，本地也在播 = 真双响。
 		a.pb.SwitchSpeaker(did)
 	}
+	a.win.Invalidate()
+}
+
+// stopSpeaker 停止音箱投送（对齐主线 stop_speaker 命令 → playback.StopSpeaker 唯一实现：
+// 音箱停 + source 切回 web；castOn 清空回“未投屏”态）。
+func (a *app) stopSpeaker(did string) {
+	if a.svc == nil || a.svc.speaker == nil {
+		return
+	}
+	a.pb.StopSpeaker(did)
+	a.castOn = ""
+	a.status = "已停止投屏"
 	a.win.Invalidate()
 }
 
