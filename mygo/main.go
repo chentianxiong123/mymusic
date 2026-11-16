@@ -76,6 +76,7 @@ type app struct {
 	lyricHot        bool
 	lyricHoverStart time.Time
 	lyricHoverTimer *time.Timer
+	lyricLooping    bool // 桌面挂件聚焦轮询 goroutine 在跑（防重复启动）
 
 	// 封面缓存（主线程；异步加载经 win.Update 写）
 	covers       map[string]ui.ImageSource
