@@ -576,6 +576,12 @@ func main() {
 		audioDir = filepath.Join(dir, "mymusic-mygo", "cache", "audio")
 		os.MkdirAll(audioDir, 0o755)
 	}
+	// ★必须先设 HC_PORT 再构造 svc：NewSpeakerService 构造时读 HC_PORT 拼音箱拉流 URL。
+	// 之前 startStreamServer（下一行）才 set，导致 speaker 读到默认 28976，而供给端点监听
+	// 28977 → 音箱拉 28976 无服务 → 无声。这里提前 set，使音箱拉流端口=供给端点端口。
+	if os.Getenv("HC_PORT") == "" {
+		os.Setenv("HC_PORT", "28977")
+	}
 	a.svc = newServices(a.db, a.bili, audioDir)
 	a.startStreamServer() // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
 	a.favSet = map[string]bool{}
