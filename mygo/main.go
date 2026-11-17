@@ -113,7 +113,6 @@ type app struct {
 	// 静音 / 字幕条（学主线结构）
 	muted        bool
 	lastVolume   float64
-	captionShown bool
 
 	// 响应式：导航抽屉（对齐主线 nav.js side-nav-panel：汉堡 toggle/点外关/选后收）
 	navOpen bool
@@ -413,16 +412,7 @@ func (a *app) searchChips(c *ui.Context) {
 			})
 		})
 	} else {
-		// 无历史 → 默认热词
-		ui.Row(c).Gap(8 * uiScale).Wrap().Justify(ui.Center).Children(func() {
-			for _, tag := range []string{"周杰伦", "晴天", "发如雪", "花海"} {
-				t := tag
-				if chip(c, tag).Clicked() {
-					a.query = t
-					go a.search()
-				}
-			}
-		})
+		// 无历史 → 空（对齐主线 search-history.js：!list.length → box.innerHTML=''，无默认热词）
 	}
 }
 
@@ -578,7 +568,6 @@ func main() {
 		favSet:       map[string]bool{},
 		activeTab:    "search",
 		volume:       0.8,
-		captionShown: true,
 	}
 	// 主线 playback 接入：SSOT 状态源 + MyGo 出声后端 + SQLite 持久化
 	a.db = ensureDB()

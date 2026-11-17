@@ -855,9 +855,11 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 	isCur := a.current != nil && a.current.bvid == item.BVID && i == a.playIndex
 	box := ui.Box(c).Fill().Height(64 * uiScale).Radius(12 * uiScale).PaddingX(12 * uiScale).Gap(12 * uiScale)
 	if isCur {
+		// 当前播放行：白卡片 + 粉色描边（对齐主线 queue.js：bg-white + border-pink-500/50）
+		// 之前用渐变+深色 55% 叠加，明亮主题下背景太重看不清，弃用。
 		box.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.FillGradient(r, grad(), 12)
-			p.Fill(r, ui.RGBA(0x0e, 0x0f, 0x14, 0.55), 12)
+			p.FillRadii(r, [4]float32{12, 12, 12, 12}, clrCard)
+			p.Stroke(r, clrPink, 12, 2*uiScale)
 		})
 	} else {
 		box.Background(clrCard)
@@ -973,11 +975,7 @@ func (a *app) settingsPage(c *ui.Context) {
 					a.savePref("mygo_theme", i)
 					a.win.Invalidate()
 				})
-				// 2 网页字幕条（主线 set-sub 开关）
-				a.setRowSwitch(c, "网页字幕条", "默认关，可打开；桌面端歌词由桌面挂件优先承担", a.captionShown, func(on bool) {
-					a.captionShown = on
-				})
-				// 3 音质（主线 d-quality / set-q 三档）
+				// 2 音质（主线 d-quality / set-q 三档）
 				a.setRow(c, "音质")
 				a.setRowSeg(c, []string{"64k", "128k", "192k"}, a.quality, func(i int) {
 					a.quality = i
@@ -1118,10 +1116,7 @@ func (a *app) lyricFontSize() float32 {
 	return float32([]int{14, 16, 18, 22, 26}[a.lyricSize])
 }
 
-// capFontSize 字幕条字号当前档（对齐主线 SUB_SIZES 16/20/24/28/32）。
-func (a *app) capFontSize() float32 {
-	return float32([]int{16, 20, 24, 28, 32}[a.capSize])
-}
+// capFontSize 已随"网页字幕条"移除（字幕条死代码，无调用）。
 
 // capSizeLabel 字幕字号档对应的像素值。
 func (a *app) capSizeLabel() string {

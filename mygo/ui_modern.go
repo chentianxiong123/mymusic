@@ -42,6 +42,9 @@ func applyTheme(mode int) bool {
 		clrMuted = ui.RGB(0x6b, 0x6b, 0x78)
 		clrBar = ui.RGB(0xff, 0xff, 0xff)
 		clrTrackBar = ui.RGB(0xd0, 0xd0, 0xda)
+		// 玻璃卡片（歌词候选/抽屉等）：明亮主题必须重设为浅色玻璃，
+		// 否则保持深色玻璃（0x18,0x19,0x22）导致候选歌词/文字在明亮下看不清。
+		clrCardGlass = ui.RGBA(0xff, 0xff, 0xff, 0.72)
 		return true
 	}
 	// 深色（dark / auto 默认深色）
@@ -384,43 +387,7 @@ func (a *app) coverWide(c *ui.Context, bvid, url string, w, h float32) ui.Elemen
 	return box
 }
 
-// lyricCaption 字幕条（对齐主线 subtitle-bar）：当前歌词行（真歌词）+ 关闭按钮。
-func (a *app) lyricCaption(c *ui.Context) {
-	if !a.captionShown {
-		return
-	}
-	// 歌词行文本：有真歌词用真词（对齐主线 subtitle-bar 走 lyric.js），否则回退标题
-	line, _ := a.lyricAt(a.posSec)
-	sub := line
-	if sub == "" {
-		sub = a.lyricText
-	}
-	if sub == "" {
-		sub = "♪ " + a.current.title
-	}
-	// 透明字幕条（对齐主线 subtitle-bar：无背景，只歌词文字 + 悬停浮现关闭按钮）
-	box := ui.Box(c).AlignSelf(ui.Stretch).Height(a.resp(40, 34)).PaddingX(a.resp(16, 12))
-	box.Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
-			// 歌词文字：有阴影投影保证深/浅背景下都可读（对齐 subtitle-bar text-white/95）
-			// 居中（对齐 subtitle-bar justify-center：内部歌词文字水平居中）
-			ui.Text(c, sub).FontSize(a.capFontSize()).Bold().
-				TextColor(ui.RGB(0xff, 0xff, 0xff)).MaxLines(1).Grow(1).TextAlign(ui.Center)
-			// 关闭按钮：仅悬停浮现（对齐 subtitle-x group-hover）
-			if box.Hovered() {
-				if iconButton(c, "✕").Clicked() {
-					a.toggleCaption()
-				}
-			}
-		})
-	})
-}
-
-// toggleCaption 字幕条开关。
-func (a *app) toggleCaption() {
-	a.captionShown = !a.captionShown
-	a.win.Invalidate()
-}
+// lyricCaption 字幕条已随"网页字幕条"功能一并移除（mygo 非 web，不需要 web 版字幕条）。
 
 // toggleMute 静音/恢复（MyGo 本地 audio 音量）。
 func (a *app) toggleMute() {
