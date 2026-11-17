@@ -240,12 +240,16 @@ func (a *app) applyState(st playback.State) {
 	}
 	a.current = &track{bvid: st.BVID, title: st.Title, author: st.Artist, pic: st.Cover}
 	a.playing = st.Playing
+	a.spkMode = st.Source == "speaker" // 音箱模式：控制面复用主线（out 自动分派音箱）
+	a.spkDid = st.SpkDID
 	a.playlist = toSearchItems(st.Queue)
 	a.playIndex = st.QIdx
 	a.loopMode = modeToInt(st.PlayMode)
-	// 音量不被广播覆盖（st.Volume 是主线后端音量，音箱模式可能 0/音箱值，
-	// 覆盖会音量条归 0 但实际 mygoOut 音频没变 → "有声音但音量条 0"）。
-	// 音量只由用户 setVolume / 持久化 mygo_volume 控制。
+	// 音量：web 模式不被广播覆盖（st.Volume 主线 web 不管，覆盖会音量条归 0）；
+	// 音箱模式（source=speaker）st.Volume 是音箱真实音量 → 回填音量条（对齐主线 state.js）。
+	if a.spkMode && st.Volume >= 0 {
+		a.volume = float64(st.Volume) / 100
+	}
 	if st.Duration > 0 {
 		f := st.Position / st.Duration
 		if f < 0 {

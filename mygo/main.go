@@ -113,6 +113,9 @@ type app struct {
 	// 静音 / 字幕条（学主线结构）
 	muted        bool
 	lastVolume   float64
+	// 音箱模式（source=speaker）：控制面（音量/暂停/进度）复用主线 playback（out 自动分派音箱）。
+	spkMode bool   // source=speaker
+	spkDid  string // 目标音箱 did（对齐主线 State.SpkDID）
 
 	// 响应式：导航抽屉（对齐主线 nav.js side-nav-panel：汉堡 toggle/点外关/选后收）
 	navOpen bool

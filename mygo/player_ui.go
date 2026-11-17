@@ -59,7 +59,8 @@ func (a *app) seek(frac float64) {
 	a.pb.Seek(frac * a.pb.Snapshot().Duration)
 }
 
-// setVolume 设置音量 0..1（MyGo 本地 audio 音量；web 语义下主线不管 web 音量）。
+// setVolume 设置音量 0..1。音箱模式（source=speaker）走主线 playback.SetVolume
+// （out=SpeakerOutput 真调音箱 Control，复用主线不造轮子）；web 模式走 MyGo 本地 audio。
 func (a *app) setVolume(v float64) {
 	if v < 0 {
 		v = 0
@@ -68,7 +69,10 @@ func (a *app) setVolume(v float64) {
 		v = 1
 	}
 	a.volume = v
-	if a.mygoOut != nil {
+	if a.spkMode {
+		// 音箱模式：复用主线（SpeakerOutput.SetVolume → speaker.Control volume）
+		a.pb.SetVolume(int(v * 100))
+	} else if a.mygoOut != nil {
 		a.mygoOut.SetVolume(int(v * 100))
 	}
 	now := time.Now()
