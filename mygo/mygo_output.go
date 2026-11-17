@@ -202,14 +202,44 @@ func (o *MyGoOutput) Pause() error {
 	return nil
 }
 
+// SetPending 记住「当前该播的 bvid」（不立即加载音源）。
+// 启动恢复场景：pb restore 把队列/当前歌写回 cur，但输出端从未 Play 过、
+// o.p 与 o.bvid 都是空 → 用户点播放时 Resume 无音源可恢复（旧的 bug）。
+// applyState 每次把 cur.BVID 同步过来，Resume 就能在 p==nil 时自行重新加载。
+// 仅当当前未加载任何音源时才写入（避免覆盖正在播/下载中的 bvid）。
+func (o *MyGoOutput) SetPending(bvid, title string) {
+	if bvid == "" {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.bvid == "" && o.p == nil {
+		o.bvid = bvid
+		o.title = title
+	}
+}
+
+// Resume 恢复播放。
+// 关键：启动恢复（pb restore）后队列里有歌、Playing=false，但输出端从未 Play 过
+// → o.p == nil。旧实现 `if p != nil { p.Play() }` 在 p==nil 时直接空转，
+// 表现为「刚进去点播放没反应，必须去队列/搜索重新点歌」。
+// 修：p==nil 时说明音源未加载，用记住的 bvid 重新 Play（等价用户点歌）。
+// 注意 Play 内部会起后台下载并递增 gen，不会与旧任务竞争。
 func (o *MyGoOutput) Resume() error {
 	o.mu.Lock()
 	p := o.p
+	bvid := o.bvid
+	title := o.title
 	o.mu.Unlock()
 	if p != nil {
 		p.Play()
+		return nil
 	}
-	return nil
+	if bvid == "" {
+		return nil // 真无歌可播
+	}
+	// 音源未加载（启动恢复/上次 Stop 后）：重新取流→下载→播放
+	return o.Play(bvid, playback.PlayOpts{Title: title})
 }
 
 func (o *MyGoOutput) Stop() error {

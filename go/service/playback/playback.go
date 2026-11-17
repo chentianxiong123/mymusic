@@ -692,6 +692,11 @@ func (p *PlaybackState) SwitchSpeaker(did string) {
 	if p.outFactory != nil {
 		p.out = p.outFactory(did)
 	}
+	// 把当前歌注入新输出：若之后音箱端无播放 URL（进程重启/从未投送），
+	// Resume 能回退到 Play(bvid) 重投。不注入则首次点播放静默失败。
+	if sp, ok := p.out.(interface{ SetPending(string, string) }); ok {
+		sp.SetPending(p.cur.BVID, p.cur.Title)
+	}
 	p.mu.Unlock()
 	// 独占：换设备（另一台音箱）必须让旧设备闭嘴——锁外真网络调用
 	if prevOut != nil && !sameDevice {

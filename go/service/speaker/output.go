@@ -20,6 +20,8 @@ type SpeakerOutput struct {
 	svc   *SpeakerService
 	did   string
 	mu    sync.Mutex
+	pendBVID  string // 当前该播的 bvid（无播放 URL 时 Resume 回退到 Play 用）
+	pendTitle string
 	onEnded func() // 播完回调（核心注入：自动连播）
 }
 
@@ -46,6 +48,11 @@ func (o *SpeakerOutput) Play(bvid string, opts playback.PlayOpts) error {
 		msg, _ := res["message"].(string)
 		return fmt.Errorf("音箱投送失败 code=%d %s", c, msg)
 	}
+	// 记住当前歌：若后续 svc.playing[did] 丢了（进程重启后首次恢复），Resume 能重投
+	o.mu.Lock()
+	o.pendBVID = bvid
+	o.pendTitle = opts.Title
+	o.mu.Unlock()
 	return nil
 }
 
@@ -61,16 +68,42 @@ func (o *SpeakerOutput) Pause() error {
 	return nil
 }
 
-// Resume 恢复（真调音箱 player_resume + 本地进度补偿）
+// SetPending 记住「当前该播的 bvid」（不立即投送）。
+// 启动恢复（pb restore 成 speaker 模式）时 ss.playing[did] 为空，
+// 首次点播放 Control("resume") 会因「无已保存的播放 URL」失败 → 没声音。
+// 同步 bvid 后 Resume 可回退到 Play(bvid) 重新投送。
+func (o *SpeakerOutput) SetPending(bvid, title string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.pendBVID = bvid
+	o.pendTitle = title
+}
+
+// Resume 恢复（真调音箱 player_resume + 本地进度补偿）。
+// 若本机（进程）从未向该音箱投送过（启动恢复场景，svc.playing[did] 为空），
+// Control("resume") 会返回「无已保存的播放 URL」→ 降级用 pendBVID 重新 Play。
 func (o *SpeakerOutput) Resume() error {
 	res, err := o.svc.Control(o.did, "resume", 0)
-	if err != nil {
-		return err
+	if err == nil {
+		if c, _ := res["code"].(int); c == 0 {
+			return nil
+		}
 	}
-	if c, _ := res["code"].(int); c != 0 {
-		return fmt.Errorf("音箱恢复失败 code=%d", c)
+	// resume 失败：启动恢复后首次播放（无播放 URL）→ 用记住的 bvid 重新投送
+	o.mu.Lock()
+	bvid, title := o.pendBVID, o.pendTitle
+	o.mu.Unlock()
+	if bvid == "" {
+		if err != nil {
+			return err
+		}
+		if c, _ := res["code"].(int); c != 0 {
+			msg, _ := res["message"].(string)
+			return fmt.Errorf("音箱恢复失败 code=%d %s", c, msg)
+		}
+		return nil
 	}
-	return nil
+	return o.Play(bvid, playback.PlayOpts{Title: title})
 }
 
 // Stop 停止
