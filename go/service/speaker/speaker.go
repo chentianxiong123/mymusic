@@ -610,6 +610,58 @@ func (s *SpeakerService) progressBroadcaster() {
 	}
 }
 
+// SeekTo 定位到指定秒（真 seek）：音箱无 seek API，唯一可控办法 = 投一条带
+// start=N 的新 URL 让它重拉（流端点 mp3 分支用 ffmpeg -ss N 切出剩余段）。
+// 语义与 resume 相同，只是目标位置由调用方指定（不是暂停点）。
+// 代价：云端指令 100~900ms + ffmpeg 切分 ~70ms + 音箱重拉缓冲，总计 1~2s。
+func (s *SpeakerService) SeekTo(did string, sec float64) (map[string]any, error) {
+	if sec < 0 {
+		sec = 0
+	}
+	device, ok := s.getDevice(did)
+	if !ok {
+		return map[string]any{"code": 404, "message": "设备未找到"}, nil
+	}
+	u, ok := s.playing[did]
+	if !ok {
+		return map[string]any{"code": 400, "message": "无已保存的播放 URL"}, nil
+	}
+	// 先拼新 URL（换 v 强制重拉 + 带 start 让流端点从该秒切）
+	fresh := withStart(withFreshV(u), sec)
+	s.mu.Lock()
+	s.playing[did] = fresh
+	delete(s.blocked, did)
+	s.mu.Unlock()
+
+	ret, err := s.Auth.PlayURL(device.DeviceID, fresh, device.Hardware)
+	if err != nil {
+		s.recordFail(did)
+		return map[string]any{"code": 500, "message": "音箱 seek 失败: " + err.Error()}, err
+	}
+	s.resetFail(did)
+	// 进度重定基准：与 resume 同一套（置 anchorPending，等音箱真拉流时锚定）
+	s.mu.Lock()
+	if p := s.progress[did]; p != nil {
+		p.StartPos = sec
+		p.anchorPending = true
+		if p.Duration > 0 {
+			if p.timer != nil {
+				p.timer.Stop()
+				p.timer = nil
+			}
+			remaining := p.Duration - sec
+			if remaining > 0 {
+				p.timer = time.AfterFunc(time.Duration(remaining*float64(time.Second)), func() {
+					s.progressTimer(did, p.NextBVID, p.Quality, p)
+				})
+			}
+		}
+	}
+	s.mu.Unlock()
+	log.Printf("[speaker] SeekTo did=%s target=%.2fs → %s", did, sec, fresh)
+	return map[string]any{"code": 0, "message": "success", "data": ret}, nil
+}
+
 // Control 控制：pause/stop/resume/volume
 func (s *SpeakerService) Control(did, action string, volume int) (map[string]any, error) {
 	device, ok := s.getDevice(did)

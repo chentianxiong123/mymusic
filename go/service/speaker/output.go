@@ -85,8 +85,19 @@ func (o *SpeakerOutput) Stop() error {
 	return nil
 }
 
-// Seek 小爱无法真 seek（缓冲模式/码率不可知）——返回不支持，核心降级（进度条置灰）
-func (o *SpeakerOutput) Seek(sec float64) error { return playback.ErrUnsupported }
+// Seek 真 seek：音箱无 seek API，改“投带 start=N 的新 URL 让它重拉”（流端点 mp3
+// 分支用 ffmpeg -ss N 切出剩余段）。代价 1~2s（云端指令 + 切分 + 重拉缓冲）。
+func (o *SpeakerOutput) Seek(sec float64) error {
+	res, err := o.svc.SeekTo(o.did, sec)
+	if err != nil {
+		return err
+	}
+	if c, _ := res["code"].(int); c != 0 {
+		msg, _ := res["message"].(string)
+		return fmt.Errorf("音箱 seek 失败 code=%d %s", c, msg)
+	}
+	return nil
+}
 
 // SetVolume 音量（真调音箱）
 func (o *SpeakerOutput) SetVolume(v int) error {

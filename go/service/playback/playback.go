@@ -372,14 +372,25 @@ func (p *PlaybackState) SpeakerFinished(did string) {
 	p.bcastSnapshot()
 }
 
-// Seek 定位（web 由前端 audio.currentTime 执行，这里只存状态）
+// Seek 定位。
+// web 模式：前端 audio.currentTime 执行，这里只存状态（旧行为不变）。
+// 非 web（音箱/投送）：核心是唯一状态源，必须真下发到输出端——音箱无 seek API，
+// 输出端实现为“投带 start=N 的新 URL 重拉”（ffmpeg 切分剩余段），代价 1~2s。
+// 失败（ErrUnsupported）则降级为只存状态（与旧行为一致）。
 func (p *PlaybackState) Seek(sec float64) {
-	p.mu.Lock()
 	if sec < 0 {
 		sec = 0
 	}
+	p.mu.Lock()
 	p.cur.Position = sec
+	out := p.out
+	isWeb := p.cur.Source == "web"
 	p.mu.Unlock()
+	if !isWeb && out != nil {
+		if err := out.Seek(sec); err != nil {
+			log.Printf("[playback] 输出端 seek 失败（降级只存状态）: %v", err)
+		}
+	}
 	p.bcastProgress()
 }
 
