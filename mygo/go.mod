@@ -12,7 +12,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
-	github.com/lsongdev/miservice-go v0.0.0-20260317060819-b3e39634cd06 // indirect
 	github.com/ncruces/go-sqlite3 v0.35.6 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
@@ -31,7 +30,10 @@ require (
 
 require (
 	github.com/egoist/mygo v0.9.0
+	github.com/lsongdev/miservice-go v0.0.0-20260317060819-b3e39634cd06
 	homecast v0.0.0-00010101000000-000000000000
 )
 
 replace homecast => ../go
+
+replace github.com/egoist/mygo => github.com/egoist/mygo v0.9.1-0.20261115172007-ea96ba60e107
