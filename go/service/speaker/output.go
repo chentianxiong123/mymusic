@@ -126,13 +126,20 @@ func (o *SpeakerOutput) Volume() int {
 	if data == nil {
 		return -1
 	}
-	if v, ok := data["volume"].(float64); ok {
-		return int(v)
+	v := -1
+	if f, ok := data["volume"].(float64); ok {
+		v = int(f)
+	} else if i, ok := data["volume"].(int); ok {
+		v = i
 	}
-	if v, ok := data["volume"].(int); ok {
-		return v
+	// volume<=0 视为「回读无效」而非真实音量：xiaoai GetStatus 在音箱尚未开播时
+	// info 字段为空 → 返回默认 volume=0。旧实现把 0 当真实值写入 SSOT 并广播 →
+	// 首次投送瞬间前端滑块被压成 0（音箱实际音量没变，纯 UI 错）。
+	// 真静音由 wantVolume=0（用户点静音）/前端 volMuted 表达，不靠回读。
+	if v <= 0 {
+		return -1
 	}
-	return -1
+	return v
 }
 
 // Position 音箱当前进度（本地模拟；bvid/title 取自音箱自身进度——核心据此

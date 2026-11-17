@@ -46,7 +46,7 @@ type State struct {
 	Queue    []Song  `json:"queue"`
 	QIdx     int     `json:"qidx"`
 	SpkDID   string  `json:"spk_did,omitempty"` // source=speaker 时目标设备 did
-	Volume   int     `json:"volume"`            // 音量 0-100（仅 source=speaker 有意义；web 音量走前端本地 audio）。不加 omitempty：volume=0(静音)是合法值必须广播
+	Volume   int     `json:"volume"`            // 音量 0-100（仅 source=speaker 有意义；web 音量走前端本地 audio）。-1=未知（初始/回读失败），前端忽略不应用；不加 omitempty：volume=0(静音)是合法值必须广播
 }
 
 // PlaybackState 统一状态管理器（线程安全）
@@ -77,7 +77,7 @@ type PlaybackState struct {
 // NewPlaybackState 构造
 func NewPlaybackState() *PlaybackState {
 	p := &PlaybackState{
-		cur:        State{Source: "web", PlayMode: "order", QIdx: -1, Queue: []Song{}},
+		cur:        State{Source: "web", PlayMode: "order", QIdx: -1, Queue: []Song{}, Volume: -1},
 		subs:       make(map[chan SSEMsg]struct{}),
 		out:        NullOutput{}, // 默认 web：前端 audio 接管
 		wantVolume: -1,
