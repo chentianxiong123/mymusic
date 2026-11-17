@@ -138,14 +138,24 @@
     window.hcState.cmd(p.playing ? 'pause' : 'resume');
   }
   function seek(pct) {
-    if (!pb().bvid) return;
-    if (pb().source === 'speaker') return; // 音箱 seek 未接，忽略
-    // 用 audio.duration（真实当前音频时长）优先——store duration 可能滞后于切歌，
-    // 用它算 sec 会跳到旧歌末尾→立即 ended→误切歌（点进度条切歌 bug 根因）
-    const d = audio.duration || pb().duration || 0;
+    const st = pb();
+    if (!st.bvid) return;
+    // 时长优先 audio.duration（真实当前音频），否则用 store duration。
+    // 音箱模式 audio 无音频，靠 store duration。
+    const d = (st.source === 'speaker' ? st.duration : (audio.duration || st.duration)) || 0;
     if (d <= 0) return;
     const sec = (pct / 100) * d;
     if (sec >= d) return; // 防越界（跳到末尾会触发 ended 误切歌）
+    if (st.source === 'speaker') {
+      // 音箱无 seek API：后端投带 start=N 的新 URL 重拉（ffmpeg 切剩余段）。
+      // 代价 1~2s（云端指令 + 切分 + 重拉缓冲），UI 立刻回显 + toast 提示。
+      seeking = true;
+      render();
+      setTimeout(() => { seeking = false; }, 1600);
+      window.hcState.cmd('seek', { sec });
+      hcBus.emit('toast', { msg: '跳转中…' });
+      return;
+    }
     seeking = true;
     audio.currentTime = sec; // 本地即时（高频 UI），随后上报后端
     window.hcState.progress(sec, d, !audio.paused);
