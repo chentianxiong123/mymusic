@@ -53,6 +53,7 @@ type app struct {
 	searched     bool                   // 是否已执行过搜索（区分空结果态）
 	eqPhase      int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
 	qrImage      string                 // 二维码 data URI（渲染用）
+	tokenInput   string                 // 音箱 token 输入框值（粘贴 token 登录）
 	ctxItem      *bilibili.SearchItem   // 右键菜单目标（非空=显示）
 	ctxX, ctxY   float32                // 菜单弹出位置（窗口坐标）
 	clipboard    string                 // 待复制链接（mygo 暂无线程安全 clipboard API，先字段+状态提示）
@@ -184,7 +185,7 @@ func (a *app) view(c *ui.Context) {
 				a.recentPage(c)
 			default:
 				// 搜索页内容整体左右留白（对齐主线内容区 padding 24；搜索栏不撑满窗口）
-				ui.Column(c).Grow(1).Fill().PaddingX(a.resp(24, 12)).PaddingY(12 * uiScale).Gap(8 * uiScale).Children(func() {
+				ui.Column(c).Grow(1).Fill().Padding(12*uiScale, a.resp(24, 12), 0, a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
 					if len(a.results) > 0 {
 						// 搜索条常驻（对齐主线 content_search.html：搜索条始终保留在顶部）
 						a.searchBar(c)

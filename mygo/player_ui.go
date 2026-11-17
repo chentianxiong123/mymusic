@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -687,7 +688,14 @@ func (a *app) queuePage(c *ui.Context) {
 						r := r
 						// 卡片：方形封面为主 + 标题/歌手文字次之（对齐主线 recent.js 卡片结构）
 						ui.Column(c).Width(cardW).Gap(4 * uiScale).Children(func() {
+							// 封面卡片（对齐主线 recent.js：hover 缩放 1.02 + 阴影 + 标题变粉，非描边）
 							box := ui.Box(c).Width(cardW).Height(coverH).Radius(12 * uiScale)
+							// hover 高亮：阴影（对齐主线 group-hover:shadow-md）——
+							// 不用 Scale（mygo Scale 对图片渲染有副作用，图片会变白）也不描边，
+							// 图片保持原样，只加阴影 + 标题变粉（对齐主线 text-pink-400）。
+							if box.Hovered() {
+								box = box.Shadow(0, 4*uiScale, 16*uiScale, 0, ui.RGBA(0, 0, 0, 0.30))
+							}
 							box.Draw(func(p *ui.Painter, b ui.Rect) {
 								p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
 								if img, ok := a.covers[r.BVID]; ok {
@@ -695,17 +703,15 @@ func (a *app) queuePage(c *ui.Context) {
 								}
 							})
 							a.loadCover(r.BVID, r.Pic)
-							// 悬浮高亮：粉紫描边（对齐主线 group-hover 提亮，不用黑色遮罩）
-							if box.Hovered() {
-								box.Draw(func(p *ui.Painter, b ui.Rect) {
-									p.Stroke(b, clrPink, 12, 2*uiScale)
-								})
-							}
 							if box.Clicked() {
 								go a.play(r)
 							}
-							// 标题（主）+ 歌手（次）
-							ui.Text(c, bilibili.CleanHTML(r.Title)).FontSize(12 * uiScale).TextColor(clrText).MaxLines(1)
+							// 标题（主）：hover 变粉（对齐主线 group-hover:text-pink-400）
+							titleCol := clrText
+							if box.Hovered() {
+								titleCol = clrPink
+							}
+							ui.Text(c, bilibili.CleanHTML(r.Title)).FontSize(12 * uiScale).TextColor(titleCol).MaxLines(1)
 							ui.Text(c, r.Author).FontSize(10 * uiScale).TextColor(clrMuted).MaxLines(1)
 						})
 					}
@@ -952,7 +958,7 @@ func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 // settingsPage 设置页：全量对齐主线 settings.js 渲染的 11 个区块
 // （主题模式/网页字幕条/音质/播放模式/歌词字号/歌词背景/歌词时间/字幕字号/歌曲缓存/歌词缓存/数据/关于）。
 func (a *app) settingsPage(c *ui.Context) {
-	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(10 * uiScale).Children(func() {
+	ui.Column(c).Fill().Padding(a.resp(16, 10), a.resp(24, 12), 0, a.resp(24, 12)).Gap(10 * uiScale).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "设置").FontSize(20 * uiScale).Bold().TextColor(clrText)
 			ui.Spacer(c).Grow(1)
@@ -1315,10 +1321,11 @@ func (a *app) castPage(c *ui.Context) {
 						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
 							// 二维码图（UI 解码 data URI）
 							ui.Box(c).Size(120, 120).Draw(func(p *ui.Painter, r ui.Rect) {
+								// 背景先画（否则后面 FillRadii 背景色会盖住二维码图）
+								p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
 								if img, ok := a.covers["__qr__"]; ok {
 									p.Clip(r, 8, func() { p.Image(img, r, ui.Cover) })
 								}
-								p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
 							})
 							ui.Column(c).Grow(1).Gap(6 * uiScale).Children(func() {
 								ui.Text(c, "小米音箱扫码登录").FontSize(14 * uiScale).Bold().TextColor(clrText)
@@ -1329,17 +1336,30 @@ func (a *app) castPage(c *ui.Context) {
 					})
 				}
 				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-						icon(c, icMsg, 18, clrMuted)
-						ui.Text(c, "小爱音箱未登录").FontSize(13 * uiScale).TextColor(clrText).Grow(1)
-						// 已有 token 粘贴复用（对齐主线 speaker_login.html sp-token-input：
-						// 读剪贴板 → /speaker/token/import，多端免重复扫码）
-						if chip(c, "粘贴 token 登录").Clicked() {
-							go a.importTokenFromClipboard()
-						}
-						if gradButton(c, "扫码登录").Clicked() {
-							go a.startSpeakerLogin()
-						}
+					ui.Column(c).Gap(8 * uiScale).Children(func() {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+							icon(c, icMsg, 18, clrMuted)
+							ui.Text(c, "小爱音箱未登录").FontSize(13 * uiScale).TextColor(clrText).Grow(1)
+						})
+						// token 输入框（对齐主线 speaker_login.html sp-token-input textarea）：
+						// 用户手动粘贴/输入 token（多端免扫码复用）；也支持剪贴板一键填入。
+						ui.TextInput(c, &a.tokenInput).Grow(1).Height(60 * uiScale).
+							Placeholder("粘贴音箱 token（其他设备导出）…").
+							FontSize(12 * uiScale).TextColor(clrText)
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+							ui.Spacer(c).Grow(1)
+							// 读剪贴板填入输入框（快捷）
+							if chip(c, "粘贴剪贴板").Clicked() {
+								go a.fillTokenFromClipboard()
+							}
+							// 用输入框 token 登录（对齐主线 textarea 值 → POST /speaker/token/import）
+							if gradButton(c, "token 登录").Clicked() {
+								go a.loginWithToken(a.tokenInput)
+							}
+							if gradButton(c, "扫码登录").Clicked() {
+								go a.startSpeakerLogin()
+							}
+						})
 					})
 				})
 			}
@@ -1434,8 +1454,19 @@ func (a *app) startSpeakerLogin() {
 		qri, _ := res["qr_image"].(string)
 		a.qrImage = qri
 		if qri != "" {
-			if img, derr := ui.DecodeImage([]byte(qri)); derr == nil {
+			// qr_image 是 "data:image/png;base64,..."（xiaoai qrcode.go 编码），
+			// DecodeImage 只收原始 bytes，必须先去掉 data URI 前缀 + base64 解码，
+			// 否则解码失败 → 二维码不显示。
+			raw := []byte(qri)
+			if i := strings.Index(qri, ","); i >= 0 {
+				if b, derr := base64.StdEncoding.DecodeString(qri[i+1:]); derr == nil {
+					raw = b
+				}
+			}
+			if img, derr := ui.DecodeImage(raw); derr == nil {
 				a.covers["__qr__"] = img
+			} else {
+				a.qrStatus = "二维码解码失败：" + derr.Error()
 			}
 		}
 		a.qrStatus = "等待扫码…"
@@ -1472,7 +1503,8 @@ func (a *app) startSpeakerLogin() {
 
 // importTokenFromClipboard 从剪贴板读 token 粘贴登录（对齐主线 speaker_login.html
 // 的 sp-token-input 粘贴入口 + POST /api/v1/speaker/token/import）。
-func (a *app) importTokenFromClipboard() {
+// fillTokenFromClipboard 读剪贴板填入 token 输入框（不登录，用户可编辑后再登录）。
+func (a *app) fillTokenFromClipboard() {
 	if a.svc == nil || a.svc.qrAuth == nil {
 		return
 	}
@@ -1483,8 +1515,23 @@ func (a *app) importTokenFromClipboard() {
 	}
 	text, _ := data.Read(transfer.Text)
 	tok := strings.TrimSpace(string(text))
+	a.win.Update(func() {
+		a.tokenInput = tok
+		if tok == "" {
+			a.status = "剪贴板为空，请先复制音箱 token"
+		}
+		a.win.Invalidate()
+	})
+}
+
+// loginWithToken 用输入的 token 登录（对齐主线 sp-token-input textarea 值 → import）。
+func (a *app) loginWithToken(tok string) {
+	if a.svc == nil || a.svc.qrAuth == nil {
+		return
+	}
+	tok = strings.TrimSpace(tok)
 	if tok == "" {
-		a.win.Update(func() { a.status = "剪贴板为空，请先复制音箱 token" })
+		a.win.Update(func() { a.status = "请输入音箱 token" })
 		a.win.Invalidate()
 		return
 	}

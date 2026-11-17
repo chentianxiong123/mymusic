@@ -79,10 +79,16 @@ func playBtn(c *ui.Context) ui.Element {
 }
 
 func gradButton(c *ui.Context, label string) ui.Element {
-	box := ui.Box(c).Height(42 * uiScale).Radius(21 * uiScale).PaddingX(24 * uiScale).PaddingY(9 * uiScale).AlignItems(ui.Center).Justify(ui.Center).
-		Draw(func(p *ui.Painter, r ui.Rect) {
-			p.FillGradient(r, grad(), r.H/2)
-		})
+	box := ui.Box(c).Height(42 * uiScale).Radius(21 * uiScale).PaddingX(24 * uiScale).PaddingY(9 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		p.FillGradient(r, grad(), r.H/2)
+		// 按下状态：压暗（反馈"已按"）；hover：提亮（反馈可点）
+		if box.Pressed() {
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.18), r.H/2)
+		} else if box.Hovered() {
+			p.Fill(r, ui.RGBA(255, 255, 255, 0.12), r.H/2)
+		}
+	})
 	box.Children(func() {
 		ui.Text(c, label).TextColor(ui.RGB(0xff, 0xff, 0xff)).FontSize(15 * uiScale).Bold()
 	})
@@ -288,6 +294,12 @@ func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
 	box := ui.Box(c).Size(size, size).Radius(size / 2)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.FillGradient(r, grad(), r.H/2)
+		// 按下：压暗；hover：提亮（播放主按钮反馈）
+		if box.Pressed() {
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.18), r.H/2)
+		} else if box.Hovered() {
+			p.Fill(r, ui.RGBA(255, 255, 255, 0.12), r.H/2)
+		}
 		if playing {
 			p.FillRadii(ui.Rect{X: r.X + r.W*0.34, Y: r.Y + r.H*0.26, W: r.W * 0.10, H: r.H * 0.48}, [4]float32{2, 2, 2, 2}, ui.RGB(0xff, 0xff, 0xff))
 			p.FillRadii(ui.Rect{X: r.X + r.W*0.56, Y: r.Y + r.H*0.26, W: r.W * 0.10, H: r.H * 0.48}, [4]float32{2, 2, 2, 2}, ui.RGB(0xff, 0xff, 0xff))
