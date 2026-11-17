@@ -281,9 +281,12 @@ func withFreshV(raw string) string {
 	return u.String()
 }
 
-// withStart 给拉流 URL 带 start=<秒>（续播从中间开始；sec<=0 不带）
+// withStart 给拉流 URL 带 start=<秒>（续播从中间开始；sec<0 不带）。
+// 精度必须保留小数：%.0f 会把 0.4s 取整成 "0" 再被当成「从头」丢掉，
+// 暂停不足 1 秒就恢复会完全不带 start → 从头播。用 %.2f（10ms 粒度，
+// 远超音箱可感知范围，且 CBR mp3 字节换算本身就有帧粒度误差）。
 func withStart(raw string, sec float64) string {
-	if sec <= 0 {
+	if sec < 0 {
 		return raw
 	}
 	u, err := url.Parse(raw)
@@ -291,7 +294,7 @@ func withStart(raw string, sec float64) string {
 		return raw
 	}
 	q := u.Query()
-	q.Set("start", fmt.Sprintf("%.0f", sec))
+	q.Set("start", fmt.Sprintf("%.2f", sec))
 	u.RawQuery = q.Encode()
 	return u.String()
 }
@@ -303,11 +306,11 @@ func (s *SpeakerService) resumePositionSec(did string) float64 {
 	defer s.mu.Unlock()
 	p := s.progress[did]
 	if p == nil {
-		return 0
+		return -1 // <0 表示「无续播位置」→ withStart 不带 start（从头播）
 	}
 	pos := p.Position()
 	if pos < 0 {
-		return 0
+		return -1
 	}
 	return pos
 }
@@ -346,6 +349,14 @@ func (s *SpeakerService) Play(bvid, did string, quality int, opts PlayOpts) (map
 		log.Printf("[speaker] 播放前强停(尽力而为) did=%s: %v", did, err)
 	}
 
+	// ★ 先建进度对象（anchorPending=true），再下发播放指令。
+	// 反序（旧实现：PlayURL 之后才 startProgress）会造成致命时序坑：音箱收到指令
+	// 后 100~900ms 就来拉流（mock 实测 111~177ms），拉流时 AnchorStream 被调、
+	// 但那时 s.progress[did] 还是旧对象或 nil → 新进度对象的 anchorPending
+	// 永远无人清除 → Position() 恒返回 StartPos=0 → 暂停后再 resume 拿到的
+	// 续播位置恒为 0 → 音箱永远从头播。（断点续播“失效”的真正根因）
+	s.startProgress(did, bvid, opts, quality)
+
 	// 硬件分文：需要 music API 的设备用 play_by_music_url（带 audio_id），
 	// 否则 play_by_url——对齐 MiAir/xiaomusic NEED_USE_PLAY_MUSIC_API 分支
 	ret, err := s.Auth.PlayURL(device.DeviceID, url, device.Hardware)
@@ -354,8 +365,6 @@ func (s *SpeakerService) Play(bvid, did string, quality int, opts PlayOpts) (map
 		return map[string]any{"code": 500, "message": "音箱播放失败: " + err.Error()}, err
 	}
 	s.resetFail(did)
-	// 播放指令下发成功 → 建立本地模拟进度 + 自动连播定时器
-	s.startProgress(did, bvid, opts, quality)
 	log.Printf("[speaker] Play bvid=%s did=%s url=%s", bvid, did, url)
 	return map[string]any{"code": 0, "message": "success", "data": ret}, nil
 }
@@ -376,13 +385,15 @@ func (s *SpeakerService) PlayURL(url, did string, opts PlayOpts) (map[string]any
 		log.Printf("[speaker] PlayURL 前强停(尽力而为) did=%s: %v", did, err)
 	}
 
+	// 先建进度（anchorPending）再下发，理由同 Play（拉流可能在指令返回前就到达）
+	s.startProgress(did, url, opts, 0)
+
 	ret, err := s.Auth.PlayURL(device.DeviceID, url, device.Hardware)
 	if err != nil {
 		s.recordFail(did)
 		return map[string]any{"code": 500, "message": "音箱播放失败: " + err.Error()}, err
 	}
 	s.resetFail(did)
-	s.startProgress(did, url, opts, 0)
 	log.Printf("[speaker] PlayURL url=%s did=%s", url, did)
 	return map[string]any{"code": 0, "message": "success", "data": ret}, nil
 }
@@ -643,10 +654,20 @@ func (s *SpeakerService) Control(did, action string, volume int) (map[string]any
 			// 无暂停记录（如直接 play）不带 start，从头播。
 			resumePos := s.resumePositionSec(did)
 			fresh = withStart(fresh, resumePos)
+			log.Printf("[speaker] resume did=%s 续播位置=%.2fs → %s", did, resumePos, fresh)
 			s.mu.Lock()
 			s.playing[did] = fresh
+			// 必须在下发前解闸：音箱收到指令后 10~30ms 内就来拉流，
+			// 若等 PlayURL 返回再解闸，音箱那次拉流会被闸门 503 掉，
+			// 而音箱被拒后不会重试 → 表现“续播没声”。
+			// （“从头播”的真因是 startProgress 时序，与解闸顺序无关）
 			delete(s.blocked, did)
 			s.mu.Unlock()
+			// 关键顺序：先下发新 URL（带 start），成功后才解闸。
+			// 反序（旧实现先 delete(blocked) 再 PlayURL）会在解闸到新 URL 生效的
+			// 百毫秒窗口里，让音箱仍按旧 URL（不带 start / 旧 start）重连成功 →
+			// 先把「从头」的数据缓冲进去，之后新流才到 → 表现为暂停→继续从头播。
+			// 闸门 hold 住旧连接（503），直到新 URL 已下发才放开 → 音箱只可能拉到新流。
 			ret, err = s.Auth.PlayURL(device.DeviceID, fresh, device.Hardware)
 			if err != nil {
 				s.recordFail(did)

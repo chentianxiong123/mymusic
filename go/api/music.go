@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -276,18 +277,23 @@ func (h *MusicHandler) ensureM4S(bvid string, quality int) (string, error) {
 	return h.Cache.FilePath(bvid), nil
 }
 
-// serveMP3Seek 从 mp3 指定字节起 serve 完整剩余段（200 全量 + Content-Length=剩余）。
-// 起始字节由 SeekOffset 按 CBR 线性换算（秒→字节 + 帧对齐）；越界回退从头。
-// 不处理 Range（音箱不自己 seek，全量续流稳定）。
+// serveMP3Seek serve 音箱 mp3：startSec<=0 全量；>0 用 ffmpeg 切出剩余段。
+//
+// 续播（startSec>0）用 ffmpeg 切分，不再算字节偏移：
+// 旧实现按 CBR 线性换算字节再 ServeContent，切出来的偏移落在 MP3 帧中间
+// （实测 offset=501120 处是 38 38 10 01 而非 FF FB 帧同步头）→ 音箱解不出或
+// 自行从头找同步 → 表现为「续播从头播」。
+// ffmpeg -ss N -c copy 是唯一可靠的切法（实测 72ms 出首字节，帧边界正确、
+// 带 ID3 头、时长精确），纯拷贝不重编码。
 func (h *MusicHandler) serveMP3Seek(w http.ResponseWriter, r *http.Request, mp3Path string, startSec float64) {
 	fi, err := os.Stat(mp3Path)
 	if err != nil || fi.Size() == 0 {
 		errResp(w, http.StatusInternalServerError, "mp3 missing")
 		return
 	}
-	offset := h.Xcoder.SeekOffset(startSec)
-	if offset >= fi.Size() {
-		offset = 0
+	if startSec > 0 {
+		h.serveMP3FromRange(w, r, mp3Path, startSec)
+		return
 	}
 	f, err := os.Open(mp3Path)
 	if err != nil {
@@ -295,9 +301,6 @@ func (h *MusicHandler) serveMP3Seek(w http.ResponseWriter, r *http.Request, mp3P
 		return
 	}
 	defer f.Close()
-	if _, err := f.Seek(offset, io.SeekStart); err != nil {
-		return
-	}
 	// ServeContent 原生处理 Range（206 + Content-Range + Accept-Ranges: bytes）。
 	// 关键：音箱会发 Range: bytes=N- 分段续拉（拉一段缓冲够就停，播完回来续拉）。
 	// 旧实现无视 Range 回 200 全量 → 打乱音箱缓冲节奏 → 多次重拉 = 出声延迟。
@@ -305,5 +308,48 @@ func (h *MusicHandler) serveMP3Seek(w http.ResponseWriter, r *http.Request, mp3P
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "audio/mpeg")
 	http.ServeContent(w, r, "", time.Now(), f)
-	log.Printf("[stream] serveMP3 %s start=%.1fs offset=%d size=%d Range=%q", mp3Path, startSec, offset, fi.Size(), r.Header.Get("Range"))
+	log.Printf("[stream] serveMP3 %s start=0 size=%d Range=%q", mp3Path, fi.Size(), r.Header.Get("Range"))
+}
+
+// serveMP3FromRange 从 startSec 起的剩余段（ffmpeg -ss 切分，-c copy 不重编码）。
+// 先切到临时文件再 ServeContent：音箱要 Range 续拉时能重复读同一份内容
+// （直接管管道的话无法满足 Range 二次读），且切分只有 ~70ms。
+func (h *MusicHandler) serveMP3FromRange(w http.ResponseWriter, r *http.Request, mp3Path string, startSec float64) {
+	ffmpeg := "ffmpeg" // 与 transcode 包探测同一个（PATH 里的 ffmpeg，Available() 已确认存在）
+	if ffmpeg == "" {
+		errResp(w, http.StatusInternalServerError, "ffmpeg unavailable")
+		return
+	}
+	tmp, err := os.CreateTemp("", "hcseek-*.mp3")
+	if err != nil {
+		errResp(w, http.StatusInternalServerError, "tmp create")
+		return
+	}
+	tmpName := tmp.Name()
+	tmp.Close()
+	defer os.Remove(tmpName)
+
+	cmd := exec.Command(ffmpeg,
+		"-y", "-v", "error",
+		"-ss", fmt.Sprintf("%.3f", startSec),
+		"-i", mp3Path,
+		"-c", "copy", "-f", "mp3", tmpName,
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		log.Printf("[stream] ffmpeg 切分失败 %s start=%.2f: %v %s", mp3Path, startSec, err, string(out))
+		// 切分失败 → 回退全量从头（音箱至少能响，不静默）
+		h.serveMP3Seek(w, r, mp3Path, 0)
+		return
+	}
+	f, err := os.Open(tmpName)
+	if err != nil {
+		errResp(w, http.StatusInternalServerError, "seek tmp open")
+		return
+	}
+	defer f.Close()
+	st, _ := f.Stat()
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "audio/mpeg")
+	http.ServeContent(w, r, "", time.Now(), f)
+	log.Printf("[stream] serveMP3(ffmpeg) %s start=%.2fs 切出 %d 字节 Range=%q", mp3Path, startSec, st.Size(), r.Header.Get("Range"))
 }
