@@ -49,6 +49,8 @@ func (a *app) prev() {
 }
 
 // seek 按比例跳转进度（走 SSOT）。
+// 音箱模式：playback.Seek → SpeakerOutput.Seek → speaker.SeekTo → 投带 start=N 的新 URL
+// （ffmpeg 切剩余段，代价 1~2s）。本地模式：MyGoOutput.Seek 直接在解码器定位。
 func (a *app) seek(frac float64) {
 	if frac < 0 {
 		frac = 0
@@ -56,7 +58,11 @@ func (a *app) seek(frac float64) {
 	if frac > 1 {
 		frac = 1
 	}
-	a.pb.Seek(frac * a.pb.Snapshot().Duration)
+	dur := a.pb.Snapshot().Duration
+	if dur <= 0 {
+		return // 时长未知不 seek（否则 seek 到 0 变成从头播）
+	}
+	a.pb.Seek(frac * dur)
 }
 
 // setVolume 设置音量 0..1。音箱模式（source=speaker）走主线 playback.SetVolume
