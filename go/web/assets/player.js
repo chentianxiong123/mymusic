@@ -377,6 +377,16 @@
       window.hcState.cmd('queue', { queue: items.map((x) => ({ bvid: x.bvid, title: x.title, artist: x.artist, cover: x.cover })), qidx: 0 });
     } catch (e) { hcBus.emit('toast', { msg: '加载失败' }); }
   });
+  // 歌单播放全部：拉该歌单歌曲 → 设为队列（对齐 play-fav-all，歌单 id 走 detail）
+  hcBus.on('play-songlist-all', async (d) => {
+    if (!d || !d.id) return;
+    try {
+      const j = await (await fetch('/api/v1/songlists/' + d.id + '/items')).json();
+      const items = ((j.data && j.data.items) || []).filter((x) => x && x.bvid);
+      if (!items.length) { hcBus.emit('toast', { msg: '歌单是空的' }); return; }
+      window.hcState.cmd('queue', { queue: items.map((x) => ({ bvid: x.bvid, title: x.title, artist: x.artist, cover: x.cover })), qidx: 0 });
+    } catch (e) { hcBus.emit('toast', { msg: '加载失败' }); }
+  });
 
   // ---- 投送桥接（cast/speaker）：player 持当前歌（Alpine store）调后端 ----
   hcBus.on('cast-play', (d) => {

@@ -1,0 +1,12 @@
+{{/* 歌单页（对照 Vue 版 PlaylistView 结构）：新建 + 网格卡片 */}}
+<div class="flex items-center justify-between mb-5">
+  <h2 class="text-xl font-bold text-gray-900 dark:text-white">歌单</h2>
+  <button onclick="hcSonglist.create()"
+          class="flex items-center space-x-1 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-violet-500 text-white text-sm font-medium shadow-md hover:brightness-105 transition-all">
+    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    <span>新建歌单</span>
+  </button>
+</div>
+<div id="songlist-grid">
+  {{template "songlist_grid.html" .}}
+</div>

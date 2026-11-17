@@ -13,6 +13,7 @@ import (
 	"homecast/service/cast"
 	"homecast/service/fav"
 	"homecast/service/music"
+	"homecast/service/songlist"
 	spk "homecast/service/speaker"
 	"homecast/xiaoai"
 	"homecast/web"
@@ -22,6 +23,7 @@ import (
 type H struct {
 	Music   *music.MusicService
 	Fav     *fav.FavService
+	Songlist *songlist.SonglistService
 	Cast    *cast.CastService
 	Speaker *spk.SpeakerService
 	QR      *xiaoai.QRLogin
@@ -74,6 +76,15 @@ func (h *H) Router() http.Handler {
 	// 小程序专用片段：纯展示 + <a href="hc-play://">，mp-html 渲原生 + link 事件触发播放
 	mux.HandleFunc("GET /hx/search-mp", h.SearchMP)
 	mux.HandleFunc("GET /hx/favs", h.FavsPage)
+	// 歌单（用户自建、可命名、可多份）
+	mux.HandleFunc("GET /hx/songlists", h.SonglistsPage)
+	mux.HandleFunc("GET /hx/songlists/{id}", h.SonglistDetailPage)
+	mux.HandleFunc("POST /hx/songlists/create", h.SonglistCreate)
+	mux.HandleFunc("POST /hx/songlists/rename/{id}", h.SonglistRename)
+	mux.HandleFunc("POST /hx/songlists/delete/{id}", h.SonglistDelete)
+	mux.HandleFunc("POST /hx/songlists/add/{id}", h.SonglistAddItem)
+	mux.HandleFunc("POST /hx/songlists/remove/{id}/{bvid}", h.SonglistRemoveItem)
+	mux.HandleFunc("POST /hx/songlists/clear/{id}", h.SonglistClear)
 	mux.HandleFunc("GET /hx/cast", h.CastPage)
 	mux.HandleFunc("GET /hx/settings", h.SettingsPage)
 	mux.HandleFunc("POST /hx/cast/rescan", h.Rescan)

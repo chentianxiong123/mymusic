@@ -1682,6 +1682,7 @@ func (a *app) ctxMenu(c *ui.Context) {
 		{"播放", func() { go a.play(item); a.ctxItem = nil }},
 		{"下一首播放", func() { a.playNext(item); a.ctxItem = nil }},
 		{"收藏 / 取消收藏", func() { a.toggleFavItem(item); a.ctxItem = nil }},
+		{"添加到歌单", func() { a.addToPick = true }}, // ctxItem 保留：浮层以它为目标准歌
 		{"复制链接", func() { a.copyLink(item); a.ctxItem = nil }},
 	}
 	w := float32(160)

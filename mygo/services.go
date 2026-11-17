@@ -16,6 +16,7 @@ import (
 	"homecast/service/lyric"
 	"homecast/service/lyriccache"
 	"homecast/service/music"
+	"homecast/service/songlist"
 	"homecast/service/sites"
 	"homecast/service/speaker"
 	"homecast/service/token"
@@ -39,6 +40,7 @@ type services struct {
 	sites      *sites.SitesService   // 站点嗅探配置（SSOT：~/.config/homecast/sites.json）
 	music      *music.MusicService   // 音乐域（B站搜索/取流/非歌过滤，供给端点用 GetAudioStream）
 	xcoder     *transcode.Transcoder // 音箱软转码 mp3 秒开（供给端点 /stream 用）
+	songlist   *songlist.SonglistService // 歌单（用户自建、可命名、可多份；与 playlist=队列 区分）
 }
 
 // favHas 收藏查询（薄封装，UI 侧只读）。
@@ -84,6 +86,7 @@ func newServices(db *sql.DB, client *bilibili.Client, audioDir string) *services
 		sites:      sites.NewSitesService(""), // 默认 ~/.config/homecast
 		music:      &music.MusicService{Client: client},
 		xcoder:     transcode.NewTranscoder(db, mp3Dir, -1), // -1=默认上限
+		songlist:   songlist.NewSonglistService(db),
 	}
 }
 

@@ -1,0 +1,11 @@
+{{/* 歌单详情页：歌曲列表 + 播放全部 / 清空 / 改名 */}}
+<div class="mb-4">
+  <a href="/hx/songlists" hx-get="/hx/songlists" hx-select="#main" hx-target="#main" hx-swap="innerHTML" hx-push-url="true"
+     class="inline-flex items-center space-x-1 text-sm text-gray-500 dark:text-gray-400 hover:text-pink-400 transition-colors">
+    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span>返回歌单</span>
+  </a>
+</div>
+<div id="songlist-items">
+  {{template "songlist_items.html" .}}
+</div>

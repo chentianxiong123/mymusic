@@ -19,6 +19,7 @@ import (
 	"homecast/service/cast"
 	"homecast/service/lyric"
 	"homecast/service/playback"
+	"homecast/service/songlist"
 	spk "homecast/service/speaker"
 
 	"homecast/bilibili"
@@ -94,6 +95,16 @@ type app struct {
 	loopMode   int // 0 顺序 1 列表循环 2 单曲 3 随机（对齐主线 4 态）
 	favorites  []bilibili.SearchItem
 	favSet     map[string]bool
+	// 歌单（用户自建、可命名、可多份；与 playlist=播放队列 区分）
+	songlists      []songlist.Songlist // 歌单列表（卡片用）
+	songlistOpen   int64              // 当前打开的歌单 id（0=列表页）
+	songlistCur    songlist.Songlist  // 当前打开的详情
+	songlistItems  []songlist.Item    // 当前打开的详情歌曲
+	songlistNewOpen   bool              // 新建歌单输入行是否展开
+	songlistNameInput string            // 新建歌单输入值
+	songlistRenameOpen   bool            // 重命名输入行是否展开
+	songlistRenameInput string          // 重命名输入值
+	addToPick      bool                 // 「添加到歌单」浮层是否显示（ctxItem 为目标歌）
 
 	quality       int      // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
 	lyricSize     int      // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
@@ -179,6 +190,8 @@ func (a *app) view(c *ui.Context) {
 				a.queuePage(c)
 			case "fav":
 				a.favPage(c)
+			case "songlists":
+				a.songlistPage(c)
 			case "cast":
 				a.castPage(c)
 			case "settings":
@@ -216,8 +229,12 @@ func (a *app) view(c *ui.Context) {
 		a.nowPlaying(c)
 	}
 	// 右键上下文菜单（对齐主线 contextmenu.js）
-	if a.ctxItem != nil {
+	if a.ctxItem != nil && !a.addToPick {
 		a.ctxMenu(c)
+	}
+	// 「添加到歌单」浮层（ctxItem 为目标歌）
+	if a.addToPick && a.ctxItem != nil {
+		a.addToSonglistSheet(c)
 	}
 }
 
@@ -251,6 +268,9 @@ func (a *app) navBarDesktop(c *ui.Context) {
 		}
 		if navTab(c, icFav, "收藏", a.activeTab == "fav", false).Clicked() {
 			a.setTab("fav")
+		}
+		if navTab(c, icList, "歌单", a.activeTab == "songlists", false).Clicked() {
+			a.setTab("songlists")
 		}
 		if navTab(c, icCast, "投屏", a.activeTab == "cast", false).Clicked() {
 			a.setTab("cast")
@@ -300,6 +320,7 @@ func (a *app) navPanel(c *ui.Context) {
 					{"queue", "队列", icList},
 					{"search", "搜索", icSearch},
 					{"fav", "收藏夹", icFav},
+					{"songlists", "歌单", icList},
 					{"cast", "投屏", icCast},
 					{"settings", "设置", icSet},
 				}
@@ -589,6 +610,7 @@ func main() {
 	a.startStreamServer() // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
 	a.favSet = map[string]bool{}
 	a.refreshFavs()    // 收藏恢复自 fav 域包（SQLite 持久化）
+	a.refreshSonglists() // 歌单列表恢复自 songlist 域包（SQLite 持久化）
 	a.restorePrefs()   // 恢复主题/音质/缓存上限（settings 表）
 	a.restoreRecent()  // 恢复最近播放
 	a.restoreHistory() // 恢复搜索历史

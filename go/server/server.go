@@ -21,6 +21,7 @@ import (
 	"homecast/service/music"
 	"homecast/service/playback"
 	"homecast/service/playlist"
+	"homecast/service/songlist"
 	"homecast/service/sites"
 	spk "homecast/service/speaker"
 	"homecast/service/token"
@@ -62,6 +63,8 @@ func New() http.Handler {
 	if err := store.Migrate(db, []string{
 		fav.FavSchema,
 		playlist.PlaylistSchema,
+		songlist.SonglistSchema,
+		songlist.SonglistItemSchema,
 		lyric.LyricSchema,
 		cache.CacheSchema,
 		cache.SettingsSchema,
@@ -102,6 +105,7 @@ func New() http.Handler {
 		}
 	}
 	playlistHandler := &api.PlaylistHandler{Playlist: playlist.NewPlaylistService(client, db)}
+	songlistHandler := &api.SonglistHandler{Songlist: songlist.NewSonglistService(db)}
 	tokenStore := token.NewTokenStore()
 	speakerSvc := spk.NewSpeakerService(xiaoai.NewSpeakerAuth(), client, tokenStore)
 	musicHandler.Gate = speakerSvc // 音箱断源闸门：暂停/停止 → 拒绝其拉流（统一供给端点）
@@ -164,13 +168,13 @@ func New() http.Handler {
 	}()
 
 	mux := api.NewMux(
-		musicHandler, favHandler, lyricHandler, playlistHandler,
+		musicHandler, favHandler, lyricHandler, playlistHandler, songlistHandler,
 		castHandler, proxyHandler, speakerHandler, sitesHandler, widgetHandler, cacheHandler,
 		stateHandler,
 	)
 
 	// htmx 层（Go 渲染页面 + 功能切片）：/ 首页、/assets 静态、/hx/* 切片
-	hxH := &hx.H{Music: musicSvc, Fav: fav.NewFavService(db), Cast: castSvc, Speaker: speakerSvc, QR: speakerQR, Tpl: web.MustTemplates(),
+	hxH := &hx.H{Music: musicSvc, Fav: fav.NewFavService(db), Songlist: songlist.NewSonglistService(db), Cast: castSvc, Speaker: speakerSvc, QR: speakerQR, Tpl: web.MustTemplates(),
 		NextBVID:     func() string { return playbackState.NextBVID() },
 		SwitchSpeaker: func(did string) { playbackState.SwitchSpeaker(did) }}
 	outer := http.NewServeMux()

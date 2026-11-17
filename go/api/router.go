@@ -12,7 +12,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 // NewMux 组装全部路由（对齐 Python /api/v1 前缀）
-func NewMux(music *MusicHandler, fav *FavHandler, lyric *LyricHandler, playlist *PlaylistHandler, cast *CastHandler, proxy *ProxyHandler, speaker *SpeakerHandler, sites *SitesHandler, widget *WidgetHandler, cache *CacheHandler, state *StateHandler) http.Handler {
+func NewMux(music *MusicHandler, fav *FavHandler, lyric *LyricHandler, playlist *PlaylistHandler, songlist *SonglistHandler, cast *CastHandler, proxy *ProxyHandler, speaker *SpeakerHandler, sites *SitesHandler, widget *WidgetHandler, cache *CacheHandler, state *StateHandler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/music/search", music.Search)
 	mux.HandleFunc("GET /api/v1/music/stream/{bvid}", music.Stream)
@@ -29,6 +29,15 @@ func NewMux(music *MusicHandler, fav *FavHandler, lyric *LyricHandler, playlist 
 	mux.HandleFunc("POST /api/v1/playlist/add/{bvid}", playlist.Add)
 	mux.HandleFunc("POST /api/v1/playlist/remove/{bvid}", playlist.Remove)
 	mux.HandleFunc("POST /api/v1/playlist/clear", playlist.Clear)
+	// 歌单（用户自建、可命名、可多份；与 playlist=播放队列 语义不同）
+	mux.HandleFunc("GET /api/v1/songlists", songlist.List)
+	mux.HandleFunc("POST /api/v1/songlists", songlist.Create)
+	mux.HandleFunc("POST /api/v1/songlists/{id}/rename", songlist.Rename)
+	mux.HandleFunc("DELETE /api/v1/songlists/{id}", songlist.Delete)
+	mux.HandleFunc("GET /api/v1/songlists/{id}/items", songlist.Get)
+	mux.HandleFunc("POST /api/v1/songlists/{id}/items", songlist.AddItem)
+	mux.HandleFunc("DELETE /api/v1/songlists/{id}/items/{bvid}", songlist.RemoveItem)
+	mux.HandleFunc("POST /api/v1/songlists/{id}/clear", songlist.Clear)
 	mux.HandleFunc("GET /api/v1/cast/devices", cast.Devices)
 	mux.HandleFunc("POST /api/v1/cast/sniff", cast.Sniff)
 	mux.HandleFunc("POST /api/v1/cast/play_url", cast.PlayURL)

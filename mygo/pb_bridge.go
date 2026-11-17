@@ -19,6 +19,7 @@ import (
 	"homecast/service/cache"
 	"homecast/service/conv"
 	"homecast/service/fav"
+	"homecast/service/songlist"
 	"homecast/service/lyric"
 	"homecast/service/lyriccache"
 	"homecast/service/playback"
@@ -52,6 +53,8 @@ func ensureDB() *sql.DB {
 		transcode.Schema, // 音箱 mp3 转码缓存表（供给端点 Xcoder 用）
 		cache.SettingsSchema,
 		lyriccache.CacheSchema,
+		songlist.SonglistSchema,     // 歌单（用户自建、可命名、可多份）
+		songlist.SonglistItemSchema, // 歌单条目
 	}, nil); err != nil {
 		log.Printf("[mygo] migrate tables: %v", err)
 	}

@@ -1,0 +1,37 @@
+{{/* 歌单网格片段（Create/Rename/Delete 返回，替换 #songlist-grid） */}}
+{{if not .Lists}}
+<div class="text-center py-14 text-gray-500 dark:text-gray-400">
+  <svg class="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V6H7v12h2zm8-12v12h2V6h-2z"/></svg>
+  <p class="text-lg font-medium">还没有歌单</p>
+  <p class="text-sm mt-1">把喜欢的歌归类收藏，点右上角「新建歌单」开始</p>
+</div>
+{{else}}
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+  {{range .Lists}}
+  <div class="group relative bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700" data-ctx-bvid="">
+    <a href="/hx/songlists/{{.ID}}" hx-get="/hx/songlists/{{.ID}}" hx-select="#main" hx-target="#main" hx-swap="innerHTML" hx-push-url="true"
+       class="block">
+      <div class="relative w-full aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+        {{if .Cover}}
+        <img src="{{coverURL .Cover}}" alt="{{.Name}}" loading="lazy" referrerpolicy="no-referrer"
+             class="w-full h-full object-cover">
+        {{else}}
+        <svg class="w-10 h-10 text-gray-300 dark:text-gray-600" viewBox="0 0 24 24" fill="currentColor"><path d="M9 18V6H7v12h2zm8-12v12h2V6h-2z"/></svg>
+        {{end}}
+        <div class="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+      </div>
+      <p class="mt-2.5 text-sm font-semibold text-gray-900 dark:text-white truncate">{{.Name}}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{.Count}} 首</p>
+    </a>
+    <!-- 删除（hover 浮现，避免误触） -->
+    <button hx-post="/hx/songlists/delete/{{.ID}}" hx-target="#songlist-grid" hx-swap="innerHTML" hx-confirm="删除歌单「{{.Name}}」？歌单内的歌不会被删除"
+            onclick="event.preventDefault(); event.stopPropagation();"
+            class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500 transition-all" title="删除歌单">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+    </button>
+  </div>
+  {{end}}
+</div>
+{{end}}
