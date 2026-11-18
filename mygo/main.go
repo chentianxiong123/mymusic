@@ -24,6 +24,7 @@ import (
 	"homecast/bilibili"
 
 	"homecast/xiaoai"
+	"mymusic-mygo/plugin"
 	"mymusic-mygo/source"
 )
 
@@ -407,9 +408,13 @@ func main() {
 		os.Setenv("HC_PORT", "28977")
 	}
 	a.svc = newServices(a.db, a.bili, audioDir)
-	// 音源初始化（阶段 2 解耦）：UI/播放只认 MusicSource 接口，B站是首个实现
+	// 音源初始化（阶段 2/5 解耦）：通过插件注册表注册 B站源，UI/播放只认接口
 	if a.svc != nil && a.svc.music != nil {
-		a.src = source.NewBilibili(a.svc.music)
+		plugin.RegisterSource(source.NewBilibili(a.svc.music))
+	}
+	// 当前源 = 注册表首个（B站）；未来网易云/本地/插件源都注册进表，UI 可选
+	if names := plugin.SourceNames(); len(names) > 0 {
+		a.src = plugin.Sources()[names[0]]
 	}
 	a.startStreamServer() // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
 	a.favSet = map[string]bool{}
