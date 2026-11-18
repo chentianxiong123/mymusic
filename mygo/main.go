@@ -58,6 +58,7 @@ type app struct {
 	tokenInput   string                 // 音箱 token 输入框值（粘贴 token 登录）
 	ctxItem      *bilibili.SearchItem   // 右键菜单目标（非空=显示）
 	ctxX, ctxY   float32                // 菜单弹出位置（窗口坐标）
+	tipTitle     string                 // 当前 hover tooltip 标题（单击触发，显示完整标题）
 	clipboard    string                 // 待复制链接（mygo 暂无线程安全 clipboard API，先字段+状态提示）
 
 	// 搜索
@@ -97,15 +98,16 @@ type app struct {
 	favorites  []bilibili.SearchItem
 	favSet     map[string]bool
 	// 歌单（用户自建、可命名、可多份；与 playlist=播放队列 区分）
-	songlists      []songlist.Songlist // 歌单列表（卡片用）
-	songlistOpen   int64              // 当前打开的歌单 id（0=列表页）
-	songlistCur    songlist.Songlist  // 当前打开的详情
-	songlistItems  []songlist.Item    // 当前打开的详情歌曲
-	songlistNewOpen   bool              // 新建歌单输入行是否展开
-	songlistNameInput string            // 新建歌单输入值
-	songlistRenameOpen   bool            // 重命名输入行是否展开
-	songlistRenameInput string          // 重命名输入值
-	addToPick      bool                 // 「添加到歌单」浮层是否显示（ctxItem 为目标歌）
+	songlists           []songlist.Songlist // 歌单列表（卡片用）
+	songlistOpen        int64               // 当前打开的歌单 id（0=列表页）
+	songlistCur         songlist.Songlist   // 当前打开的详情
+	songlistItems       []songlist.Item     // 当前打开的详情歌曲
+	songlistNewOpen     bool                // 新建歌单输入行是否展开
+	songlistNameInput   string              // 新建歌单输入值
+	songlistRenameOpen  bool                // 重命名输入行是否展开
+	songlistRenameInput string              // 重命名输入值
+	addToPick           bool                // 「添加到歌单」浮层是否显示（ctxItem 为目标歌）
+	ctxPosSet           bool                // 右键菜单位置是否已记录（打开那刻记一次，之后固定不跟鼠标）
 
 	quality       int      // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
 	lyricSize     int      // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
@@ -122,8 +124,8 @@ type app struct {
 	lyricLoading  bool
 	expandedTitle string // 搜索结果标题展开态 bvid（对齐主线 hx-title）
 	// 静音 / 字幕条（学主线结构）
-	muted        bool
-	lastVolume   float64
+	muted      bool
+	lastVolume float64
 	// 音箱模式（source=speaker）：控制面（音量/暂停/进度）复用主线 playback（out 自动分派音箱）。
 	spkMode bool   // source=speaker
 	spkDid  string // 目标音箱 did（对齐主线 State.SpkDID）
@@ -235,6 +237,31 @@ func (a *app) view(c *ui.Context) {
 	// 「添加到歌单」浮层（ctxItem 为目标歌）
 	if a.addToPick && a.ctxItem != nil {
 		a.addToSonglistSheet(c)
+	}
+	// 标题 tooltip（单击歌曲行触发，显示完整标题；再点空白关闭）
+	if a.tipTitle != "" {
+		ui.Overlay(c, func() {
+			// 透明覆盖层：HitTest 只在点 tooltip 外区域时响应（点其它行不拦截，下层 songRow 单击会覆盖 tipTitle）
+			bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+			bg.Draw(func(p *ui.Painter, r ui.Rect) { p.Fill(r, ui.RGBA(0, 0, 0, 0), 0) })
+			bg.HitTest(func(x, y float32, r ui.Rect) bool {
+				// 点 tooltip 区域外 → 响应关闭；点 tooltip 区域 → 不响应（让下层处理）
+				return y > 80 // tooltip 在 y=48..80，点 y>80 的空白区域才关闭
+			})
+			if bg.Clicked() {
+				a.tipTitle = ""
+				a.win.Invalidate()
+			}
+			// 顶部居中浮层显示完整标题
+			tip := ui.Box(c).Absolute().Top(48).Center().Radius(8).Background(clrCardGlass).PaddingX(14 * uiScale).PaddingY(8 * uiScale)
+			tip.Draw(func(p *ui.Painter, r ui.Rect) {
+				p.Shadow(r, 14, 0, 8, 28, 0, ui.RGBA(0, 0, 0, 0.5))
+				p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCardGlass)
+			})
+			tip.Children(func() {
+				ui.Text(c, a.tipTitle).FontSize(13 * uiScale).TextColor(clrText).MaxWidth(float32(a.winW) - 48)
+			})
+		})
 	}
 }
 
@@ -372,7 +399,7 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) 
 	} else {
 		box.Draw(func(p *ui.Painter, r ui.Rect) {
 			if box.Hovered() {
-				p.Fill(r, ui.RGBA(0xff, 0xff, 0xff, 0.06), r.H/2)
+				p.Fill(r, ui.RGBA(0xff, 0xff, 255, 0.06), r.H/2)
 			}
 		})
 	}
@@ -398,7 +425,9 @@ func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) 
 func (a *app) searchBar(c *ui.Context) {
 	// 响应式（对齐主线 max-w-2xl mx-auto：宽窗限宽 672 居中，窄窗撑满内容区；
 	// 搜索框 flex-grow 弹性 + 按钮固定，窗口拉窄时搜索框缩小、按钮不溢出）
-	sb := ui.Row(c).Height(52 * uiScale).Radius(26 * uiScale).Background(clrField).PaddingX(20 * uiScale).Gap(12 * uiScale).AlignItems(ui.Center).AlignSelf(ui.Center)
+	// 胶囊搜索框（保留圆润形态，搜索是通用控件）；内边距 4 → 搜索按钮贴右边缘
+	sb := ui.Row(c).Height(52*uiScale).Radius(26*uiScale).Background(clrField).
+		Padding(4*uiScale, 4*uiScale, 4*uiScale, 20*uiScale).Gap(12 * uiScale).AlignItems(ui.Center).AlignSelf(ui.Center)
 	if a.narrow() {
 		sb.WidthPercent(100) // 窄窗撑满内容区（对齐主线窄屏）
 	} else {
@@ -410,7 +439,8 @@ func (a *app) searchBar(c *ui.Context) {
 		// 之前 TextInput 默认边框 → 图1 输入框有浅色描边，主线无）
 		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).Border(0, ui.Transparent).
 			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
-		if gradButton(c, "搜索").Clicked() {
+		// 搜索按钮：渐变胶囊（跟搜索框配套的主操作）
+		if searchBtn(c, "搜索").Clicked() {
 			go a.search()
 		}
 	})
@@ -450,13 +480,13 @@ func (a *app) searchEmpty(c *ui.Context) {
 
 // chip 小圆角标签。
 func chip(c *ui.Context, label string) ui.Element {
-	box := ui.Box(c).Height(30 * uiScale).Radius(15 * uiScale).PaddingX(12 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Height(30 * uiScale).Radius(8 * uiScale).PaddingX(12 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := clrCard
 		if box.Hovered() {
 			bg = clrCardHov
 		}
-		p.Fill(r, bg, r.H/2)
+		p.Fill(r, bg, 8)
 	})
 	box.Children(func() {
 		ui.Text(c, label).FontSize(13 * uiScale).TextColor(clrMuted)
@@ -478,12 +508,12 @@ func (a *app) resultsHeader(c *ui.Context) {
 		}
 		// 播放全部（对齐主线 hidden sm:inline：窄屏只图标）
 		if a.compact() {
-			if iconButton2(c, icPlayAll, a.resp(34, 30), clrText).Clicked() {
+			if playIconButton(c, icPlayAll, a.resp(34, 30), clrText).Clicked() {
 				if len(a.results) > 0 {
 					a.playAll(a.results, 0)
 				}
 			}
-		} else if gradButton(c, "播放全部").Clicked() {
+		} else if chip(c, "播放全部").Clicked() {
 			if len(a.results) > 0 {
 				a.playAll(a.results, 0)
 			}
@@ -609,11 +639,11 @@ func main() {
 	a.svc = newServices(a.db, a.bili, audioDir)
 	a.startStreamServer() // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
 	a.favSet = map[string]bool{}
-	a.refreshFavs()    // 收藏恢复自 fav 域包（SQLite 持久化）
+	a.refreshFavs()      // 收藏恢复自 fav 域包（SQLite 持久化）
 	a.refreshSonglists() // 歌单列表恢复自 songlist 域包（SQLite 持久化）
-	a.restorePrefs()   // 恢复主题/音质/缓存上限（settings 表）
-	a.restoreRecent()  // 恢复最近播放
-	a.restoreHistory() // 恢复搜索历史
+	a.restorePrefs()     // 恢复主题/音质/缓存上限（settings 表）
+	a.restoreRecent()    // 恢复最近播放
+	a.restoreHistory()   // 恢复搜索历史
 	a.pb = playback.NewPlaybackState()
 	a.mygoOut = newMyGoOutput(a.bili)
 	if a.svc != nil && a.svc.music != nil {

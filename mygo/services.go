@@ -16,8 +16,8 @@ import (
 	"homecast/service/lyric"
 	"homecast/service/lyriccache"
 	"homecast/service/music"
-	"homecast/service/songlist"
 	"homecast/service/sites"
+	"homecast/service/songlist"
 	"homecast/service/speaker"
 	"homecast/service/token"
 	"homecast/service/transcode"
@@ -36,10 +36,10 @@ type services struct {
 	tokens     *token.TokenStore
 	cache      *cache.CacheService
 	qr         *xiaoai.QRLogin
-	qrAuth     *xiaoai.SpeakerAuth   // 与 speaker 共用同一 auth（主线程组装，避免双实例）
-	sites      *sites.SitesService   // 站点嗅探配置（SSOT：~/.config/homecast/sites.json）
-	music      *music.MusicService   // 音乐域（B站搜索/取流/非歌过滤，供给端点用 GetAudioStream）
-	xcoder     *transcode.Transcoder // 音箱软转码 mp3 秒开（供给端点 /stream 用）
+	qrAuth     *xiaoai.SpeakerAuth       // 与 speaker 共用同一 auth（主线程组装，避免双实例）
+	sites      *sites.SitesService       // 站点嗅探配置（SSOT：~/.config/homecast/sites.json）
+	music      *music.MusicService       // 音乐域（B站搜索/取流/非歌过滤，供给端点用 GetAudioStream）
+	xcoder     *transcode.Transcoder     // 音箱软转码 mp3 秒开（供给端点 /stream 用）
 	songlist   *songlist.SonglistService // 歌单（用户自建、可命名、可多份；与 playlist=队列 区分）
 }
 

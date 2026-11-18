@@ -4,7 +4,9 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 
@@ -65,31 +67,15 @@ func grad() ui.LinearGradient {
 }
 
 // gradButton 紫渐变圆角按钮。
-// playBtn 播放按钮（对齐主线结果行 hx-play：粉紫渐变圆角 + 播放三角 + "播放"）。
-func playBtn(c *ui.Context) ui.Element {
-	box := ui.Box(c).Height(34 * uiScale).Radius(17 * uiScale).PaddingX(14 * uiScale).AlignItems(ui.Center).Justify(ui.Center).
-		Draw(func(p *ui.Painter, r ui.Rect) {
-			p.FillGradient(r, grad(), r.H/2)
-		})
-	box.Children(func() {
-		ui.Row(c).Gap(6 * uiScale).AlignItems(ui.Center).Children(func() {
-			// 白色播放三角
-			icon(c, icPlay, 15, ui.RGB(0xff, 0xff, 0xff))
-			ui.Text(c, "播放").TextColor(ui.RGB(0xff, 0xff, 0xff)).FontSize(14 * uiScale).Bold()
-		})
-	})
-	return box
-}
-
 func gradButton(c *ui.Context, label string) ui.Element {
-	box := ui.Box(c).Height(42 * uiScale).Radius(21 * uiScale).PaddingX(24 * uiScale).PaddingY(9 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Height(42 * uiScale).Radius(8 * uiScale).PaddingX(24 * uiScale).PaddingY(9 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.FillGradient(r, grad(), r.H/2)
+		p.FillGradient(r, grad(), 8)
 		// 按下状态：压暗（反馈"已按"）；hover：提亮（反馈可点）
 		if box.Pressed() {
-			p.Fill(r, ui.RGBA(0, 0, 0, 0.18), r.H/2)
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.18), 8)
 		} else if box.Hovered() {
-			p.Fill(r, ui.RGBA(255, 255, 255, 0.12), r.H/2)
+			p.Fill(r, ui.RGBA(255, 255, 255, 0.12), 8)
 		}
 	})
 	box.Children(func() {
@@ -107,11 +93,11 @@ func (a *app) cover(c *ui.Context, bvid, url string, size float32) ui.Element {
 func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLyric bool) ui.Element {
 	box := ui.Box(c).Size(size, size)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.Clip(r, size/2, func() {
+		p.Clip(r, 8*uiScale, func() { // 封面小圆角方形（原 size/2=圆形，用户要求改正方形）
 			if img, ok := a.covers[bvid]; ok {
 				p.Image(img, r, ui.Contain)
 			} else {
-				p.FillRadii(r, [4]float32{size / 2, size / 2, size / 2, size / 2}, clrTrack)
+				p.FillRadii(r, [4]float32{8 * uiScale, 8 * uiScale, 8 * uiScale, 8 * uiScale}, clrTrack)
 				// 占位音符：两个圆点 + 两条小柄
 				p.Fill(ui.Rect{X: r.X + size*0.38, Y: r.Y + size*0.42, W: size * 0.12, H: size * 0.12}, clrPurple, 0)
 				p.Fill(ui.Rect{X: r.X + size*0.62, Y: r.Y + size*0.36, W: size * 0.12, H: size * 0.12}, clrPink, 0)
@@ -121,7 +107,7 @@ func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLy
 		})
 		// hover「歌词」标签（对齐主线 group-hover 黑底圆角）
 		if hoverLyric && box.Hovered() {
-			p.Fill(r, ui.RGBA(0, 0, 0, 0.45), size/2)
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.45), 8*uiScale) // 对齐方形封面小圆角
 			lbl := "歌词"
 			// 用 painter 居中画小标签
 			w, h := size*0.5, size*0.28
@@ -169,7 +155,8 @@ func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLy
 // rowShell 统一列表行容器：定高圆角卡 + 内容行 Fill 垂直居中。
 // 所有列表行（搜索/收藏/队列）复用，保证内部组件与容器对齐/居中统一。
 func (a *app) rowShell(c *ui.Context, h float32, fn func()) ui.Element {
-	box := ui.Box(c).Fill().Height(h).Radius(12 * uiScale).PaddingX(12 * uiScale)
+	// MinHeight：正常行高 h；内容超出（如标题展开多行）时自然长高，避免固定值突变跳动
+	box := ui.Box(c).Fill().MinHeight(h).Radius(12 * uiScale).PaddingX(12 * uiScale)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if box.Hovered() {
 			p.Fill(r, clrCardHov, 12)
@@ -184,56 +171,18 @@ func (a *app) rowShell(c *ui.Context, h float32, fn func()) ui.Element {
 }
 
 // listRow 搜索结果列表行：小封面 + 标题/作者 + 收藏 + 播放。点击行播放。
+// listRow 搜索结果行（复用 songRow）：♥ 收藏 + 播放按钮；单击行播放 + 右键菜单。
 func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
-	// 标题展开态（对齐主线 hx-title 点击展开/收起完整标题）
-	expanded := a.expandedTitle == item.BVID
-	btnHit := false // 点击了行内 ♥/播放按钮（收藏/播放独立生效，不触发展开标题）
-	rowH := float32(68)
-	if expanded {
-		rowH = 84
-	}
-	box := a.rowShell(c, rowH, func() {
-		// 封面（对齐主线 w-12 h-9 sm:w-20 sm:h-14 = 48×36 / 80×56 横向）
-		a.coverWide(c, item.BVID, item.Pic, a.resp(80, 48), a.resp(56, 36))
-		ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-			title := bilibili.CleanHTML(item.Title)
-			tb := ui.Text(c, title).FontSize(a.resp(15, 14)).Bold().TextColor(clrText)
-			if expanded {
-				tb.MaxLines(0)
-			} else {
-				tb.MaxLines(1)
+	a.songRow(c, item.BVID, item.Pic, item.Title, item.Author, item.Duration, songRowOpt{
+		isFav:   a.isFavItem(item),
+		heartFn: func() { a.toggleFavItem(item) },
+		trailing: func() {
+			// 播放按钮（圆形 —— 播放类统一圆形）
+			if playIconButton(c, icPlay, a.resp(34, 30), accent(true)).Clicked() {
+				go a.play(item)
 			}
-			ui.Row(c).Gap(8 * uiScale).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, item.Author).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1)
-				if item.Duration != "" {
-					ui.Text(c, item.Duration).FontSize(12 * uiScale).TextColor(clrMuted)
-				}
-			})
-		})
-		if iconButton2(c, icHeart, a.resp(34, 30), accent(a.isFavItem(item))).Clicked() {
-			a.toggleFavItem(item)
-			btnHit = true
-		}
-		// 播放按钮始终显示（对齐主线结果行 hx-play：粉紫渐变圆角 + ▶ + 播放）
-		if playBtn(c).Clicked() {
-			go a.play(item)
-			btnHit = true
-		}
+		},
 	})
-	// 展开标题仅在点击行主体（非 ♥/播放按钮）时触发，避免点收藏却展开（收藏独立生效）
-	if box.Clicked() && !btnHit {
-		if a.expandedTitle == item.BVID {
-			a.expandedTitle = ""
-		} else {
-			a.expandedTitle = item.BVID
-		}
-		a.win.Invalidate()
-	}
-	// 右键 → 更多菜单（对齐主线 contextmenu）
-	if btn, ok := box.PressedButton(); ok && btn == 2 {
-		it := item
-		a.openCtxMenu(&it)
-	}
 }
 
 // playTriangle 返回一个播放三角 Path（中心偏右）。
@@ -255,12 +204,12 @@ func (a *app) progressBar(c *ui.Context, frac float64) ui.Element {
 func (a *app) progressBarSized(c *ui.Context, frac float64, h float32, seek bool) ui.Element {
 	// 只读进度（歌词页/挂件）：Box 显示，不可拖
 	if !seek {
-		box := ui.Box(c).AlignSelf(ui.Stretch).Height(h).Radius(h / 2)
+		box := ui.Box(c).AlignSelf(ui.Stretch).Height(h).Radius(3)
 		box.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.FillRadii(r, [4]float32{r.H / 2, r.H / 2, r.H / 2, r.H / 2}, clrTrackBar)
+			p.FillRadii(r, [4]float32{3, 3, 3, 3}, clrTrackBar)
 			if frac > 0 {
 				fr := ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(frac), H: r.H}
-				p.FillGradient(fr, grad(), r.H/2)
+				p.FillGradient(fr, grad(), 3)
 				p.Fill(ui.Rect{X: fr.X + fr.W - 5, Y: r.Y - 3, W: 10, H: 10}, ui.RGB(0xff, 0xff, 0xff), 5)
 			}
 		})
@@ -274,10 +223,10 @@ func (a *app) progressBarSized(c *ui.Context, frac float64, h float32, seek bool
 	a.scrubbing = s.Dragging()
 	s.Draw(func(p *ui.Painter, r ui.Rect) {
 		track := ui.Rect{X: r.X, Y: r.Y + (r.H-h)/2, W: r.W, H: h}
-		p.FillRadii(track, [4]float32{h / 2, h / 2, h / 2, h / 2}, clrTrackBar)
+		p.FillRadii(track, [4]float32{3, 3, 3, 3}, clrTrackBar)
 		if a.progress > 0 {
 			fr := ui.Rect{X: track.X, Y: track.Y, W: track.W * float32(a.progress), H: h}
-			p.FillGradient(fr, grad(), h/2)
+			p.FillGradient(fr, grad(), 3)
 		}
 		// 圆形 thumb 始终显示（对齐主线进度滑块）
 		cx := track.X + track.W*float32(a.progress)
@@ -294,6 +243,7 @@ func (a *app) progressBarSized(c *ui.Context, frac float64, h float32, seek bool
 
 // playCircle 大号圆形播放/暂停按钮。
 func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
+	// 播放按钮 = 圆形（音乐播放器通用语汇，主操作视觉焦点）
 	box := ui.Box(c).Size(size, size).Radius(size / 2)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.FillGradient(r, grad(), r.H/2)
@@ -313,15 +263,15 @@ func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
 	return box
 }
 
-// iconButton 圆形图标按钮（歌词挂件开关等）。
+// iconButton 方形图标按钮（歌词挂件开关等）。
 func iconButton(c *ui.Context, glyph string) ui.Element {
-	box := ui.Box(c).Size(34, 34).Radius(17 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Size(34, 34).Radius(8).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := clrCard
 		if box.Hovered() {
 			bg = clrCardHov
 		}
-		p.Fill(r, bg, r.H/2)
+		p.Fill(r, bg, 8)
 	})
 	box.Children(func() {
 		ui.Text(c, glyph).TextColor(clrMuted).FontSize(14 * uiScale)
@@ -405,3 +355,123 @@ func (a *app) toggleMute() {
 }
 
 var _ = color.RGBA{}
+
+// statusBadge 状态徽标（圆点 + 文字，对齐主线 speaker/cast 在线态）。
+// speaker 在线/离线、cast 设备状态统一复用，避免各写一套圆点+文字。
+func statusBadge(c *ui.Context, text string, col ui.Color) {
+	ui.Row(c).AlignItems(ui.Center).Gap(4 * uiScale).Children(func() {
+		ui.Box(c).Size(6*uiScale, 6*uiScale).Radius(3 * uiScale).Background(col)
+		ui.Text(c, text).FontSize(10 * uiScale).TextColor(col)
+	})
+}
+
+// songRow 全站统一歌曲行（搜索/队列/收藏/歌单详情复用一套，杜绝每处自己写）。
+// 交互：单击播放 + 右键菜单（不做单击展开，避免行跳动）。
+// opt: idx!=nil 显示序号；isCur 高亮当前播放；isFav/favFn 显示 ♥；rmFn 显示 ✕；
+// trailing 追加额外控件（如搜索行播放按钮）；author/dur 空则不显示。
+// songRowOpt songRow 的可选配置（命名类型，调用方用字段名按需填）。
+type songRowOpt struct {
+	idx      *int   // 非 nil 显示序号（队列）
+	isCur    bool   // 当前播放高亮（队列）
+	isFav    bool   // ♥ 状态（配合 heartFn）
+	heartFn  func() // ♥ 点击回调（搜索/收藏）
+	rmFn     func() // ✕ 点击回调（队列/歌单详情）
+	trailing func() // 追加额外控件（搜索行播放按钮）
+}
+
+func (a *app) songRow(c *ui.Context, bvid, pic, title, author, dur string, opt songRowOpt) {
+	item := bilibili.SearchItem{BVID: bvid, Title: title, Author: author, Pic: pic, Duration: dur}
+	box := ui.Box(c).Fill().MinHeight(a.resp(64, 56)).Radius(12 * uiScale).PaddingX(12 * uiScale).Gap(12 * uiScale).Justify(ui.Center)
+	if opt.isCur {
+		// 当前播放行：卡片 + 粉色描边（对齐主线 queue.js）
+		box.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.FillRadii(r, [4]float32{12, 12, 12, 12}, clrCard)
+			p.Stroke(r, clrPink, 12, 2*uiScale)
+		})
+	} else {
+		box.Background(clrCard)
+		if box.Hovered() {
+			box.Background(clrCardHov)
+		}
+	}
+	box.Children(func() {
+		if box.RightClicked() {
+			it := item
+			a.openCtxMenu(&it)
+		}
+		// Row 高度=内容，box 的 Justify(Center) 让 Row 在 box 内垂直居中
+		ui.Row(c).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
+			if opt.idx != nil {
+				ui.Text(c, fmt.Sprintf("%02d", *opt.idx+1)).FontSize(13 * uiScale).TextColor(clrMuted).Width(26 * uiScale)
+			}
+			a.coverWide(c, bvid, pic, a.resp(80, 48), a.resp(56, 36))
+			ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+				// 标题（单行）
+				ui.Text(c, bilibili.CleanHTML(title)).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
+				if author != "" {
+					ui.Text(c, author).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1)
+				}
+			})
+			if opt.isCur {
+				ui.Text(c, "▶ 播放中").FontSize(12 * uiScale).TextColor(clrPink).Bold()
+			}
+			if dur != "" {
+				ui.Text(c, dur).FontSize(12 * uiScale).TextColor(clrMuted)
+			}
+			if opt.heartFn != nil {
+				if iconButton2(c, icHeart, a.resp(34, 30), accent(opt.isFav)).Clicked() {
+					opt.heartFn()
+				}
+			}
+			if opt.rmFn != nil {
+				if iconButton2(c, icClose, 32, clrMuted).Clicked() {
+					opt.rmFn()
+				}
+			}
+			if opt.trailing != nil {
+				opt.trailing()
+			}
+		})
+	})
+	// 单击触发：标题较长时显示完整 tooltip（不播放）；双击播放（全站统一）
+	cleanTitle := bilibili.CleanHTML(title)
+	if box.DoubleClicked() {
+		go a.play(item)
+	} else if box.Clicked() && utf8.RuneCountInString(cleanTitle) > 12 {
+		// 单击 + 标题较长 → 记录 tooltip，全局 Overlay 层渲染
+		a.tipTitle = cleanTitle
+		a.win.Invalidate()
+	}
+}
+
+// searchBtn 搜索栏内的渐变按钮（小圆角 8，不做成胶囊；按钮贴搜索框右边缘）。
+func searchBtn(c *ui.Context, label string) ui.Element {
+	box := ui.Box(c).Height(36 * uiScale).Radius(18 * uiScale).PaddingX(20 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		p.FillGradient(r, grad(), r.H/2)
+		if box.Pressed() {
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.18), r.H/2)
+		} else if box.Hovered() {
+			p.Fill(r, ui.RGBA(255, 255, 255, 0.12), r.H/2)
+		}
+	})
+	box.Children(func() {
+		ui.Text(c, label).FontSize(14 * uiScale).Bold().TextColor(ui.RGB(0xff, 0xff, 0xff))
+	})
+	return box
+}
+
+// playIconButton 列表行内的播放图标按钮（圆形 —— 播放类图标统一圆形，
+// 与主控 playCircle 一致；其它操作按钮如 ♥ ✕ 用方形 iconButton2）。
+func playIconButton(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Element {
+	box := ui.Box(c).Size(size, size).Radius(size / 2)
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		if box.Pressed() {
+			p.Fill(r, clrTrackBar, r.H/2)
+		} else if box.Hovered() {
+			p.Fill(r, clrCardHov, r.H/2)
+		}
+		p.Icon(s, r, col)
+	})
+	return box
+}

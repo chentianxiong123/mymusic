@@ -160,28 +160,12 @@ func (a *app) songlistGridCols() int {
 func (a *app) songlistCard(c *ui.Context, g songlist.Songlist) {
 	size := a.songlistCardSize()
 	key := songlistCoverKey(g.ID)
-	box := ui.Box(c).Width(size).Height(size).Radius(12 * uiScale)
-	box.Draw(func(p *ui.Painter, b ui.Rect) {
-		p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
-		if img, ok := a.covers[key]; ok {
-			p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
-		}
-	})
-	if g.Cover != "" {
-		a.loadCover(key, g.Cover)
-	}
-	if box.Hovered() {
-		box.Draw(func(p *ui.Painter, b ui.Rect) {
-			p.FillRadii(b, [4]float32{12, 12, 12, 12}, ui.RGBA(0, 0, 0, 0.25))
-		})
-	}
-	if box.Clicked() {
+	// 复用 gridCard 共享样式（封面盒 + hover 遮罩 + 标题/副标题）
+	a.gridCard(c, key, g.Cover, g.Name, fmt.Sprintf("%d 首", g.Count), size, func() {
 		a.songlistOpen = g.ID
 		a.loadSonglistDetail()
 		a.win.Invalidate()
-	}
-	ui.Text(c, g.Name).FontSize(12 * uiScale).TextColor(clrText).MaxLines(1)
-	ui.Text(c, fmt.Sprintf("%d 首", g.Count)).FontSize(10 * uiScale).TextColor(clrMuted).MaxLines(1)
+	})
 }
 
 // songlistCardSize 歌单卡片封面边长（按 tier 自适应）
@@ -212,7 +196,7 @@ func (a *app) songlistDetail(c *ui.Context) {
 				ui.Text(c, fmt.Sprintf("%d 首", len(a.songlistItems))).FontSize(12 * uiScale).TextColor(clrMuted)
 				ui.Spacer(c).Grow(1)
 				if len(a.songlistItems) > 0 {
-					if gradButton(c, "播放全部").Clicked() {
+					if chip(c, "播放全部").Clicked() {
 						a.playAll(songlistToSearchItems(a.songlistItems), 0)
 					}
 					if chip(c, "清空").Clicked() {
@@ -276,31 +260,15 @@ func (a *app) songlistRenameRow(c *ui.Context) {
 }
 
 // songlistRow 歌单内歌曲行（对齐主线 songlist_items.html 的歌曲行）
+// songlistRow 歌单详情行（复用 songRow）：✕ 从歌单移除 + 时长；单击播放 + 右键菜单。
 func (a *app) songlistRow(c *ui.Context, it songlist.Item) {
-	box := ui.Box(c).Fill().Height(64 * uiScale).Radius(12 * uiScale).PaddingX(12 * uiScale).Background(clrCard)
-	box.Children(func() {
-		if btn, ok := box.PressedButton(); ok && btn == 2 {
-			si := bilibili.SearchItem{BVID: it.BVID, Title: it.Title, Author: it.Artist, Pic: it.Cover, Duration: it.Duration}
-			a.openCtxMenu(&si)
-		}
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(12 * uiScale).AlignItems(ui.Center).Children(func() {
-			a.coverWide(c, it.BVID, it.Cover, a.resp(80, 48), a.resp(56, 36))
-			ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-				ui.Text(c, it.Title).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
-				ui.Text(c, it.Artist).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1)
-			})
-			ui.Text(c, it.Duration).FontSize(12 * uiScale).TextColor(clrMuted)
-			// 从歌单移除
-			if iconButton2(c, icClose, 32, clrMuted).Clicked() {
-				a.svc.songlist.RemoveSong(a.songlistOpen, it.BVID)
-				a.loadSonglistDetail()
-				a.win.Invalidate()
-			}
-		})
+	a.songRow(c, it.BVID, it.Cover, it.Title, it.Artist, it.Duration, songRowOpt{
+		rmFn: func() {
+			a.svc.songlist.RemoveSong(a.songlistOpen, it.BVID)
+			a.loadSonglistDetail()
+			a.win.Invalidate()
+		},
 	})
-	if box.Clicked() {
-		go a.play(bilibili.SearchItem{BVID: it.BVID, Title: it.Title, Author: it.Artist, Pic: it.Cover, Duration: it.Duration})
-	}
 }
 
 // addToSonglistSheet 「添加到歌单」浮层：列出全部歌单，点一个即加入（对齐主线 songlist.js 弹层）。
@@ -310,80 +278,83 @@ func (a *app) addToSonglistSheet(c *ui.Context) {
 	if item == nil {
 		return
 	}
-	// 背景：点外部关闭
-	bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
-	bg.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.Fill(r, ui.RGBA(0, 0, 0, 0.45), 0)
-	})
-	if bg.Clicked() {
-		a.addToPick = false
-		a.ctxItem = nil
-		return
-	}
-	// 面板：居中卡片，列表可滚动
-	pw := float32(340)
-	ph := float32(420)
-	if a.winH > 0 && ph > float32(a.winH)-80 {
-		ph = float32(a.winH) - 80
-	}
-	lx := float32(a.winW)/2 - pw/2
-	ly := float32(a.winH)/2 - ph/2
-	if a.winW <= 0 {
-		lx = 100
-	}
-	if a.winH <= 0 {
-		ly = 100
-	}
-	panel := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(16 * uiScale).Background(clrCard)
-	panel.Draw(func(p *ui.Painter, r ui.Rect) {
-		p.Shadow(r, 20, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.5))
-		p.FillRadii(r, [4]float32{16, 16, 16, 16}, clrCard)
-	})
-	panel.Children(func() {
-		ui.Column(c).Fill().Padding(16 * uiScale).Gap(10 * uiScale).Children(func() {
-			// 标题行
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "添加到歌单").FontSize(16 * uiScale).Bold().TextColor(clrText)
-				ui.Spacer(c).Grow(1)
-				if iconButton2(c, icClose, 30, clrMuted).Clicked() {
-					a.addToPick = false
-					a.ctxItem = nil
-				}
-			})
-			ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1)
-			// 歌单列表（滚动）
-			ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
-				ui.Column(c).Gap(4 * uiScale).Children(func() {
-					if len(a.songlists) == 0 {
-						ui.Text(c, "还没有歌单，点下方「新建」").FontSize(13 * uiScale).TextColor(clrMuted)
-					}
-					for _, g := range a.songlists {
-						g := g
-						row := ui.Box(c).Fill().Height(46 * uiScale).Radius(10 * uiScale).PaddingX(12 * uiScale)
-						if row.Hovered() {
-							row = row.Background(ui.RGBA(255, 255, 255, 0.06))
-						}
-						row.Children(func() {
-							ui.Row(c).AlignSelf(ui.Stretch).Gap(10 * uiScale).AlignItems(ui.Center).Children(func() {
-								ui.Column(c).Grow(1).Gap(1 * uiScale).Children(func() {
-									ui.Text(c, g.Name).FontSize(14 * uiScale).TextColor(clrText).MaxLines(1)
-									ui.Text(c, fmt.Sprintf("%d 首", g.Count)).FontSize(11 * uiScale).TextColor(clrMuted)
-								})
-							})
-						})
-						if row.Clicked() {
-							a.addToSonglist(g.ID, item)
-						}
+	// Overlay 层（mygo ui 专用置顶浮层，对齐 nowPlaying；否则被 Overlay 层盖住不置顶）
+	ui.Overlay(c, func() {
+		// 背景：点外部关闭
+		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+		bg.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.45), 0)
+		})
+		if bg.Clicked() {
+			a.addToPick = false
+			a.ctxItem = nil
+			return
+		}
+		// 面板：居中卡片，列表可滚动
+		pw := float32(340)
+		ph := float32(420)
+		if a.winH > 0 && ph > float32(a.winH)-80 {
+			ph = float32(a.winH) - 80
+		}
+		lx := float32(a.winW)/2 - pw/2
+		ly := float32(a.winH)/2 - ph/2
+		if a.winW <= 0 {
+			lx = 100
+		}
+		if a.winH <= 0 {
+			ly = 100
+		}
+		panel := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(16 * uiScale).Background(clrCard)
+		panel.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Shadow(r, 20, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.5))
+			p.FillRadii(r, [4]float32{16, 16, 16, 16}, clrCard)
+		})
+		panel.Children(func() {
+			ui.Column(c).Fill().Padding(16 * uiScale).Gap(10 * uiScale).Children(func() {
+				// 标题行
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, "添加到歌单").FontSize(16 * uiScale).Bold().TextColor(clrText)
+					ui.Spacer(c).Grow(1)
+					if iconButton2(c, icClose, 30, clrMuted).Clicked() {
+						a.addToPick = false
+						a.ctxItem = nil
 					}
 				})
-			})
-			// 新建并添加
-			ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).AlignItems(ui.Center).Children(func() {
-				ui.TextInput(c, &a.songlistNameInput).Grow(1).Height(38 * uiScale).
-					Placeholder("新建歌单名称").TextColor(clrText)
-				if gradButton(c, "新建").Clicked() {
-					a.createAndAddToSonglist(item)
-				}
+				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1)
+				// 歌单列表（滚动）
+				ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+					ui.Column(c).Gap(4 * uiScale).Children(func() {
+						if len(a.songlists) == 0 {
+							ui.Text(c, "还没有歌单，点下方「新建」").FontSize(13 * uiScale).TextColor(clrMuted)
+						}
+						for _, g := range a.songlists {
+							g := g
+							row := ui.Box(c).Fill().Height(46 * uiScale).Radius(10 * uiScale).PaddingX(12 * uiScale)
+							if row.Hovered() {
+								row = row.Background(clrCardHov) // 主题自适应 hover（原硬编码白6%明亮主题看不见）
+							}
+							row.Children(func() {
+								ui.Row(c).AlignSelf(ui.Stretch).Gap(10 * uiScale).AlignItems(ui.Center).Children(func() {
+									ui.Column(c).Grow(1).Gap(1 * uiScale).Children(func() {
+										ui.Text(c, g.Name).FontSize(14 * uiScale).TextColor(clrText).MaxLines(1)
+										ui.Text(c, fmt.Sprintf("%d 首", g.Count)).FontSize(11 * uiScale).TextColor(clrMuted)
+									})
+								})
+							})
+							if row.Clicked() {
+								a.addToSonglist(g.ID, item)
+							}
+						}
+					})
+				})
+				// 新建并添加
+				ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).AlignItems(ui.Center).Children(func() {
+					ui.TextInput(c, &a.songlistNameInput).Grow(1).Height(38 * uiScale).
+						Placeholder("新建歌单名称").TextColor(clrText)
+					if gradButton(c, "新建").Clicked() {
+						a.createAndAddToSonglist(item)
+					}
+				})
 			})
 		})
 	})

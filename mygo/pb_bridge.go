@@ -19,10 +19,10 @@ import (
 	"homecast/service/cache"
 	"homecast/service/conv"
 	"homecast/service/fav"
-	"homecast/service/songlist"
 	"homecast/service/lyric"
 	"homecast/service/lyriccache"
 	"homecast/service/playback"
+	"homecast/service/songlist"
 	"homecast/service/transcode"
 	"homecast/store"
 
