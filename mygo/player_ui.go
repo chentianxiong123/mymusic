@@ -480,7 +480,7 @@ func (a *app) lyrToolCol(c *ui.Context) {
 		toolCard(func() {
 			ui.Column(c).AlignSelf(ui.Center).Gap(6 * uiScale).Children(func() {
 				// 收藏/取消收藏（对齐主线 ly-fav）
-				if iconButton2(c, icHeart, 26, accent(a.isFav())).Clicked() {
+				if heartButton(c, a.isFav(), 26, func() {}).Clicked() {
 					a.toggleFav()
 				}
 				// 复制链接（对齐主线 ly-copy）
@@ -592,7 +592,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 						if iconButton(c, "▼").Clicked() {
 							a.nudgeLyric(-0.5)
 						}
-						if iconButton2(c, icHeart, 26, accent(a.isFav())).Clicked() {
+						if heartButton(c, a.isFav(), 26, func() {}).Clicked() {
 							a.toggleFav()
 						}
 					})
@@ -921,11 +921,6 @@ func (a *app) favPage(c *ui.Context) {
 					if chip(c, "播放全部").Clicked() {
 						a.playAll(a.favorites, 0)
 					}
-					if chip(c, "清空喜欢").Clicked() {
-						a.svc.fav.Clear()
-						a.refreshFavs()
-						a.win.Invalidate()
-					}
 				}
 			})
 			if len(a.favorites) == 0 {
@@ -951,7 +946,7 @@ func (a *app) favPage(c *ui.Context) {
 				ui.Text(c, "我的歌单").FontSize(20 * uiScale).Bold().TextColor(clrText)
 				ui.Text(c, fmt.Sprintf("%d 份", len(a.songlists))).FontSize(13 * uiScale).TextColor(clrMuted)
 				ui.Spacer(c).Grow(1)
-				if gradButton(c, "新建歌单").Clicked() {
+				if chip(c, "新建歌单").Clicked() {
 					a.songlistNewOpen = true
 					a.songlistNameInput = ""
 					a.win.Invalidate()
@@ -1294,7 +1289,7 @@ func (a *app) castPage(c *ui.Context) {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
 				ui.Text(c, "投屏 / 音箱").FontSize(20 * uiScale).Bold().TextColor(clrText)
 				ui.Spacer(c).Grow(1)
-				if gradButton(c, "发现设备").Clicked() {
+				if chip(c, "发现设备").Clicked() {
 					go a.discoverCast()
 				}
 			})
@@ -1412,9 +1407,9 @@ func (a *app) castPage(c *ui.Context) {
 										statusBadge(c, "离线", clrMuted)
 									}
 								})
-								// 按钮行：「投送」（粉色渐变，对齐主线 sp-play-btn）+「停止」
+								// 按钮行：「投送」（平淡，对齐主线 sp-play-btn）+「停止」
 								ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-									if gradButton(c, "投送").Clicked() {
+									if chip(c, "投送").Clicked() {
 										go a.playToSpeaker(sp.DID, sp.Name)
 									}
 									if chip(c, "停止").Clicked() {
@@ -1470,7 +1465,7 @@ func (a *app) castPage(c *ui.Context) {
 								if chip(c, "查状态").Clicked() {
 									go a.queryCastStatus(d.UDN)
 								}
-								if gradButton(c, "投送").Clicked() {
+								if chip(c, "投送").Clicked() {
 									go a.castTo(d.UDN, d.Name)
 								}
 							})

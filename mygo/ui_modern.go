@@ -459,7 +459,8 @@ func (a *app) songRow(c *ui.Context, bvid, pic, title, author, dur string, opt s
 				ui.Text(c, dur).FontSize(12 * uiScale).TextColor(clrMuted)
 			}
 			if opt.heartFn != nil {
-				if iconButton2(c, icHeart, a.resp(34, 30), accent(opt.isFav)).Clicked() {
+				// ♥ 实心/空心表示收藏态（不用颜色高亮）；收藏=实心粉，未收藏=空心灰
+				if heartButton(c, opt.isFav, a.resp(34, 30), func() {}).Clicked() {
 					opt.heartFn()
 				}
 			}
@@ -573,4 +574,15 @@ func pager(c *ui.Context, page, totalPages int, onGo func(int)) {
 			iconButton2(c, icChevR, 28, clrMuted)
 		}
 	})
+}
+
+// heartButton 收藏 ♥ 按钮（统一：收藏=实心粉，未收藏=空心灰；不用颜色高亮）。
+func heartButton(c *ui.Context, isFav bool, size float32, onClick func()) ui.Element {
+	icon := icHeart
+	col := clrMuted
+	if isFav {
+		icon = icHeartFill
+		col = clrPink
+	}
+	return iconButton2(c, icon, size, col)
 }

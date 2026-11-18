@@ -628,7 +628,7 @@ func (a *app) playerBar(c *ui.Context) {
 				a.win.Invalidate()
 			}
 			// 收藏（对齐主线 d-fav 32×32）
-			if iconButton2(c, icHeart, a.resp(32, 28), accent(a.isFav())).Clicked() {
+			if heartButton(c, a.isFav(), a.resp(32, 28), func() {}).Clicked() {
 				a.toggleFav()
 			}
 			// 外部歌词开关（歌词图标，控制桌面挂件外部歌词；对齐主线 d-tick 位置）

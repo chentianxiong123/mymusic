@@ -108,7 +108,7 @@ func (a *app) lyricView(c *ui.Context) {
 				if iconButton2(c, icNext, 26*uiScale, clrMuted).Clicked() {
 					go a.next()
 				}
-				if iconButton2(c, icHeart, 26*uiScale, accent(a.isFav())).Clicked() {
+				if heartButton(c, a.isFav(), 26*uiScale, func() {}).Clicked() {
 					a.toggleFav()
 				}
 				if iconButton2(c, icClose, 26*uiScale, clrMuted).Clicked() {
