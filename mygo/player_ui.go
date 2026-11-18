@@ -751,9 +751,14 @@ func (a *app) queuePage(c *ui.Context) {
 				return
 			}
 			ui.Column(c).Gap(6 * uiScale).Children(func() {
-				for i, item := range a.playlist {
-					a.queueRow(c, i, item)
+				queuePage := a.pg["queue"]
+				for i, item := range pageSlice(a.playlist, queuePage) {
+					a.queueRow(c, queuePage*pageSize+i, item)
 				}
+				pager(c, queuePage, pageCount(len(a.playlist)), func(p int) {
+					a.pg["queue"] = p
+					a.win.Invalidate()
+				})
 			})
 		})
 	})
@@ -787,16 +792,21 @@ func (a *app) recentPage(c *ui.Context) {
 				})
 				return
 			}
-			// 网格卡片（列数按 tier 对应主线 grid-cols-3 sm:4 md:6）
+			// 网格卡片（列数按 tier 对应主线 grid-cols-3 sm:4 md:6）+ 分页
 			cols := a.recentGridCols()
 			tracks := make([]ui.Track, cols)
 			for i := range tracks {
 				tracks[i] = ui.Fr(1)
 			}
+			page := a.pg["recent"]
 			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
-				for _, item := range a.recent {
+				for _, item := range pageSlice(a.recent, page) {
 					a.recentCard(c, item)
 				}
+			})
+			pager(c, page, pageCount(len(a.recent)), func(p int) {
+				a.pg["recent"] = p
+				a.win.Invalidate()
 			})
 		})
 	})
@@ -894,18 +904,24 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 
 // favPage 收藏页。
 func (a *app) favPage(c *ui.Context) {
+	// 歌单详情（点歌单卡进入）优先
+	if a.songlistOpen != 0 {
+		a.songlistDetail(c)
+		return
+	}
 	// 整页滚动条（对齐主线）：整页内容包一个 Scroll，不做组件内部滚动条
 	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
+			// ① 喜欢（原收藏）区
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-				ui.Text(c, "我的收藏").FontSize(20 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, "我喜欢的").FontSize(20 * uiScale).Bold().TextColor(clrText)
 				ui.Text(c, fmt.Sprintf("%d 首", len(a.favorites))).FontSize(13 * uiScale).TextColor(clrMuted)
 				ui.Spacer(c).Grow(1)
 				if len(a.favorites) > 0 {
 					if chip(c, "播放全部").Clicked() {
 						a.playAll(a.favorites, 0)
 					}
-					if chip(c, "清空收藏").Clicked() {
+					if chip(c, "清空喜欢").Clicked() {
 						a.svc.fav.Clear()
 						a.refreshFavs()
 						a.win.Invalidate()
@@ -913,21 +929,55 @@ func (a *app) favPage(c *ui.Context) {
 				}
 			})
 			if len(a.favorites) == 0 {
-				ui.Column(c).Fill().Center().Gap(12 * uiScale).Children(func() {
+				ui.Column(c).Fill().Center().Gap(12 * uiScale).PaddingY(20 * uiScale).Children(func() {
 					icon(c, icHeart, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-					ui.Text(c, "收藏夹还是空的").FontSize(17 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, "喜欢的歌还空着").FontSize(17 * uiScale).Bold().TextColor(clrText)
 					ui.Text(c, "听歌时点卡片上的 ♥ 收藏").FontSize(13 * uiScale).TextColor(clrMuted)
-					if gradButton(c, "去搜索").Clicked() {
-						a.setTab("search")
-					}
 				})
-				return
+			} else {
+				ui.Column(c).Gap(6 * uiScale).Children(func() {
+					favPage := a.pg["fav"]
+					for _, item := range pageSlice(a.favorites, favPage) {
+						a.favRow(c, item)
+					}
+					pager(c, favPage, pageCount(len(a.favorites)), func(p int) {
+						a.pg["fav"] = p
+						a.win.Invalidate()
+					})
+				})
 			}
-			ui.Column(c).Gap(6 * uiScale).Children(func() {
-				for _, item := range a.favorites {
-					a.favRow(c, item)
+			// ② 歌单区（对齐主线 songlist_grid.html）
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).PaddingY(6 * uiScale).Children(func() {
+				ui.Text(c, "我的歌单").FontSize(20 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, fmt.Sprintf("%d 份", len(a.songlists))).FontSize(13 * uiScale).TextColor(clrMuted)
+				ui.Spacer(c).Grow(1)
+				if gradButton(c, "新建歌单").Clicked() {
+					a.songlistNewOpen = true
+					a.songlistNameInput = ""
+					a.win.Invalidate()
 				}
 			})
+			if a.songlistNewOpen {
+				a.songlistNewRow(c)
+			}
+			if len(a.songlists) == 0 && !a.songlistNewOpen {
+				ui.Column(c).Fill().Center().Gap(12 * uiScale).PaddingY(20 * uiScale).Children(func() {
+					icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
+					ui.Text(c, "还没有歌单").FontSize(17 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, "把喜欢的歌归类收藏").FontSize(13 * uiScale).TextColor(clrMuted)
+				})
+			} else if len(a.songlists) > 0 {
+				cols := a.songlistGridCols()
+				tracks := make([]ui.Track, cols)
+				for i := range tracks {
+					tracks[i] = ui.Fr(1)
+				}
+				ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
+					for _, g := range a.songlists {
+						a.songlistCard(c, g)
+					}
+				})
+			}
 		})
 	})
 }
@@ -966,7 +1016,7 @@ func (a *app) settingsPage(c *ui.Context) {
 				})
 				// 2 音质（主线 d-quality / set-q 三档）
 				a.setRow(c, "音质")
-				a.setRowSeg(c, []string{"64k", "128k", "192k"}, a.quality, func(i int) {
+				a.setRowSeg(c, []string{"低", "中", "高"}, a.quality, func(i int) {
 					a.quality = i
 					a.savePref("mygo_quality", i)
 					a.win.Invalidate()
@@ -1362,9 +1412,9 @@ func (a *app) castPage(c *ui.Context) {
 										statusBadge(c, "离线", clrMuted)
 									}
 								})
-								// 按钮行：「投送当前歌」（粉色渐变，对齐主线 sp-play-btn）+「停止」
+								// 按钮行：「投送」（粉色渐变，对齐主线 sp-play-btn）+「停止」
 								ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-									if gradButton(c, "投送当前歌").Clicked() {
+									if gradButton(c, "投送").Clicked() {
 										go a.playToSpeaker(sp.DID, sp.Name)
 									}
 									if chip(c, "停止").Clicked() {

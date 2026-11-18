@@ -31,21 +31,25 @@ func (a *app) search() {
 	// + 非歌过滤（FilterSongs 剔除翻唱/伴奏/教学/合集/卡点，宁缺毋滥）+ VideoInfo 缓存
 	// （VideoInfoCache TTL 5min：连续取流/搜索同歌不走重复 API）。返回 []MusicItem。
 	var items []music.MusicItem
+	// 搜索结果真分页：page 从 searchPage（0 基）+1，B站/主线 page 参数 1 基
+	page := a.searchPage + 1
 	if a.svc != nil && a.svc.music != nil {
-		r, err := a.svc.music.Search(kw, 1, 30)
+		r, err := a.svc.music.Search(kw, page, fetchSize)
 		a.loading.Store(false)
 		if err != nil {
 			a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
 			return
 		}
+		a.searchTotal = r.Total
 		items = r.List
 	} else {
-		res, err := a.bili.Search(kw, 1, 30)
+		res, err := a.bili.Search(kw, page, fetchSize)
 		a.loading.Store(false)
 		if err != nil {
 			a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
 			return
 		}
+		a.searchTotal = res.NumResults
 		for _, r := range res.Result {
 			items = append(items, music.MusicItem{
 				BVID: r.BVID, Title: r.Title, Artist: r.Author, Cover: r.Pic,

@@ -15,7 +15,7 @@ func TestSonglistGridRenders(t *testing.T) {
 	a := &app{
 		covers:       map[string]ui.ImageSource{},
 		coverLoading: map[string]bool{},
-		activeTab:    "songlists",
+		activeTab:    "fav",
 		songlists: []songlist.Songlist{
 			{ID: 1, Name: "驾车歌单", Count: 2, Cover: ""},
 			{ID: 2, Name: "空歌单", Count: 0, Cover: ""},
@@ -41,7 +41,7 @@ func TestSonglistEmptyRenders(t *testing.T) {
 	a := &app{
 		covers:       map[string]ui.ImageSource{},
 		coverLoading: map[string]bool{},
-		activeTab:    "songlists",
+		activeTab:    "fav",
 		songlists:    nil,
 	}
 	tt := ui.NewTester(a.view, 900, 700)
@@ -55,7 +55,7 @@ func TestSonglistDetailRenders(t *testing.T) {
 	a := &app{
 		covers:       map[string]ui.ImageSource{},
 		coverLoading: map[string]bool{},
-		activeTab:    "songlists",
+		activeTab:    "fav",
 		songlistOpen: 1,
 		songlistCur:  songlist.Songlist{ID: 1, Name: "驾车歌单", Count: 1},
 		songlistItems: []songlist.Item{

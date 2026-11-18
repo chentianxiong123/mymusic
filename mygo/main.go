@@ -67,6 +67,11 @@ type app struct {
 	loading atomic.Bool
 	status  string
 
+	// 分页（各列表页当前页，每页 20 条；搜索结果真分页用 searchTotal/searchPages）
+	pg          map[string]int // 列表页当前页：queue/recent/fav/detail（本地切片分页）
+	searchPage  int            // 搜索结果当前页（B站 page 参数真分页）
+	searchTotal int            // 搜索结果总条数
+
 	// 播放（主线程访问；播放器由 mygoOut 持有，audio.Player 自身安全）
 	current    *track
 	playing    bool
@@ -192,8 +197,6 @@ func (a *app) view(c *ui.Context) {
 				a.queuePage(c)
 			case "fav":
 				a.favPage(c)
-			case "songlists":
-				a.songlistPage(c)
 			case "cast":
 				a.castPage(c)
 			case "settings":
@@ -201,10 +204,9 @@ func (a *app) view(c *ui.Context) {
 			case "recent":
 				a.recentPage(c)
 			default:
-				// 搜索页内容整体左右留白（对齐主线内容区 padding 24；搜索栏不撑满窗口）
-				ui.Column(c).Grow(1).Fill().Padding(12*uiScale, a.resp(24, 12), 0, a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
+				// 搜索页：搜索框 + 热词 + 结果（未搜索时显示风格分类）
+				ui.Column(c).Grow(1).Fill().Padding(4*uiScale, a.resp(24, 12), 0, a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
 					if len(a.results) > 0 {
-						// 搜索条常驻（对齐主线 content_search.html：搜索条始终保留在顶部）
 						a.searchBar(c)
 						a.searchChips(c)
 						a.resultsHeader(c)
@@ -213,6 +215,11 @@ func (a *app) view(c *ui.Context) {
 								for _, r := range a.results {
 									a.listRow(c, r)
 								}
+								// 搜索结果真分页：翻页重新请求（searchPage 0 基）
+								pager(c, a.searchPage, fetchPageCount(a.searchTotal), func(p int) {
+									a.searchPage = p
+									go a.search()
+								})
 							})
 						})
 					} else if a.searched {
@@ -293,11 +300,8 @@ func (a *app) navBarDesktop(c *ui.Context) {
 		if navTab(c, icSearch, "搜索", a.activeTab == "search", false).Clicked() {
 			a.setTab("search")
 		}
-		if navTab(c, icFav, "收藏", a.activeTab == "fav", false).Clicked() {
+		if navTab(c, icFav, "喜欢", a.activeTab == "fav", false).Clicked() {
 			a.setTab("fav")
-		}
-		if navTab(c, icList, "歌单", a.activeTab == "songlists", false).Clicked() {
-			a.setTab("songlists")
 		}
 		if navTab(c, icCast, "投屏", a.activeTab == "cast", false).Clicked() {
 			a.setTab("cast")
@@ -346,8 +350,7 @@ func (a *app) navPanel(c *ui.Context) {
 				}{
 					{"queue", "队列", icList},
 					{"search", "搜索", icSearch},
-					{"fav", "收藏夹", icFav},
-					{"songlists", "歌单", icList},
+					{"fav", "喜欢", icFav},
 					{"cast", "投屏", icCast},
 					{"settings", "设置", icSet},
 				}
@@ -441,6 +444,7 @@ func (a *app) searchBar(c *ui.Context) {
 			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
 		// 搜索按钮：渐变胶囊（跟搜索框配套的主操作）
 		if searchBtn(c, "搜索").Clicked() {
+			a.searchPage = 0 // 新搜索回第 1 页
 			go a.search()
 		}
 	})
@@ -454,6 +458,7 @@ func (a *app) searchChips(c *ui.Context) {
 				h := h
 				if chip(c, h).Clicked() {
 					a.query = h
+					a.searchPage = 0 // 新搜索回第 1 页
 					go a.search()
 				}
 			}
@@ -471,11 +476,45 @@ func (a *app) searchChips(c *ui.Context) {
 }
 
 func (a *app) searchEmpty(c *ui.Context) {
-	ui.Column(c).Fill().Center().Gap(16 * uiScale).PaddingX(16 * uiScale).Children(func() {
-		a.searchBar(c)
-		a.searchChips(c)
-		ui.Text(c, "输入关键词开始搜索").TextColor(clrMuted).FontSize(15 * uiScale)
+	// 整页滚动条（对齐 recent 页模式）：整页内容包一个 Scroll，不做组件内部滚动条
+	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
+			a.searchBar(c)
+			a.searchChips(c)
+			// 主流风格分类（未搜索时展示）：卡片网格，点击 → 复用现有搜索流程
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "按风格找歌").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
+			})
+			// 风格网格（不挤一行：桌面 4 列 → 2 行，紧凑 3 列，手机 2 列）
+			cols := a.styleGridCols()
+			tracks := make([]ui.Track, cols)
+			for i := range tracks {
+				tracks[i] = ui.Fr(1)
+			}
+			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
+				for _, g := range styleGenres {
+					g := g
+					a.styleCard(c, g, a.recentCardSize(), func() {
+						a.query = g.Name
+						a.searchPage = 0 // 新搜索回第 1 页
+						go a.search()
+					})
+				}
+			})
+		})
 	})
+}
+
+// styleGridCols 风格网格列数（不挤一行：桌面 4 列，紧凑 3 列，手机 2 列）。
+func (a *app) styleGridCols() int {
+	switch a.tier() {
+	case 0:
+		return 2
+	case 1:
+		return 3
+	default:
+		return 4
+	}
 }
 
 // chip 小圆角标签。
@@ -497,6 +536,13 @@ func chip(c *ui.Context, label string) ui.Element {
 // resultsHeader 结果标题行：数量 + 状态 + 播放全部。
 func (a *app) resultsHeader(c *ui.Context) {
 	ui.Row(c).AlignSelf(ui.Stretch).PaddingX(a.resp(24, 12)).PaddingY(a.resp(14, 10)).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+		// 返回：回初始搜索页（清空查询 + 结果，后续做推荐系统首页）
+		if iconButton2(c, icBack, a.resp(30, 28), clrText).Clicked() {
+			a.query = ""
+			a.results = nil
+			a.searched = false
+			a.win.Invalidate()
+		}
 		ui.Text(c, "搜索结果").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
 		ui.Text(c, fmt.Sprintf("%d 首", len(a.results))).FontSize(13 * uiScale).TextColor(clrMuted)
 		ui.Spacer(c).Grow(1)
@@ -620,6 +666,7 @@ func main() {
 		covers:       map[string]ui.ImageSource{},
 		coverLoading: map[string]bool{},
 		favSet:       map[string]bool{},
+		pg:           map[string]int{},
 		activeTab:    "search",
 		volume:       0.8,
 	}

@@ -66,6 +66,51 @@ func grad() ui.LinearGradient {
 	return ui.LinearGradient{From: clrPurple, To: clrPink, Angle: 90}
 }
 
+// genre 风格分类（文字封面：纯色渐变底 + 风格名大字，精简不加载图）。
+type genre struct {
+	Name string
+	Sub  string
+	C1   ui.Color // 封面渐变起色
+	C2   ui.Color // 封面渐变止色
+}
+
+// styleGenres 主流风格（首页未搜索时展示）。每个风格配一个品牌渐变色。
+var styleGenres = []genre{
+	{"华语", "华语流行", ui.RGB(0xec, 0x48, 0x99), ui.RGB(0x8b, 0x5c, 0xf6)},
+	{"经典", "经典老歌", ui.RGB(0x8b, 0x5c, 0xf6), ui.RGB(0x3b, 0x82, 0xf6)},
+	{"古风", "古风国韵", ui.RGB(0x16, 0xa3, 0x4a), ui.RGB(0x0e, 0xc5, 0x8a)},
+	{"粤语", "粤语金曲", ui.RGB(0xf5, 0x9e, 0x0b), ui.RGB(0xef, 0x44, 0x4e)},
+	{"英语", "英文经典", ui.RGB(0x3b, 0x82, 0xf6), ui.RGB(0x06, 0xb6, 0xd4)},
+	{"纯音乐", "轻音乐纯音", ui.RGB(0x8b, 0x5c, 0xf6), ui.RGB(0xec, 0x48, 0x99)},
+}
+
+// styleCard 风格卡片：文字封面（渐变底 + 风格名大字）+ 标题/副标题。
+// 布局对齐 gridCard（封面 + 标题 + 副标题），但封面用文字不加载图（精简）。
+func (a *app) styleCard(c *ui.Context, g genre, size float32, onTap func()) {
+	ui.Column(c).Width(size).Gap(6 * uiScale).Children(func() {
+		box := ui.Box(c).Width(size).Height(size).Radius(12 * uiScale)
+		box.Draw(func(p *ui.Painter, b ui.Rect) {
+			p.FillGradient(b, ui.LinearGradient{From: g.C1, To: g.C2, Angle: 135}, 12)
+		})
+		box.Children(func() {
+			// 封面居中：风格名大字（白色粗体）
+			ui.Box(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+				ui.Text(c, g.Name).FontSize(size * 0.22).Bold().TextColor(ui.RGB(0xff, 0xff, 0xff))
+			})
+		})
+		if box.Clicked() && onTap != nil {
+			onTap()
+		}
+		// hover 标题变粉（同 gridCard 效果）
+		titleCol := clrText
+		if box.Hovered() {
+			titleCol = clrPink
+		}
+		ui.Text(c, g.Name).FontSize(12 * uiScale).TextColor(titleCol).MaxLines(1)
+		ui.Text(c, g.Sub).FontSize(10 * uiScale).TextColor(clrMuted).MaxLines(1)
+	})
+}
+
 // gradButton 紫渐变圆角按钮。
 func gradButton(c *ui.Context, label string) ui.Element {
 	box := ui.Box(c).Height(42 * uiScale).Radius(8 * uiScale).PaddingX(24 * uiScale).PaddingY(9 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
@@ -281,23 +326,18 @@ func iconButton(c *ui.Context, glyph string) ui.Element {
 
 // qualityLabel 当前音质标签（对齐主线 d-quality 三档）。
 func (a *app) qualityLabel() string {
-	return []string{"64k", "128k", "192k"}[a.quality]
+	// 前端显示低/中/高（对齐主线 d-quality 三档：64k/128k/192k）
+	return []string{"低", "中", "高"}[a.quality]
 }
 
 // qualityChip 音质小按钮（对齐主线 d-quality：点击循环切换）。
+// 无底色（跟背景融合），只靠字体颜色区分激活态（激活白字，未激活灰字）。
 func qualityChip(c *ui.Context, label string, on bool) ui.Element {
 	box := ui.Box(c).Height(26 * uiScale).Radius(8 * uiScale).PaddingX(8 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
-	box.Draw(func(p *ui.Painter, r ui.Rect) {
-		bg := ui.RGBA(0, 0, 0, 0)
-		if on || box.Hovered() {
-			bg = clrField
-		}
-		p.Fill(r, bg, 8)
-	})
 	box.Children(func() {
 		col := clrMuted
 		if on {
-			col = clrPink
+			col = clrText // 激活：白字，无底色
 		}
 		ui.Text(c, label).FontSize(12 * uiScale).TextColor(col)
 	})
@@ -474,4 +514,63 @@ func playIconButton(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Ele
 		p.Icon(s, r, col)
 	})
 	return box
+}
+
+// pageSize 每页条数（本地列表与搜索结果展示分页）。
+const pageSize = 20
+
+// fetchSize 每次搜索请求条数（>pageSize：先请求 40，FilterSongs 过滤后仍够 20/页展示）。
+const fetchSize = 40
+
+// pageCount 总页数（items 条数 / pageSize，向上取整，至少 1 页）。
+func pageCount(total int) int {
+	if total <= 0 {
+		return 1
+	}
+	return (total + pageSize - 1) / pageSize
+}
+
+// fetchPageCount 搜索结果总页数（按 fetchSize 每页请求算，过滤后每页仍够展示）。
+func fetchPageCount(total int) int {
+	if total <= 0 {
+		return 1
+	}
+	return (total + fetchSize - 1) / fetchSize
+}
+
+// pageSlice 返回 items 的第 page 页（0 基）。
+func pageSlice[T any](items []T, page int) []T {
+	start := page * pageSize
+	if start >= len(items) {
+		return nil
+	}
+	end := start + pageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[start:end]
+}
+
+// pager 分页条（最简：左右箭头图标 + 极小数字 page/total，无文字说明）。
+func pager(c *ui.Context, page, totalPages int, onGo func(int)) {
+	if totalPages <= 1 {
+		return
+	}
+	ui.Row(c).AlignSelf(ui.Center).AlignItems(ui.Center).Gap(10 * uiScale).PaddingY(6 * uiScale).Children(func() {
+		if page > 0 {
+			if iconButton2(c, icChevL, 28, clrText).Clicked() {
+				onGo(page - 1)
+			}
+		} else {
+			iconButton2(c, icChevL, 28, clrMuted)
+		}
+		ui.Text(c, fmt.Sprintf("%d/%d", page+1, totalPages)).FontSize(11 * uiScale).TextColor(clrMuted)
+		if page < totalPages-1 {
+			if iconButton2(c, icChevR, 28, clrText).Clicked() {
+				onGo(page + 1)
+			}
+		} else {
+			iconButton2(c, icChevR, 28, clrMuted)
+		}
+	})
 }

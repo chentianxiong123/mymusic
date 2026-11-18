@@ -52,61 +52,6 @@ func songlistToSearchItems(list []songlist.Item) []bilibili.SearchItem {
 	return out
 }
 
-// songlistPage 歌单页入口：a.songlistOpen != 0 → 详情；否则列表。
-func (a *app) songlistPage(c *ui.Context) {
-	if a.songlistOpen != 0 {
-		a.songlistDetail(c)
-		return
-	}
-	a.songlistGridPage(c)
-}
-
-// songlistGridPage 歌单列表页：标题 + 新建 + 网格卡片。
-func (a *app) songlistGridPage(c *ui.Context) {
-	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
-		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
-			// 标题行
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-				ui.Text(c, "歌单").FontSize(20 * uiScale).Bold().TextColor(clrText)
-				ui.Text(c, fmt.Sprintf("%d 份", len(a.songlists))).FontSize(13 * uiScale).TextColor(clrMuted)
-				ui.Spacer(c).Grow(1)
-				if gradButton(c, "新建歌单").Clicked() {
-					a.songlistNewOpen = true
-					a.songlistNameInput = ""
-					a.win.Invalidate()
-				}
-			})
-			// 新建输入行（展开态）
-			if a.songlistNewOpen {
-				a.songlistNewRow(c)
-			}
-			// 空态（且不在新建中）
-			if len(a.songlists) == 0 && !a.songlistNewOpen {
-				ui.Column(c).Fill().Center().Gap(12 * uiScale).Children(func() {
-					icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-					ui.Text(c, "还没有歌单").FontSize(17 * uiScale).Bold().TextColor(clrText)
-					ui.Text(c, "把喜欢的歌归类收藏").FontSize(13 * uiScale).TextColor(clrMuted)
-				})
-				return
-			}
-			if len(a.songlists) == 0 {
-				return
-			}
-			// 网格卡片（列数按 tier 对应主线 grid-cols-2 sm:3 md:4 lg:5）
-			cols := a.songlistGridCols()
-			tracks := make([]ui.Track, cols)
-			for i := range tracks {
-				tracks[i] = ui.Fr(1)
-			}
-			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
-				for _, g := range a.songlists {
-					a.songlistCard(c, g)
-				}
-			})
-		})
-	})
-}
-
 // songlistNewRow 新建歌单输入行（TextInput + 确定/取消）
 func (a *app) songlistNewRow(c *ui.Context) {
 	box := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(10 * uiScale).Background(clrCard)
@@ -226,11 +171,16 @@ func (a *app) songlistDetail(c *ui.Context) {
 				})
 				return
 			}
-			// 歌曲行
+			// 歌曲行（+分页）
 			ui.Column(c).Gap(6 * uiScale).Children(func() {
-				for _, it := range a.songlistItems {
+				detailPage := a.pg["detail"]
+				for _, it := range pageSlice(a.songlistItems, detailPage) {
 					a.songlistRow(c, it)
 				}
+				pager(c, detailPage, pageCount(len(a.songlistItems)), func(p int) {
+					a.pg["detail"] = p
+					a.win.Invalidate()
+				})
 			})
 		})
 	})
