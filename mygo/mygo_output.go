@@ -5,6 +5,7 @@ package main
 import (
 	"io"
 	"log"
+	"mymusic-mygo/source"
 	"net/http"
 	"os"
 	"strings"
@@ -31,6 +32,7 @@ import (
 type MyGoOutput struct {
 	bili    *bilibili.Client
 	music   *music.MusicService // 主线音乐域（GetAudioStream：view 缓存 + 取流，取流自创的替代）
+	src     source.MusicSource  // 音源接口（阶段 2 解耦：取流走接口，不认具体源）
 	cache   *cache.CacheService // 主线缓存域包（可空：命中→秒开）
 	qualFn  func() int          // 当前音质档（0=64k 1=128k 2=192k，默认 192k）
 	qualMu  sync.Mutex
@@ -54,6 +56,11 @@ func (o *MyGoOutput) setMusic(m *music.MusicService) {
 	o.music = m
 }
 
+// setSource 注入音源接口（阶段 2 解耦：取流走 MusicSource）。
+func (o *MyGoOutput) setSource(s source.MusicSource) {
+	o.src = s
+}
+
 // Play 异步：立即返回（UI 不卡），后台取流→下载→解码→出声。
 // gen 递增使旧下载任务作废（快速切歌时 A 下载中切 B，A 完成后自动丢弃）。
 func (o *MyGoOutput) Play(bvid string, opts playback.PlayOpts) error {
@@ -63,6 +70,14 @@ func (o *MyGoOutput) Play(bvid string, opts playback.PlayOpts) error {
 	o.mu.Unlock()
 	go o.loadAndPlay(bvid, opts, gen)
 	return nil
+}
+
+// qualFnQuality 当前音质档（0/1/2，MusicSource.GetStream 语义）。
+func (o *MyGoOutput) qualFnQuality() int {
+	if o.qualFn == nil {
+		return 2
+	}
+	return o.qualFn()
 }
 
 func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
@@ -78,11 +93,19 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 			qn = bilibili.Audio192K
 		}
 	}
-	// 取流复用主线 music.GetAudioStream（VideoInfo 5min 缓存 + GetBestAudioURL；
-	// 替代自创 GetVideoInfo+GetBestAudioURL 每次打 view API）
+	// 取流走音源接口（阶段 2 解耦）：MusicSource.GetStream 内部映射音质档 → B站 qn。
+	// 未来换网易云/本地源 = 换 src 实现，这里零改动。回退：无 src 用主线 music/bili。
 	var stream *bilibili.AudioStreamResult
 	var err error
-	if o.music != nil {
+	if o.src != nil {
+		st, serr := o.src.GetStream(bvid, o.qualFnQuality())
+		if serr != nil {
+			log.Printf("[mygo-output] 取流失败 %s: %v", bvid, serr)
+			return
+		}
+		// 接口返回 URL（B站 DASH baseUrl）；包装成主线 AudioStreamResult 供下载复用
+		stream = &bilibili.AudioStreamResult{URL: st.URL, Quality: qn}
+	} else if o.music != nil {
 		stream, err = o.music.GetAudioStream(bvid, qn)
 	} else {
 		info, ierr := o.bili.GetVideoInfo(bvid)

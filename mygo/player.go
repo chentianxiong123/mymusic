@@ -10,6 +10,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"mymusic-mygo/source"
 	"net/http"
 	"time"
 
@@ -27,36 +28,31 @@ func (a *app) search() {
 	a.loading.Store(true)
 	var kw string
 	mygo.RunOnMain(func() { kw = a.query; a.status = "搜索中…" })
-	// 复用主线 music.Search（同 server 端 /music/search）：时长解析 + 时长升序/rank 排序
-	// + 非歌过滤（FilterSongs 剔除翻唱/伴奏/教学/合集/卡点，宁缺毋滥）+ VideoInfo 缓存
-	// （VideoInfoCache TTL 5min：连续取流/搜索同歌不走重复 API）。返回 []MusicItem。
-	var items []music.MusicItem
+	// 音源解耦（阶段 2）：走 MusicSource 接口，不认具体源。B站源内部复用主线
+	// music.Search（FilterSongs 过滤 + rank 排序 + 缓存）。未来网易云/本地换源即换实现。
+	var songs []source.Song
 	// 搜索结果真分页：page 从 searchPage（0 基）+1，B站/主线 page 参数 1 基
 	page := a.searchPage + 1
-	if a.svc != nil && a.svc.music != nil {
-		r, err := a.svc.music.Search(kw, page, fetchSize)
-		a.loading.Store(false)
-		if err != nil {
-			a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
-			return
-		}
-		a.searchTotal = r.Total
-		items = r.List
+	if a.src != nil {
+		songs, a.searchTotal, _ = a.src.Search(kw, page, fetchSize)
 	} else {
+		// 回退：无音源时用裸 bilibili（理论不达，保底）
 		res, err := a.bili.Search(kw, page, fetchSize)
-		a.loading.Store(false)
 		if err != nil {
+			a.loading.Store(false)
 			a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
 			return
 		}
 		a.searchTotal = res.NumResults
 		for _, r := range res.Result {
-			items = append(items, music.MusicItem{
-				BVID: r.BVID, Title: r.Title, Artist: r.Author, Cover: r.Pic,
-				Duration: r.Duration, DurationSec: music.ParseDurationSec(r.Duration),
-				PlayCount: r.Play, Typename: r.Typename,
-			})
+			songs = append(songs, source.Song{ID: r.BVID, Title: r.Title, Artist: r.Author, Cover: r.Pic, Duration: r.Duration})
 		}
+	}
+	a.loading.Store(false)
+	// 转换：source.Song → bilibili.SearchItem（UI 渲染沿用现有结构）
+	var items []music.MusicItem
+	for _, s := range songs {
+		items = append(items, music.MusicItem{BVID: s.ID, Title: s.Title, Artist: s.Artist, Cover: s.Cover, Duration: s.Duration, DurationSec: s.DurationSec, Typename: s.Typename})
 	}
 	// 搜索历史（对齐主线 search-history.js MAX=8：去重置顶，最多 8 条）
 	mygo.RunOnMain(func() {
