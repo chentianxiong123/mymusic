@@ -50,6 +50,7 @@ type app struct {
 	src          source.MusicSource     // 当前音源（阶段 2 解耦：UI 只认接口，不认具体源）
 	castOn       string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
 	castDevices  []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
+	btDevices    []target.BtDevice      // 蓝牙设备列表（bluetoothctl 扫描）
 	castStatus   map[string]string      // udn → 设备状态（点「查状态」后填，默认「在线」，对齐主线 cast-status span）
 	speakers     []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
 	recent       []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）

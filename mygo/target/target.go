@@ -6,6 +6,7 @@ package target
 type PlayOpts struct {
 	Title  string
 	NextID string // 自动连播下一首 id（音箱播完自动切）
+	URL    string // 投屏完整地址（cast 用；空=songID 拼 B站页面 URL）
 }
 
 // Target 输出目标接口：投送当前播放到某个设备。

@@ -25,6 +25,9 @@ func (a *app) castPage(c *ui.Context) {
 				if chip(c, "发现设备").Clicked() {
 					go a.discoverCast()
 				}
+				if chip(c, "发现蓝牙").Clicked() {
+					go a.discoverBluetooth()
+				}
 			})
 			// 当前投屏状态（对齐主线 d-stop：投屏中可停止）
 			if a.castOn != "" {
@@ -206,6 +209,31 @@ func (a *app) castPage(c *ui.Context) {
 					})
 				}
 			})
+			// 蓝牙设备（bluetoothctl 扫描；投送 = 音频路由到蓝牙 sink）
+			ui.Text(c, "蓝牙设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
+			if len(a.btDevices) == 0 {
+				ui.Text(c, "点「发现蓝牙」搜索附近蓝牙设备").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
+			}
+			ui.Column(c).Gap(8 * uiScale).Children(func() {
+				for _, d := range a.btDevices {
+					d := d
+					card := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrCard)
+					if card.Hovered() {
+						card.Background(clrCardHov)
+					}
+					card.Children(func() {
+						ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
+							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+								icon(c, icBluetooth, 18, clrBlue)
+								ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+									ui.Text(c, d.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+									ui.Text(c, d.MAC).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
+								})
+							})
+						})
+					})
+				}
+			})
 		})
 	})
 }
@@ -331,6 +359,19 @@ func (a *app) refreshSpeakers() {
 	})
 }
 
+// discoverBluetooth 扫描蓝牙设备（bluetoothctl devices），注册 target 插件。
+func (a *app) discoverBluetooth() {
+	list := target.ScanBluetooth()
+	a.win.Update(func() {
+		a.btDevices = list
+		for _, d := range list {
+			plugin.RegisterTarget(target.NewBluetooth(d.MAC, d.Name))
+		}
+		a.status = fmt.Sprintf("发现 %d 个蓝牙设备", len(list))
+		a.win.Invalidate()
+	})
+}
+
 // discoverCast 发现 DLNA 设备（cast 域包 Discover，后台执行）。
 func (a *app) discoverCast() {
 	if a.svc == nil || a.svc.cast == nil {
@@ -340,6 +381,10 @@ func (a *app) discoverCast() {
 	list := a.svc.cast.DeviceList()
 	a.win.Update(func() {
 		a.castDevices = list
+		// 一切皆插件：每台 DLNA 设备注册为 target 插件（投屏目标）
+		for _, d := range list {
+			plugin.RegisterTarget(target.NewCast(a.svc.cast, d.UDN, d.Name))
+		}
 		// 小米音箱设备也拉一次（登录后才有）
 		if a.svc.speaker != nil {
 			a.speakers = a.svc.speaker.ListDevices()
@@ -372,23 +417,27 @@ func (a *app) queryCastStatus(udn string) {
 }
 
 func (a *app) castTo(udn, name string) {
-	if a.svc == nil || a.svc.cast == nil || a.current == nil {
+	if a.current == nil {
 		return
 	}
-	url := "https://www.bilibili.com/video/" + a.current.bvid
-	res, err := a.svc.cast.Cast(url, udn, a.current.title)
-	if err != nil {
-		a.status = "投屏失败：" + err.Error()
+	// 一切皆插件：投送走 target 插件表（找 cast + udn 匹配）
+	var t target.Target
+	for _, item := range plugin.Targets() {
+		if item.Name() == "cast" && item.DeviceID() == udn {
+			t = item
+			break
+		}
+	}
+	if t == nil {
+		a.status = "投屏设备未注册"
 		a.win.Invalidate()
 		return
 	}
-	if code, _ := res["code"].(int); code == 0 {
+	if err := t.Play(a.current.bvid, target.PlayOpts{Title: a.current.title}); err != nil {
+		a.status = "投屏失败：" + err.Error()
+	} else {
 		a.castOn = name
 		a.status = "已投屏到 " + name
-	} else {
-		if msg, _ := res["message"].(string); msg != "" {
-			a.status = "投屏失败：" + msg
-		}
 	}
 	a.win.Invalidate()
 }

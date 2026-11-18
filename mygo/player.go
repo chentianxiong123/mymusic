@@ -10,6 +10,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"mymusic-mygo/plugin"
 	"mymusic-mygo/source"
 	"net/http"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"homecast/service/music"
 	"homecast/service/playback"
 
 	"homecast/bilibili"
@@ -28,32 +28,30 @@ func (a *app) search() {
 	a.loading.Store(true)
 	var kw string
 	mygo.RunOnMain(func() { kw = a.query; a.status = "搜索中…" })
-	// 音源解耦（阶段 2）：走 MusicSource 接口，不认具体源。B站源内部复用主线
-	// music.Search（FilterSongs 过滤 + rank 排序 + 缓存）。未来网易云/本地换源即换实现。
-	var songs []source.Song
-	// 搜索结果真分页：page 从 searchPage（0 基）+1，B站/主线 page 参数 1 基
+	// 分开搜索（解耦）：遍历 plugin.Sources() 每源独立搜，各自请求/分页，不合并。
+	// 加源（网易云/插件）= 注册后自动多一个独立搜索区，UI 零改动。
 	page := a.searchPage + 1
-	if a.src != nil {
-		songs, a.searchTotal, _ = a.src.Search(kw, page, fetchSize)
-	} else {
-		// 回退：无音源时用裸 bilibili（理论不达，保底）
-		res, err := a.bili.Search(kw, page, fetchSize)
-		if err != nil {
-			a.loading.Store(false)
-			a.win.Update(func() { a.status = "搜索失败: " + err.Error() })
-			return
-		}
-		a.searchTotal = res.NumResults
-		for _, r := range res.Result {
-			songs = append(songs, source.Song{ID: r.BVID, Title: r.Title, Artist: r.Author, Cover: r.Pic, Duration: r.Duration})
-		}
+	type srcResult struct {
+		name  string
+		songs []source.Song
+		total int
+	}
+	ch := make(chan srcResult, len(plugin.Sources()))
+	for name, s := range plugin.Sources() {
+		go func(srcName string, src source.MusicSource) {
+			songs, total, err := src.Search(kw, page, fetchSize)
+			if err != nil {
+				ch <- srcResult{name: srcName}
+				return
+			}
+			ch <- srcResult{name: srcName, songs: songs, total: total}
+		}(name, s)
+	}
+	var perSrc []srcResult
+	for range plugin.Sources() {
+		perSrc = append(perSrc, <-ch)
 	}
 	a.loading.Store(false)
-	// 转换：source.Song → bilibili.SearchItem（UI 渲染沿用现有结构）
-	var items []music.MusicItem
-	for _, s := range songs {
-		items = append(items, music.MusicItem{BVID: s.ID, Title: s.Title, Artist: s.Artist, Cover: s.Cover, Duration: s.Duration, DurationSec: s.DurationSec, Typename: s.Typename})
-	}
 	// 搜索历史（对齐主线 search-history.js MAX=8：去重置顶，最多 8 条）
 	mygo.RunOnMain(func() {
 		hist := make([]string, 0, len(a.searchHistory)+1)
@@ -70,14 +68,19 @@ func (a *app) search() {
 		a.saveHistory()
 	})
 	a.win.Update(func() {
-		// MusicItem → SearchItem（UI 渲染用 SearchItem 字段）
+		// 每源独立结果 → 按源分组存 a.results（Typename 标记来源，UI 分区展示）
 		a.results = a.results[:0]
-		for _, it := range items {
-			a.results = append(a.results, bilibili.SearchItem{
-				BVID: it.BVID, Title: it.Title, Author: it.Artist, Pic: it.Cover,
-				Duration: it.Duration, Typename: it.Typename, Play: it.PlayCount,
-			})
+		var total int
+		for _, r := range perSrc {
+			total += r.total
+			for _, s := range r.songs {
+				a.results = append(a.results, bilibili.SearchItem{
+					BVID: s.ID, Title: s.Title, Author: s.Artist, Pic: s.Cover,
+					Duration: s.Duration, Typename: s.Typename, Play: 0,
+				})
+			}
 		}
+		a.searchTotal = total
 		a.searched = true
 		// 换页清理：保留当前播放曲目的封面，其余驱逐（防止跨页堆积）
 		keep := ""
@@ -94,7 +97,7 @@ func (a *app) search() {
 		if keep != "" {
 			a.coverOrder = append(a.coverOrder, keep)
 		}
-		a.status = fmt.Sprintf("找到 %d 条", len(items))
+		a.status = fmt.Sprintf("找到 %d 条", len(a.results))
 	})
 }
 
@@ -102,6 +105,8 @@ func (a *app) search() {
 // 状态/队列/进度全由 pbLoop 从状态流渲染，这里只发命令。
 func (a *app) play(item bilibili.SearchItem) {
 	a.recordRecent(item)
+	// 分开搜索：记录歌来源（Typename），MyGoOutput 取流按来源路由到对应源
+	a.mygoOut.setSrcName(item.Typename)
 	a.win.Update(func() {
 		a.loading.Store(false)
 		a.status = "播放: " + bilibili.CleanHTML(item.Title)

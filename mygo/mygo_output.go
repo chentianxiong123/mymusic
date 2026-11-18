@@ -5,6 +5,7 @@ package main
 import (
 	"io"
 	"log"
+	"mymusic-mygo/plugin"
 	"mymusic-mygo/source"
 	"net/http"
 	"os"
@@ -33,6 +34,7 @@ type MyGoOutput struct {
 	bili    *bilibili.Client
 	music   *music.MusicService // 主线音乐域（GetAudioStream：view 缓存 + 取流，取流自创的替代）
 	src     source.MusicSource  // 音源接口（阶段 2 解耦：取流走接口，不认具体源）
+	curSrc  string              // 当前播放歌的来源名（分开搜索：歌可能来自网易云/插件源）
 	cache   *cache.CacheService // 主线缓存域包（可空：命中→秒开）
 	qualFn  func() int          // 当前音质档（0=64k 1=128k 2=192k，默认 192k）
 	qualMu  sync.Mutex
@@ -59,6 +61,25 @@ func (o *MyGoOutput) setMusic(m *music.MusicService) {
 // setSource 注入音源接口（阶段 2 解耦：取流走 MusicSource）。
 func (o *MyGoOutput) setSource(s source.MusicSource) {
 	o.src = s
+}
+
+// setSrcName 设置当前播放歌的来源名（分开搜索：歌可能来自网易云/插件源）。
+// play() 时 app 传入 item.Typename；空=当前默认源。
+func (o *MyGoOutput) setSrcName(name string) {
+	o.mu.Lock()
+	o.curSrc = name
+	o.mu.Unlock()
+}
+
+// sourceByName 按歌来源名路由到对应音源（分开搜索：每源独立，取流用对应源）。
+// name=歌的 Typename（"bilibili"/"netease"/...）；空或未知回退当前 src。
+func (o *MyGoOutput) sourceByName(name string) source.MusicSource {
+	if name != "" {
+		if s := plugin.Sources()[name]; s != nil {
+			return s
+		}
+	}
+	return o.src
 }
 
 // Play 异步：立即返回（UI 不卡），后台取流→下载→解码→出声。
@@ -98,7 +119,10 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 	var stream *bilibili.AudioStreamResult
 	var err error
 	if o.src != nil {
-		st, serr := o.src.GetStream(bvid, o.qualFnQuality())
+		o.mu.Lock()
+		srcName := o.curSrc
+		o.mu.Unlock()
+		st, serr := o.sourceByName(srcName).GetStream(bvid, o.qualFnQuality())
 		if serr != nil {
 			log.Printf("[mygo-output] 取流失败 %s: %v", bvid, serr)
 			return
