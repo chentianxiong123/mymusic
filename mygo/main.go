@@ -4,7 +4,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -23,7 +22,9 @@ import (
 	spk "homecast/service/speaker"
 
 	"homecast/bilibili"
+
 	"homecast/xiaoai"
+	"mymusic-mygo/source"
 )
 
 // track 当前曲目。
@@ -43,6 +44,7 @@ type app struct {
 	mygoOut      *MyGoOutput
 	db           *sql.DB
 	svc          *services              // 主线域包句柄（fav/lyric/cast/speaker）
+	src          source.MusicSource     // 当前音源（阶段 2 解耦：UI 只认接口，不认具体源）
 	castOn       string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
 	castDevices  []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
 	castStatus   map[string]string      // udn → 设备状态（点「查状态」后填，默认「在线」，对齐主线 cast-status span）
@@ -273,251 +275,6 @@ func (a *app) view(c *ui.Context) {
 }
 
 // navBar 顶部导航——结构随档位切换（对齐主线：桌面完整导航 vs md:hidden 汉堡+侧滑面板）。
-func (a *app) navBar(c *ui.Context) {
-	if a.narrow() {
-		a.navBarMobile(c)
-	} else {
-		a.navBarDesktop(c)
-	}
-	ui.Box(c).AlignSelf(ui.Stretch).Height(1 * uiScale).Draw(func(p *ui.Painter, r ui.Rect) {
-		p.Fill(r, clrCard, 0)
-	})
-	if a.navOpen {
-		a.navPanel(c)
-	}
-}
-
-// navBarDesktop 桌面导航（主线 hidden md:flex 同款）：logo + 5 tab 整行。
-func (a *app) navBarDesktop(c *ui.Context) {
-	px := a.resp(20, 12)
-	navGap := a.resp(6, 3)
-	ui.Row(c).AlignSelf(ui.Stretch).Height(64 * uiScale).PaddingX(px).Gap(navGap).AlignItems(ui.Center).Children(func() {
-		icon(c, icMusic, a.resp(24, 20), clrText)
-		ui.Spacer(c).Width(a.resp(10, 4))
-		if navTab(c, icList, "队列", a.activeTab == "queue", false).Clicked() {
-			a.setTab("queue")
-		}
-		if navTab(c, icSearch, "搜索", a.activeTab == "search", false).Clicked() {
-			a.setTab("search")
-		}
-		if navTab(c, icFav, "喜欢", a.activeTab == "fav", false).Clicked() {
-			a.setTab("fav")
-		}
-		if navTab(c, icCast, "投屏", a.activeTab == "cast", false).Clicked() {
-			a.setTab("cast")
-		}
-		if navTab(c, icSet, "设置", a.activeTab == "settings", false).Clicked() {
-			a.setTab("settings")
-		}
-	})
-}
-
-// navBarMobile 移动导航（主线 md:hidden 同款）：logo + 汉堡按钮（右），无多余开关。
-func (a *app) navBarMobile(c *ui.Context) {
-	ui.Row(c).AlignSelf(ui.Stretch).Height(56 * uiScale).PaddingX(12 * uiScale).Gap(10 * uiScale).AlignItems(ui.Center).Children(func() {
-		icon(c, icMusic, 20, clrText)
-		ui.Text(c, "myMusic").FontSize(15 * uiScale).Bold().TextColor(clrText)
-		ui.Spacer(c).Grow(1)
-		if iconButton2(c, icMenu, 34, clrMuted).Clicked() {
-			a.navOpen = !a.navOpen
-			a.win.Invalidate()
-		}
-	})
-}
-
-// navPanel 侧滑导航面板（主线 side-nav-panel 同款）：点背景关闭，选 tab 后收起。
-func (a *app) navPanel(c *ui.Context) {
-	ui.Overlay(c, func() {
-		// 点外部关闭（透明遮罩，对齐 nav.js 的 click-outside）
-		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
-		bg.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.Fill(r, ui.RGBA(0, 0, 0, 0.35), 0)
-		})
-		if bg.Clicked() {
-			a.navOpen = false
-		}
-		// 面板：左上浮层（w-48 风格）
-		panel := ui.Box(c).Absolute().Left(12).Top(64).Width(200 * uiScale).Radius(16 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale).Background(clrCard)
-		panel.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.Shadow(r, 16, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.45))
-		})
-		panel.Children(func() {
-			ui.Column(c).Gap(4 * uiScale).Children(func() {
-				items := []struct {
-					tab   string
-					label string
-					icon  *ui.SVG
-				}{
-					{"queue", "队列", icList},
-					{"search", "搜索", icSearch},
-					{"fav", "喜欢", icFav},
-					{"cast", "投屏", icCast},
-					{"settings", "设置", icSet},
-				}
-				for _, it := range items {
-					it := it
-					a.navPanelRow(c, it.icon, it.label, a.activeTab == it.tab, func() {
-						a.setTab(it.tab)
-						a.navOpen = false
-					})
-				}
-			})
-		})
-	})
-}
-
-// navPanelRow 侧滑面板里的一个导航项。
-func (a *app) navPanelRow(c *ui.Context, s *ui.SVG, label string, active bool, onPick func()) {
-	box := ui.Box(c).Fill().Height(42 * uiScale).Radius(10 * uiScale).PaddingX(12 * uiScale)
-	if active {
-		box.Background(clrField)
-	} else if box.Hovered() {
-		box.Background(clrField)
-	}
-	box.Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
-			col := clrMuted
-			if active {
-				col = clrPink
-			}
-			icon(c, s, 18, col)
-			ui.Text(c, label).FontSize(14 * uiScale).TextColor(col)
-		})
-	})
-	if box.Clicked() {
-		onPick()
-	}
-}
-
-// navTab 导航项：当前高亮为紫渐变胶囊；hover 淡高亮。iconOnly 时只显示图标。
-func navTab(c *ui.Context, s *ui.SVG, label string, active bool, iconOnly bool) ui.Element {
-	box := ui.Box(c).Height(40 * uiScale).Radius(20 * uiScale).PaddingX(16 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
-	if iconOnly {
-		box = ui.Box(c).Size(40, 40).Radius(20 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
-	}
-	if active {
-		box.Draw(func(p *ui.Painter, r ui.Rect) {
-			p.FillGradient(r, grad(), r.H/2)
-		})
-	} else {
-		box.Draw(func(p *ui.Painter, r ui.Rect) {
-			if box.Hovered() {
-				p.Fill(r, ui.RGBA(0xff, 0xff, 255, 0.06), r.H/2)
-			}
-		})
-	}
-	box.Children(func() {
-		col := clrMuted
-		if active {
-			col = ui.RGB(0xff, 0xff, 0xff)
-		} else if box.Hovered() {
-			col = clrText
-		}
-		ui.Row(c).Gap(8 * uiScale).AlignItems(ui.Center).Children(func() {
-			icon(c, s, 18, col)
-			if !iconOnly {
-				ui.Text(c, label).FontSize(15 * uiScale).TextColor(col)
-			}
-		})
-	})
-	return box
-}
-
-// searchEmpty 空状态：居中大搜索框 + 热词标签 + 提示。
-// searchBar 常驻胶囊搜索框（对齐主线 content_search.html：搜索结果页顶部也保留）。
-func (a *app) searchBar(c *ui.Context) {
-	// 响应式（对齐主线 max-w-2xl mx-auto：宽窗限宽 672 居中，窄窗撑满内容区；
-	// 搜索框 flex-grow 弹性 + 按钮固定，窗口拉窄时搜索框缩小、按钮不溢出）
-	// 胶囊搜索框（保留圆润形态，搜索是通用控件）；内边距 4 → 搜索按钮贴右边缘
-	sb := ui.Row(c).Height(52*uiScale).Radius(26*uiScale).Background(clrField).
-		Padding(4*uiScale, 4*uiScale, 4*uiScale, 20*uiScale).Gap(12 * uiScale).AlignItems(ui.Center).AlignSelf(ui.Center)
-	if a.narrow() {
-		sb.WidthPercent(100) // 窄窗撑满内容区（对齐主线窄屏）
-	} else {
-		sb.Width(672) // 宽窗限宽 672（对齐主线 max-w-2xl）居中
-	}
-	sb.Children(func() {
-		icon(c, icSearch, 20, clrMuted)
-		// 输入框：透明背景 + 去边框（对齐主线 outline-none bg-transparent；
-		// 之前 TextInput 默认边框 → 图1 输入框有浅色描边，主线无）
-		ui.TextInput(c, &a.query).Grow(1).Background(ui.RGBA(0, 0, 0, 0)).Border(0, ui.Transparent).
-			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
-		// 搜索按钮：渐变胶囊（跟搜索框配套的主操作）
-		if searchBtn(c, "搜索").Clicked() {
-			a.searchPage = 0 // 新搜索回第 1 页
-			go a.search()
-		}
-	})
-}
-
-// searchChips 搜索历史 / 默认热词（对齐主线 search-history）。
-func (a *app) searchChips(c *ui.Context) {
-	if len(a.searchHistory) > 0 {
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Wrap().Justify(ui.Center).Children(func() {
-			for _, h := range a.searchHistory {
-				h := h
-				if chip(c, h).Clicked() {
-					a.query = h
-					a.searchPage = 0 // 新搜索回第 1 页
-					go a.search()
-				}
-			}
-			ui.Column(c).Center().Children(func() {
-				if chip(c, "清空").Clicked() {
-					a.searchHistory = nil
-					a.saveHistory()
-					a.win.Invalidate()
-				}
-			})
-		})
-	} else {
-		// 无历史 → 空（对齐主线 search-history.js：!list.length → box.innerHTML=''，无默认热词）
-	}
-}
-
-func (a *app) searchEmpty(c *ui.Context) {
-	// 整页滚动条（对齐 recent 页模式）：整页内容包一个 Scroll，不做组件内部滚动条
-	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
-		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
-			a.searchBar(c)
-			a.searchChips(c)
-			// 主流风格分类（未搜索时展示）：卡片网格，点击 → 复用现有搜索流程
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "按风格找歌").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
-			})
-			// 风格网格（不挤一行：桌面 4 列 → 2 行，紧凑 3 列，手机 2 列）
-			cols := a.styleGridCols()
-			tracks := make([]ui.Track, cols)
-			for i := range tracks {
-				tracks[i] = ui.Fr(1)
-			}
-			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
-				for _, g := range styleGenres {
-					g := g
-					a.styleCard(c, g, a.recentCardSize(), func() {
-						a.query = g.Name
-						a.searchPage = 0 // 新搜索回第 1 页
-						go a.search()
-					})
-				}
-			})
-		})
-	})
-}
-
-// styleGridCols 风格网格列数（不挤一行：桌面 4 列，紧凑 3 列，手机 2 列）。
-func (a *app) styleGridCols() int {
-	switch a.tier() {
-	case 0:
-		return 2
-	case 1:
-		return 3
-	default:
-		return 4
-	}
-}
-
-// chip 小圆角标签。
 func chip(c *ui.Context, label string) ui.Element {
 	box := ui.Box(c).Height(30 * uiScale).Radius(8 * uiScale).PaddingX(12 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
@@ -534,40 +291,6 @@ func chip(c *ui.Context, label string) ui.Element {
 }
 
 // resultsHeader 结果标题行：数量 + 状态 + 播放全部。
-func (a *app) resultsHeader(c *ui.Context) {
-	ui.Row(c).AlignSelf(ui.Stretch).PaddingX(a.resp(24, 12)).PaddingY(a.resp(14, 10)).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-		// 返回：回初始搜索页（清空查询 + 结果，后续做推荐系统首页）
-		if iconButton2(c, icBack, a.resp(30, 28), clrText).Clicked() {
-			a.query = ""
-			a.results = nil
-			a.searched = false
-			a.win.Invalidate()
-		}
-		ui.Text(c, "搜索结果").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
-		ui.Text(c, fmt.Sprintf("%d 首", len(a.results))).FontSize(13 * uiScale).TextColor(clrMuted)
-		ui.Spacer(c).Grow(1)
-		if a.status != "" && !a.compact() {
-			ui.Text(c, a.status).FontSize(13 * uiScale).TextColor(clrMuted).MaxLines(1).MaxWidth(260)
-		}
-		if a.compact() {
-			ui.Text(c, a.status).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1).MaxWidth(120)
-		}
-		// 播放全部（对齐主线 hidden sm:inline：窄屏只图标）
-		if a.compact() {
-			if playIconButton(c, icPlayAll, a.resp(34, 30), clrText).Clicked() {
-				if len(a.results) > 0 {
-					a.playAll(a.results, 0)
-				}
-			}
-		} else if chip(c, "播放全部").Clicked() {
-			if len(a.results) > 0 {
-				a.playAll(a.results, 0)
-			}
-		}
-	})
-}
-
-// playerBar 完整播放条（学主线 htmx 结构）：字幕条 + 上排（音质/循环/静音/音量）+ 进度 + 下排（封面/收藏/字幕/上一首/播放/下一首）。
 func (a *app) playerBar(c *ui.Context) {
 	px := a.resp(20, 12)   // 横幅内边距
 	gap := a.resp(10, 8)   // 区间距
@@ -684,6 +407,10 @@ func main() {
 		os.Setenv("HC_PORT", "28977")
 	}
 	a.svc = newServices(a.db, a.bili, audioDir)
+	// 音源初始化（阶段 2 解耦）：UI/播放只认 MusicSource 接口，B站是首个实现
+	if a.svc != nil && a.svc.music != nil {
+		a.src = source.NewBilibili(a.svc.music)
+	}
 	a.startStreamServer() // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
 	a.favSet = map[string]bool{}
 	a.refreshFavs()      // 收藏恢复自 fav 域包（SQLite 持久化）
@@ -693,6 +420,9 @@ func main() {
 	a.restoreHistory()   // 恢复搜索历史
 	a.pb = playback.NewPlaybackState()
 	a.mygoOut = newMyGoOutput(a.bili)
+	if a.src != nil {
+		a.mygoOut.setSource(a.src) // 音源接口注入（阶段 2 解耦：取流走接口）
+	}
 	if a.svc != nil && a.svc.music != nil {
 		a.mygoOut.setMusic(a.svc.music) // 取流复用主线（view 缓存）
 	}
@@ -776,17 +506,3 @@ func main() {
 }
 
 // searchNotFound 搜索无结果空态（对齐主线 results.html 空态：未找到相关音乐 + 换关键词）。
-func (a *app) searchNotFound(c *ui.Context) {
-	ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
-		icon(c, icSearch, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-		ui.Text(c, "未找到相关音乐").FontSize(17 * uiScale).Bold().TextColor(clrText)
-		ui.Text(c, "换个关键词试试").FontSize(13 * uiScale).TextColor(clrMuted)
-		ui.Spacer(c).Height(8 * uiScale)
-		if gradButton(c, "换个词继续搜").Clicked() {
-			a.query = ""
-			a.searched = false
-			a.results = nil
-			a.win.Invalidate()
-		}
-	})
-}
