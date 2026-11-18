@@ -10,6 +10,7 @@
 package plugin
 
 import (
+	"mymusic-mygo/lyric"
 	"mymusic-mygo/source"
 	"mymusic-mygo/target"
 )
@@ -50,6 +51,31 @@ func SourceNames() []string {
 		if len(k) > 7 && k[:7] == "source:" {
 			out = append(out, k[7:])
 		}
+	}
+	return out
+}
+
+// --- 歌词插件注册（一切皆插件：音源/歌词/目标三类并列） ---
+
+// lyrics 歌词插件注册表（网易云/未来插件词源）。
+var lyrics = map[string]lyric.Provider{}
+
+// RegisterLyric 注册歌词插件（init 里调）。同名覆盖。
+func RegisterLyric(l lyric.Provider) { lyrics[l.Name()] = l }
+
+// Lyric 取指定歌词插件（网易云默认）。
+func Lyric(name string) lyric.Provider {
+	if name == "" {
+		name = "netease" // 默认网易云
+	}
+	return lyrics[name]
+}
+
+// LyricNames 已注册歌词插件名。
+func LyricNames() []string {
+	var out []string
+	for k := range lyrics {
+		out = append(out, k)
 	}
 	return out
 }
