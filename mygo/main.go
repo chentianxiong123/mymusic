@@ -27,6 +27,7 @@ import (
 	lyricplug "mymusic-mygo/lyric"
 	"mymusic-mygo/plugin"
 	"mymusic-mygo/source"
+	"mymusic-mygo/target"
 )
 
 // track 当前曲目。
@@ -433,6 +434,8 @@ func main() {
 	if a.svc != nil && a.svc.music != nil {
 		a.mygoOut.setMusic(a.svc.music) // 取流复用主线（view 缓存）
 	}
+	// 一切皆插件：本机声卡也注册为 target 插件（默认播放路径）
+	plugin.RegisterTarget(target.NewLocal(a.mygoOut))
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
 	a.mygoOut.qualFn = func() int { return a.quality } // 音质档实时读取（60k/128k/192k）
 	a.mygoOut.SetVolume(int(a.volume * 100))           // 恢复音量（restorePrefs 后 mygoOut 才存在）
