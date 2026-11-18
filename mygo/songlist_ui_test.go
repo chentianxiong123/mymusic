@@ -76,3 +76,19 @@ func TestSonglistDetailRenders(t *testing.T) {
 		t.Errorf("缺歌手名，texts=%q", tt.Texts())
 	}
 }
+
+// TestTitleToSongMygo 对齐主线 hcTitle：五种括号《》（）【】「」[] 提取 + 多个用「 · 」拼接。
+func TestTitleToSongMygo(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"《七里香》周杰伦", "七里香"},
+		{"【MV】（高清）[1080P]", "MV · 高清 · 1080P"}, // 三种括号全提取（对齐主线 hcTitle）
+		{"「现场」七里香", "现场"},
+		{"周杰伦 (Jay) 七里香", "周杰伦 (Jay) 七里香"}, // 半角 () 主线正则不匹配 → 返回原题
+		{"纯标题无括号", "纯标题无括号"},
+	}
+	for _, c := range cases {
+		if got := titleToSongMygo(c.in); got != c.want {
+			t.Errorf("titleToSongMygo(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

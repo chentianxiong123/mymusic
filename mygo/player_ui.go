@@ -1017,13 +1017,7 @@ func (a *app) settingsPage(c *ui.Context) {
 					a.lyricTime = on
 					a.win.Invalidate()
 				})
-				// 8 字幕字号（主线 SUB_SIZES 16..32 + 当前字号说明）
-				a.setRow(c, "字幕字号")
-				a.setRowText(c, "当前字号："+a.capSizeLabel()+"px · 拖动字幕条可移动位置")
-				a.setRowSeg(c, []string{"16px", "20px", "24px", "28px", "32px"}, a.capSize, func(i int) {
-					a.capSize = i
-					a.win.Invalidate()
-				})
+
 				// 9 歌曲缓存（主线 cache.js：已用/清空未收藏/清空缓存/上限）
 				a.setRow(c, "歌曲缓存")
 				a.setRowText(c, "自动缓存播放超过 60 秒的歌，再次播放秒开；超上限自动淘汰最旧")
@@ -1126,12 +1120,6 @@ func (a *app) lyricFontSize() float32 {
 	return float32([]int{14, 16, 18, 22, 26}[a.lyricSize])
 }
 
-// capFontSize 已随"网页字幕条"移除（字幕条死代码，无调用）。
-
-// capSizeLabel 字幕字号档对应的像素值。
-func (a *app) capSizeLabel() string {
-	return []string{"16", "20", "24", "28", "32"}[a.capSize]
-}
 
 // cacheUsedLabel 缓存占用（SSOT：cache 域包 Size）。
 func (a *app) cacheUsedLabel() string {
@@ -1411,6 +1399,19 @@ func (a *app) castPage(c *ui.Context) {
 										go a.stopSpeaker(sp.DID)
 									}
 								})
+								// 状态标签（对齐主线 speaker.js sp-state：播放中/已暂停/播完自动连播）
+								if a.spkDid == sp.DID {
+									var label string
+									if a.playing {
+										label = "▶ 播放中"
+										if a.pb.NextBVID() != "" {
+											label = "▶ 播放中 · 播完自动连播"
+										}
+									} else {
+										label = "⏸ 已暂停"
+									}
+									ui.Text(c, label).FontSize(11 * uiScale).TextColor(clrPink).Bold()
+								}
 							})
 						})
 					}
@@ -1423,20 +1424,34 @@ func (a *app) castPage(c *ui.Context) {
 			ui.Column(c).Gap(8 * uiScale).Children(func() {
 				for _, d := range a.castDevices {
 					d := d
-					row := ui.Box(c).Fill().Height(56 * uiScale).Radius(12 * uiScale).PaddingX(14 * uiScale).Background(clrCard)
-					if row.Hovered() {
-						row.Background(clrCardHov)
+					card := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrCard)
+					if card.Hovered() {
+						card.Background(clrCardHov)
 					}
-					row.Children(func() {
-						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
-							icon(c, icCast, 18, clrMuted)
-							ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-								ui.Text(c, d.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-								ui.Text(c, d.IP+":"+fmt.Sprintf("%d", d.Port)).FontSize(11 * uiScale).TextColor(clrMuted)
+					card.Children(func() {
+						ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
+							// 头部：图标 + 名称/IP + 状态徽标（对齐主线 cast-status span：在线/真实状态）
+							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+								icon(c, icCast, 18, clrMuted)
+								ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+									ui.Text(c, d.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+									ui.Text(c, d.IP+":"+fmt.Sprintf("%d", d.Port)).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
+								})
+								stateText, ok := a.castStatus[d.UDN]
+								if !ok || stateText == "" {
+									stateText = "在线"
+								}
+								ui.Text(c, stateText).FontSize(10 * uiScale).TextColor(clrGreen)
 							})
-							if gradButton(c, "投屏").Clicked() {
-								go a.castTo(d.UDN, d.Name)
-							}
+							// 按钮行：「查状态」+「投送」（对齐主线 hx/cast/status + cast-play-btn）
+							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+								if chip(c, "查状态").Clicked() {
+									go a.queryCastStatus(d.UDN)
+								}
+								if gradButton(c, "投送").Clicked() {
+									go a.castTo(d.UDN, d.Name)
+								}
+							})
 						})
 					})
 				}
@@ -1580,6 +1595,28 @@ func (a *app) discoverCast() {
 }
 
 // castTo 投当前播放到指定 DLNA 设备（cast 域包 Cast）。
+// queryCastStatus 查 DLNA 设备播放状态（对齐主线 hx/cast/status：cast.Status(udn) → state）。
+func (a *app) queryCastStatus(udn string) {
+	if a.svc == nil || a.svc.cast == nil {
+		return
+	}
+	status, err := a.svc.cast.Status(udn)
+	if err != nil || status == nil {
+		a.win.Update(func() { a.castStatus[udn] = "状态不可用" })
+		return
+	}
+	state, _ := status["state"].(string)
+	if state == "" {
+		state = "就绪"
+	}
+	a.win.Update(func() {
+		if a.castStatus == nil {
+			a.castStatus = map[string]string{}
+		}
+		a.castStatus[udn] = state
+	})
+}
+
 func (a *app) castTo(udn, name string) {
 	if a.svc == nil || a.svc.cast == nil || a.current == nil {
 		return

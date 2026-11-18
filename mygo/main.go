@@ -45,6 +45,7 @@ type app struct {
 	svc          *services              // 主线域包句柄（fav/lyric/cast/speaker）
 	castOn       string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
 	castDevices  []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
+	castStatus   map[string]string      // udn → 设备状态（点「查状态」后填，默认「在线」，对齐主线 cast-status span）
 	speakers     []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
 	recent       []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
 	lastVolSave  time.Time              // 音量落库节流时间戳
@@ -108,7 +109,6 @@ type app struct {
 
 	quality       int      // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
 	lyricSize     int      // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
-	capSize       int      // 0-4 字幕字号档（对齐主线 16/20/24/28/32px）
 	themeMode     int      // 0 自动 1 明亮 2 暗黑（对齐主线 THEMES 三态）
 	lyricBg       int      // 0 封面模糊 1 纯色（对齐主线 set-lybg）
 	lyricTime     bool     // 歌词行显示时间戳（对齐主线 set-lytime）

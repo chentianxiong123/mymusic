@@ -231,17 +231,22 @@ func (a *app) seekToLine(idx int) {
 
 // titleToSongMygo 歌名解析（对齐主线 lyric.js titleToSong：
 // 剥 []【】取《》; 取不到用全标题）。
+// 对齐主线 title.js hcTitle：提取《》（）【】「」[] 五种括号内容，多个用「 · 」拼接（前后端一致）。
 func titleToSongMygo(t string) string {
-	clean := regexp.MustCompile(`[\[【][^\]】]*[\]】]`).ReplaceAllString(t, "")
-	m := regexp.MustCompile(`《([^》]+)》`).FindStringSubmatch(clean)
-	if m != nil {
-		return strings.TrimSpace(m[1])
+	parts := []string{}
+	re := regexp.MustCompile(`《([^》]+)》|（([^）]+)）|【([^】]+)】|「([^」]+)」|\[([^\]]+)\]`)
+	for _, m := range re.FindAllStringSubmatch(t, -1) {
+		for _, g := range m[1:] {
+			if c := strings.TrimSpace(g); c != "" {
+				parts = append(parts, c)
+				break // 取第一个非空捕获组（五种括号之一）
+			}
+		}
 	}
-	out := strings.TrimSpace(clean)
-	if out == "" {
-		return t
+	if len(parts) > 0 {
+		return strings.Join(parts, " · ")
 	}
-	return out
+	return strings.TrimSpace(t)
 }
 
 // candDurText 候选时长 mm:ss（对齐主线 candDur；无则 --:--）。
