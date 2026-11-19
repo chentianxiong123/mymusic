@@ -419,9 +419,12 @@ func main() {
 	}
 	plugin.RegisterLyric(lyricplug.NewNetease()) // 网易云歌词源
 	// 插件元数据（插件页展示）
-	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐音源（搜索/取流/歌词，复用主线 music 域）"})
-	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词源（复用主线 lyric 域 GetLyricLines）"})
-	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）"})
+	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐音源（搜索/取流/歌词，复用主线 music 域）", Order: 10})
+	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词源（复用主线 lyric 域 GetLyricLines）", Order: 20})
+	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）", Order: 30})
+	plugin.RegisterInfo(plugin.Info{Name: "cast", Type: "target", Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
+	plugin.RegisterInfo(plugin.Info{Name: "bluetooth", Type: "target", Icon: "bluetooth", Version: "1.0", Desc: "蓝牙目标（bluetoothctl 扫描，音频路由到蓝牙 sink）", Order: 50})
+	plugin.RegisterInfo(plugin.Info{Name: "speaker", Type: "target", Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
 	// 当前源 = 注册表首个（B站）；未来网易云/本地/插件源都注册进表，UI 可选
 	if names := plugin.SourceNames(); len(names) > 0 {
 		a.src = plugin.Sources()[names[0]]

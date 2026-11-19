@@ -15,20 +15,10 @@ import (
 )
 
 func (a *app) castPage(c *ui.Context) {
-	// 整页滚动条（对齐主线页面滚动条）：整页内容包一个 Scroll，内容超出窗口
-	// 时整页滚动；不做组件内部滚动条（DLNA 列表不再单独 Scroll）。
+	// 目标页完全由插件系统派生：枚举已注册目标面板（DLNA/蓝牙/音箱/...），
+	// 每类目标插件贡献自己的区块（发现/登录/设备列表/投送）。
 	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12 * uiScale).Children(func() {
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-				ui.Text(c, "投屏 / 音箱").FontSize(20 * uiScale).Bold().TextColor(clrText)
-				ui.Spacer(c).Grow(1)
-				if chip(c, "发现设备").Clicked() {
-					go a.discoverCast()
-				}
-				if chip(c, "发现蓝牙").Clicked() {
-					go a.discoverBluetooth()
-				}
-			})
 			// 当前投屏状态（对齐主线 d-stop：投屏中可停止）
 			if a.castOn != "" {
 				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
@@ -42,201 +32,14 @@ func (a *app) castPage(c *ui.Context) {
 					})
 				})
 			}
-			// 小米音箱（SSOT：xiaoai auth 登录态；未登录→扫码；已登录→账户头+刷新+导出 token）
-			loggedIn := a.svc != nil && a.svc.speakerLoggedIn()
-			if loggedIn {
-				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-						icon(c, icMsg, 18, clrPurple)
-						ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-							ui.Text(c, "小爱音箱").FontSize(14 * uiScale).Bold().TextColor(clrText)
-							uid := a.svc.speakerUserID()
-							ui.Text(c, "已登录 · "+uid).FontSize(11 * uiScale).TextColor(clrMuted)
-						})
-						if chip(c, "刷新设备").Clicked() {
-							go a.refreshSpeakers()
-						}
-						if chip(c, "复制 token").Clicked() {
-							if tok, err := a.svc.exportSpeakerToken(); err == nil {
-								mygo.Clipboard.WriteText(tok)
-								a.status = "已复制音箱 token（多端免扫码复用）"
-							} else {
-								a.status = err.Error()
-							}
-							a.win.Invalidate()
-						}
-					})
-				})
-			} else {
-				if a.qrImage != "" {
-					ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
-							// 二维码图（UI 解码 data URI）
-							ui.Box(c).Size(120, 120).Draw(func(p *ui.Painter, r ui.Rect) {
-								// 背景先画（否则后面 FillRadii 背景色会盖住二维码图）
-								p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
-								if img, ok := a.covers["__qr__"]; ok {
-									p.Clip(r, 8, func() { p.Image(img, r, ui.Cover) })
-								}
-							})
-							ui.Column(c).Grow(1).Gap(6 * uiScale).Children(func() {
-								ui.Text(c, "小米音箱扫码登录").FontSize(14 * uiScale).Bold().TextColor(clrText)
-								ui.Text(c, "用米家 App 扫描二维码登录").FontSize(12 * uiScale).TextColor(clrMuted)
-								ui.Text(c, a.qrStatus).FontSize(12 * uiScale).TextColor(clrPink)
-							})
-						})
-					})
-				}
-				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
-					ui.Column(c).Gap(8 * uiScale).Children(func() {
-						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-							icon(c, icMsg, 18, clrMuted)
-							ui.Text(c, "小爱音箱未登录").FontSize(13 * uiScale).TextColor(clrText).Grow(1)
-						})
-						// token 输入框（对齐主线 speaker_login.html sp-token-input textarea）：
-						// 用户手动粘贴/输入 token（多端免扫码复用）；也支持剪贴板一键填入。
-						ui.TextInput(c, &a.tokenInput).Grow(1).Height(60 * uiScale).
-							Placeholder("粘贴音箱 token（其他设备导出）…").
-							FontSize(12 * uiScale).TextColor(clrText)
-						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-							ui.Spacer(c).Grow(1)
-							// 读剪贴板填入输入框（快捷）
-							if chip(c, "粘贴剪贴板").Clicked() {
-								go a.fillTokenFromClipboard()
-							}
-							// 用输入框 token 登录（对齐主线 textarea 值 → POST /speaker/token/import）
-							if gradButton(c, "token 登录").Clicked() {
-								go a.loginWithToken(a.tokenInput)
-							}
-							if gradButton(c, "扫码登录").Clicked() {
-								go a.startSpeakerLogin()
-							}
-						})
-					})
-				})
+			// 插件派生：每个目标面板渲染自己的区块
+			for _, p := range plugin.TargetPanels() {
+				p.Render(c, a)
 			}
-			// 音箱设备列表（登录后展示，SSOT speaker）——对齐主线 speaker_devices.html：
-			// 网格卡片（图标+名称+硬件型号+在线/离线徽标+「投送当前歌」+「停止」），非单行列表。
-			if loggedIn {
-				if len(a.speakers) == 0 {
-					ui.Text(c, "音箱：点「刷新设备」获取设备列表").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
-				}
-				// 网格（2 列等分，对齐主线 grid sm:grid-cols-2）
-				ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1)).Gap(10 * uiScale).Fill().Children(func() {
-					for _, sp := range a.speakers {
-						sp := sp
-						card := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrCard)
-						card.Children(func() {
-							ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
-								// 头部：图标 + 名称/硬件 + 在线徽标（对齐主线 sp 卡片头部）
-								ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-									icon(c, icVol, 18, clrMuted)
-									ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-										ui.Text(c, sp.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-										// 硬件型号（对齐主线 {{.Hardware}}；旧版显示 DID 不对齐）
-										ui.Text(c, sp.Hardware).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
-									})
-									// 在线/离线徽标（对齐主线 sp 卡片右侧，复用 statusBadge）
-									if sp.IsOnline {
-										statusBadge(c, "在线", clrGreen)
-									} else {
-										statusBadge(c, "离线", clrMuted)
-									}
-								})
-								// 按钮行：「投送」（平淡，对齐主线 sp-play-btn）+「停止」
-								ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-									if chip(c, "投送").Clicked() {
-										go a.playToSpeaker(sp.DID, sp.Name)
-									}
-									if chip(c, "停止").Clicked() {
-										go a.stopSpeaker(sp.DID)
-									}
-								})
-								// 状态标签（对齐主线 speaker.js sp-state：播放中/已暂停/播完自动连播）
-								if a.spkDid == sp.DID {
-									var label string
-									if a.playing {
-										label = "▶ 播放中"
-										if a.pb.NextBVID() != "" {
-											label = "▶ 播放中 · 播完自动连播"
-										}
-									} else {
-										label = "⏸ 已暂停"
-									}
-									ui.Text(c, label).FontSize(11 * uiScale).TextColor(clrPink).Bold()
-								}
-							})
-						})
-					}
-				})
-			}
-			ui.Text(c, "DLNA 设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
-			if len(a.castDevices) == 0 {
-				ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
-			}
-			ui.Column(c).Gap(8 * uiScale).Children(func() {
-				for _, d := range a.castDevices {
-					d := d
-					card := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrCard)
-					if card.Hovered() {
-						card.Background(clrCardHov)
-					}
-					card.Children(func() {
-						ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
-							// 头部：图标 + 名称/IP + 状态徽标（对齐主线 cast-status span：在线/真实状态）
-							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-								icon(c, icCast, 18, clrMuted)
-								ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-									ui.Text(c, d.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-									ui.Text(c, d.IP+":"+fmt.Sprintf("%d", d.Port)).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
-								})
-								stateText, ok := a.castStatus[d.UDN]
-								if !ok || stateText == "" {
-									stateText = "在线"
-								}
-								statusBadge(c, stateText, clrGreen) // 复用状态徽标（原纯文字）
-							})
-							// 按钮行：「查状态」+「投送」（对齐主线 hx/cast/status + cast-play-btn）
-							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-								if chip(c, "查状态").Clicked() {
-									go a.queryCastStatus(d.UDN)
-								}
-								if chip(c, "投送").Clicked() {
-									go a.castTo(d.UDN, d.Name)
-								}
-							})
-						})
-					})
-				}
-			})
-			// 蓝牙设备（bluetoothctl 扫描；投送 = 音频路由到蓝牙 sink）
-			ui.Text(c, "蓝牙设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
-			if len(a.btDevices) == 0 {
-				ui.Text(c, "点「发现蓝牙」搜索附近蓝牙设备").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
-			}
-			ui.Column(c).Gap(8 * uiScale).Children(func() {
-				for _, d := range a.btDevices {
-					d := d
-					card := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrCard)
-					if card.Hovered() {
-						card.Background(clrCardHov)
-					}
-					card.Children(func() {
-						ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
-							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-								icon(c, icBluetooth, 18, clrBlue)
-								ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-									ui.Text(c, d.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-									ui.Text(c, d.MAC).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
-								})
-							})
-						})
-					})
-				}
-			})
 		})
 	})
 }
+
 
 // startSpeakerLogin 生成音箱登录二维码（SSOT：xiaoai QRLogin）+ 轮询状态。
 func (a *app) startSpeakerLogin() {

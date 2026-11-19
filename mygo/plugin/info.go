@@ -9,6 +9,7 @@ type Info struct {
 	Icon    string // 图标标识
 	Version string // 版本
 	Desc    string // 描述
+	Order   int    // 展示顺序（小在前；固定，防 map 遍历随机导致条目跳动）
 }
 
 // infos 插件元数据表（key=Type+"/"+Name）。
@@ -35,6 +36,12 @@ func InfoNames(typeName string) []Info {
 	for _, v := range infos {
 		if v.Type == typeName {
 			out = append(out, v)
+		}
+	}
+	// 按 Order 固定排序（map 遍历顺序随机，必须显式排序防条目跳动）
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j].Order < out[j-1].Order; j-- {
+			out[j], out[j-1] = out[j-1], out[j]
 		}
 	}
 	return out

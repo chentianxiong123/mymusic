@@ -16,7 +16,7 @@ func (a *app) queuePage(c *ui.Context) {
 			// 最近播放横排小卡（对齐主线 recent-view：最多 10 显示 + 清空）
 			if len(a.recent) > 0 {
 				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-					ui.Text(c, "最近播放").FontSize(16 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, "最近播放").FontSize(20 * uiScale).Bold().TextColor(clrText)
 					ui.Text(c, fmt.Sprintf("共 %d 首", len(a.recent))).FontSize(12 * uiScale).TextColor(clrMuted)
 					ui.Spacer(c).Grow(1)
 					if chip(c, "查看全部").Clicked() {

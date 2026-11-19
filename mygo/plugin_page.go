@@ -7,6 +7,7 @@ import (
 
 	"mymusic-mygo/plugin"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -64,6 +65,10 @@ func (a *app) pluginGroup(c *ui.Context, title, kind string) {
 							a.win.Invalidate()
 						}
 					})
+					// 小爱音箱插件卡片：登录状态直接显示（用户要求登录在插件页）
+					if in.Type == "target" && in.Name == "speaker" {
+						a.pluginSpeakerLoginRow(c)
+					}
 				})
 			})
 		}
@@ -144,9 +149,88 @@ func (a *app) pluginConfigForm(c *ui.Context) {
 		a.bilibiliSourceConfig(c)
 	case "lyric/netease":
 		a.neteaseLyricConfig(c)
+	case "target/speaker":
+		a.speakerConfig(c)
 	default:
 		ui.Text(c, "该插件暂无更多配置").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 	}
+}
+
+// speakerConfig 小爱音箱插件配置子页：登录态（扫码/token/刷新/复制 token）。
+// 登录归插件配置（用户要求：小爱音箱登录改到插件页显示，目标页只留设备投送）。
+func (a *app) speakerConfig(c *ui.Context) {
+	if a.svc == nil {
+		return
+	}
+	if a.svc.speakerLoggedIn() {
+		// 已登录：账户头 + 刷新/复制 token
+		ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+				icon(c, icMsg, 18, clrPurple)
+				ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+					ui.Text(c, "小爱音箱").FontSize(14 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, "已登录 · "+a.svc.speakerUserID()).FontSize(11 * uiScale).TextColor(clrMuted)
+				})
+				if chip(c, "刷新设备").Clicked() {
+					go a.refreshSpeakers()
+				}
+				if chip(c, "复制 token").Clicked() {
+					if tok, err := a.svc.exportSpeakerToken(); err == nil {
+						mygo.Clipboard.WriteText(tok)
+						a.status = "已复制音箱 token（多端免扫码复用）"
+					} else {
+						a.status = err.Error()
+					}
+					a.win.Invalidate()
+				}
+			})
+		})
+		// 已登录也显示设备列表（对齐目标页，插件配置页可投送）
+		ui.Text(c, "设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
+		renderSpeakerDevices(c, a)
+		return
+	}
+	// 未登录：QR + token 输入
+	if a.qrImage != "" {
+		ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
+				ui.Box(c).Size(120, 120).Draw(func(p *ui.Painter, r ui.Rect) {
+					p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
+					if img, ok := a.covers["__qr__"]; ok {
+						p.Clip(r, 8, func() { p.Image(img, r, ui.Cover) })
+					}
+				})
+				ui.Column(c).Grow(1).Gap(6 * uiScale).Children(func() {
+					ui.Text(c, "小米音箱扫码登录").FontSize(14 * uiScale).Bold().TextColor(clrText)
+					ui.Text(c, "用米家 App 扫描二维码登录").FontSize(12 * uiScale).TextColor(clrMuted)
+					ui.Text(c, a.qrStatus).FontSize(12 * uiScale).TextColor(clrPink)
+				})
+			})
+		})
+	}
+	ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
+		ui.Column(c).Gap(8 * uiScale).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+				icon(c, icMsg, 18, clrMuted)
+				ui.Text(c, "小爱音箱未登录").FontSize(13 * uiScale).TextColor(clrText).Grow(1)
+			})
+			ui.TextInput(c, &a.tokenInput).Grow(1).Height(60 * uiScale).
+				Placeholder("粘贴音箱 token（其他设备导出）…").
+				FontSize(12 * uiScale).TextColor(clrText)
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+				ui.Spacer(c).Grow(1)
+				if chip(c, "粘贴剪贴板").Clicked() {
+					go a.fillTokenFromClipboard()
+				}
+				if gradButton(c, "token 登录").Clicked() {
+					go a.loginWithToken(a.tokenInput)
+				}
+				if gradButton(c, "扫码登录").Clicked() {
+					go a.startSpeakerLogin()
+				}
+			})
+		})
+	})
 }
 
 // bilibiliSourceConfig B站音源配置：音质归源控制（系统设置已删，由源决定）。
@@ -196,5 +280,24 @@ func (a *app) neteaseLyricConfig(c *ui.Context) {
 	a.setRowSwitch(c, "歌词时间显示", "歌词行旁显示时间戳", a.lyricTime, func(on bool) {
 		a.lyricTime = on
 		a.win.Invalidate()
+	})
+}
+
+// pluginSpeakerLoginRow 小爱音箱插件卡片上的登录状态行（登录归插件页显示）。
+func (a *app) pluginSpeakerLoginRow(c *ui.Context) {
+	box := ui.Box(c).Fill().Radius(8 * uiScale).PaddingX(10 * uiScale).PaddingY(6 * uiScale).Background(clrField)
+	box.Children(func() {
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+			if a.svc != nil && a.svc.speakerLoggedIn() {
+				icon(c, icMsg, 14, clrGreen)
+				ui.Text(c, "已登录 · "+a.svc.speakerUserID()).FontSize(11 * uiScale).TextColor(clrText).Grow(1)
+				if chip(c, "刷新设备").Clicked() {
+					go a.refreshSpeakers()
+				}
+			} else {
+				icon(c, icMsg, 14, clrMuted)
+				ui.Text(c, "未登录（点「编辑」扫码/token 登录）").FontSize(11 * uiScale).TextColor(clrMuted).Grow(1)
+			}
+		})
 	})
 }
