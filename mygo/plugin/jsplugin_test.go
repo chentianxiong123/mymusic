@@ -7,8 +7,8 @@ import (
 	"mymusic-mygo/source"
 )
 
-// TestJSPluginLoadDemo 加载 demo-source 示例，验证注册 + 编译期契约。
-func TestJSPluginLoadDemo(t *testing.T) {
+// TestJSPluginLoadNetease 加载正式网易云音源插件，验证注册 + 编译期契约。
+func TestJSPluginLoadNetease(t *testing.T) {
 	errs, err := LoadFromDir(filepath.Join("..", "plugins"))
 	if err != nil {
 		t.Fatalf("LoadFromDir: %v", err)
@@ -16,22 +16,22 @@ func TestJSPluginLoadDemo(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("load errs: %v", errs)
 	}
-	// demo 音源已注册
-	src := Sources()["demo"]
+	// 网易云音源已注册
+	src := Sources()["netease"]
 	if src == nil {
-		t.Fatal("demo source 未注册")
+		t.Fatal("netease source 未注册")
 	}
-	if src.Name() != "demo" {
+	if src.Name() != "netease" {
 		t.Fatalf("Name=%q", src.Name())
 	}
 	var _ source.MusicSource = src // 编译期契约
-	// demo 歌词插件已注册
-	if Lyric("demo") == nil {
-		t.Fatal("demo lyric 未注册")
+	// 音源 netease 不覆盖歌词 netease：歌词插件仍应是内置 Netease（非 JS）。
+	if Lyric("netease") != nil {
+		t.Fatal("netease 不应注册 lyric 能力（歌词走内置）")
 	}
-	// demo 元数据已注册
-	if InfoOf("source", "demo").Name != "demo" {
-		t.Fatal("demo info 未注册")
+	// 音源元数据已注册（source/netease）
+	if InfoOf("source", "netease").Name != "netease" {
+		t.Fatal("netease source info 未注册")
 	}
 }
 
@@ -41,6 +41,16 @@ func TestJSPluginLoadConflict(t *testing.T) {
 	function search(c){return{total:0,songs:[]}} function getURL(c){return{url:"http://x"}}`
 	if _, err := NewJSPlugin("conflict.js", code); err == nil {
 		t.Fatal("应拒绝与内置 key 冲突")
+	}
+}
+
+// TestJSPluginLyricConflict 音源 key=netease 声明 lyric 能力应拒绝
+// （内置歌词 netease 已被占，JS 不得覆盖；音源 netease 本身允许）。
+func TestJSPluginLyricConflict(t *testing.T) {
+	code := `var meta={apiVersion:1,key:"netease",name:"x",capabilities:["source","lyric"],allowedHosts:["a.com"]};
+	function search(c){return{total:0,songs:[]}} function getURL(c){return{url:"http://x"}} function lyric(c){return{lrc:""}}`
+	if _, err := NewJSPlugin("lyric-conflict.js", code); err == nil {
+		t.Fatal("netease 音源声明 lyric 应拒绝（内置歌词冲突）")
 	}
 }
 

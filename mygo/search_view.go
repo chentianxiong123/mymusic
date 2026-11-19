@@ -60,7 +60,7 @@ func (a *app) searchChips(c *ui.Context) {
 
 func (a *app) searchEmpty(c *ui.Context) {
 	// 整页滚动条（对齐 recent 页模式）：整页内容包一个 Scroll，不做组件内部滚动条
-	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+	ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
 			a.searchBar(c)
 			a.searchChips(c)

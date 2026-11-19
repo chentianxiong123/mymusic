@@ -9,12 +9,17 @@
 // 所有网络走 ctx.host.http（宿主注入，白名单 meta.allowedHosts，超时+并发上限）。
 var meta = {
   apiVersion: 1,
-  key: "demo",
-  name: "示例音源（网易云）",
+  key: "netease",
+  name: "网易云",
   version: "1.0.0",
-  capabilities: ["source", "lyric"],
+  // 网易云歌词已有内置 netease 歌词源（main.go RegisterLyric），此处不重复声明 lyric。
+  capabilities: ["source"],
   allowedHosts: ["music.163.com"],
-  order: 25, // 内置 10/20/30/40/50/60 的空位
+  order: 20, // bilibili 10 之后；歌词元数据 netease 同为 20，Type 不同不冲突
+  // 插件设置声明（系统统一管理：声明归插件，存储归宿主 SettingStore）。
+  settings: [
+    { key: "quality", name: "音质", type: "select", options: ["128k", "320k"], default: "320k", desc: "取流码率（128k 免费歌可播）" },
+  ],
 };
 
 // 免登录明文接口需带的头（Referer + Cookie 匿名设备id，防 405 风控）。
@@ -56,7 +61,9 @@ function search(ctx) {
 // VIP/无权限 → data[0].url 为 null → 返回 error。
 function getURL(ctx) {
   var id = ctx.song.id;
-  var br = ctx.quality >= 2 ? 320000 : 128000;
+  // 插件设置（系统统一管理）：host.config.get(key, def) 读设置，set 落库。
+  var q = ctx.config && ctx.config.get ? ctx.config.get("quality", "320k") : "320k";
+  var br = q === "128k" ? 128000 : 320000;
   var resp = ctx.host.http({
     url: "https://music.163.com/api/song/enhance/player/url?ids=[" + id + "]&br=" + br,
     headers: wyHeaders(),
@@ -65,19 +72,11 @@ function getURL(ctx) {
   var data = JSON.parse(resp.body);
   var item = data.data && data.data[0];
   if (!item || !item.url) return { error: "无权限或需登录（VIP 歌免登录不可播）" };
-  return { url: item.url, quality: ctx.quality || 1, duration: (item.time || 0) / 1000 };
+  return { url: item.url, quality: q === "128k" ? 0 : 2, duration: (item.time || 0) / 1000 };
 }
 
-// 歌词：网易云明文 /api/song/lyric（免登录）。宿主统一解析 LRC。
-function lyric(ctx) {
-  var resp = ctx.host.http({
-    url: "https://music.163.com/api/song/lyric?id=" + ctx.song.id + "&lv=1&kv=1&tv=-1",
-    headers: wyHeaders(),
-  });
-  if (resp.error) return { error: resp.error, lrc: "" };
-  var data = JSON.parse(resp.body);
-  return { lrc: (data.lrc && data.lrc.lyric) || "" };
-}
+// 注：歌词用内置 netease 歌词源（keywords=标题+歌手 搜网易云，与 demo 同源），
+// 播放时 loadLyricAsync 走主线 lyric 域，demo 无需也不能提供 lyric 能力。
 
 // 工具：秒 → mm:ss。
 function fmtDur(sec) {

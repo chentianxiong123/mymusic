@@ -88,7 +88,7 @@ func (a *app) lyrCandCol(c *ui.Context) {
 			if len(a.lyricCands) == 0 {
 				ui.Text(c, LaodingTag()).FontSize(12 * uiScale).TextColor(clrMuted).PaddingY(20 * uiScale)
 			} else {
-				ui.Scroll(c).Grow(1).Gap(4 * uiScale).Scrollbars(true).Children(func() {
+				ui.Scroll(c).Grow(1).Gap(4 * uiScale).Scrollbars(false).Children(func() {
 					ui.Column(c).Gap(4 * uiScale).Children(func() {
 						for _, cand := range a.lyricCands {
 							cand := cand
@@ -147,7 +147,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 		})
 		lyrCard.Children(func() {
 			curIdx, prog := a.lyricProg(a.posSec)
-			ui.Scroll(c).Fill().Gap(10 * uiScale).Scrollbars(true).Children(func() {
+			ui.Scroll(c).Fill().Gap(10 * uiScale).Scrollbars(false).Children(func() {
 				ui.Column(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Children(func() {
 					if len(a.lyricLines) == 0 {
 						ui.Column(c).AlignSelf(ui.Stretch).Children(func() {
@@ -339,7 +339,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 							ui.Text(c, LaodingTag()).FontSize(12 * uiScale).TextColor(clrMuted)
 							return
 						}
-						ui.Scroll(c).MaxHeight(200).Gap(4 * uiScale).Scrollbars(true).Children(func() {
+						ui.Scroll(c).MaxHeight(200).Gap(4 * uiScale).Scrollbars(false).Children(func() {
 							ui.Column(c).Gap(4 * uiScale).Children(func() {
 								for _, cand := range a.lyricCands {
 									cand := cand
@@ -405,7 +405,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 			// KTV 歌词（居中 + 渐底 + 点击跳句，同中栏）
 			ui.Box(c).Grow(1).Fill().Radius(12 * uiScale).Background(clrCardGlass).PaddingX(12 * uiScale).PaddingY(10 * uiScale).Children(func() {
 				curIdx, prog := a.lyricProg(a.posSec)
-				ui.Scroll(c).Fill().Gap(8 * uiScale).Scrollbars(true).Children(func() {
+				ui.Scroll(c).Fill().Gap(8 * uiScale).Scrollbars(false).Children(func() {
 					ui.Column(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Children(func() {
 						if len(a.lyricLines) == 0 {
 							ui.Text(c, "歌词加载中…").FontSize(14 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(30 * uiScale)

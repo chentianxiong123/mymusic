@@ -17,7 +17,7 @@ import (
 func (a *app) castPage(c *ui.Context) {
 	// 目标页完全由插件系统派生：枚举已注册目标面板（DLNA/蓝牙/音箱/...），
 	// 每类目标插件贡献自己的区块（发现/登录/设备列表/投送）。
-	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+	ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12 * uiScale).Children(func() {
 			// 当前投屏状态（对齐主线 d-stop：投屏中可停止）
 			if a.castOn != "" {

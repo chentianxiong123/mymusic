@@ -30,7 +30,7 @@ func (a *app) settingsPage(c *ui.Context) {
 
 // systemSettings 系统设置内容（原设置页，主题/音质/缓存等）。
 func (a *app) systemSettings(c *ui.Context) {
-	ui.Scroll(c).Grow(1).Gap(10 * uiScale).Scrollbars(true).Children(func() {
+	ui.Scroll(c).Grow(1).Gap(10 * uiScale).Scrollbars(false).Children(func() {
 		// 限宽居中（对齐主线 max-w-2xl mx-auto）：宽屏不撑满，条项整体居中
 		ui.Column(c).Gap(10 * uiScale).AlignSelf(ui.Center).WidthPercent(100).MaxWidth(672 * uiScale).Children(func() {
 			// 1 主题模式（主线 THEMES 三态：自动/明亮/暗黑；持久化 settings kv）

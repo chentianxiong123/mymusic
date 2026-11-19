@@ -253,7 +253,7 @@ func (p *PlaybackState) persistNow() {
 // Play 播放某歌：入队（去重）+ 定位 + 播（source 保持；web=Null 前端 audio 接管，speaker=真投音箱）
 func (p *PlaybackState) Play(s Song) {
 	p.mu.Lock()
-	// 快照（含队列副本：Play 会去重+入队尾，失败必须整体回滚，只还原 QIdx 会导致元素错位）
+	// 快照（含队列副本：Play 只定位不移动（歌在队列）或追加队尾（歌不在），失败必须整体回滚）
 	old := songSnapshot{
 		QIdx:     p.cur.QIdx,
 		Song:     Song{BVID: p.cur.BVID, Title: p.cur.Title, Artist: p.cur.Artist, Cover: p.cur.Cover, Duration: p.cur.Duration},
@@ -262,15 +262,14 @@ func (p *PlaybackState) Play(s Song) {
 		Playing:  p.cur.Playing,
 	}
 	oldQueue := append([]Song(nil), p.cur.Queue...)
-	// 去重后入队尾
-	for i, q := range p.cur.Queue {
-		if q.BVID == s.BVID {
-			p.cur.Queue = append(p.cur.Queue[:i], p.cur.Queue[i+1:]...)
-			break
-		}
+	// 播放不改动队列：歌已在队列 → 只定位 QIdx（队列内容/顺序/位置不变）；
+	// 歌不在队列 → 追加队尾。用户要求“放的时候仅仅改变从哪里开始放”。
+	if idx := songIndexLocked(p.cur.Queue, s.BVID); idx >= 0 {
+		p.cur.QIdx = idx
+	} else {
+		p.cur.Queue = append(p.cur.Queue, s)
+		p.cur.QIdx = len(p.cur.Queue) - 1
 	}
-	p.cur.Queue = append(p.cur.Queue, s)
-	p.cur.QIdx = len(p.cur.Queue) - 1
 	p.cur.BVID = s.BVID
 	p.cur.Title = s.Title
 	p.cur.Artist = s.Artist

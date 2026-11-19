@@ -11,7 +11,7 @@ import (
 
 func (a *app) queuePage(c *ui.Context) {
 	// 整页滚动条：整页内容包一个 Scroll，不做组件内部滚动条（最近播放横排/队列列表不再单独 Scroll）
-	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+	ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
 			// 最近播放横排小卡（对齐主线 recent-view：最多 10 显示 + 清空）
 			if len(a.recent) > 0 {
@@ -34,7 +34,7 @@ func (a *app) queuePage(c *ui.Context) {
 				cardW := 96 * uiScale
 				coverH := 88 * uiScale
 				rowH := coverH + 20*uiScale + 16*uiScale + 8*uiScale
-				ui.ScrollHorizontal(c).Height(rowH).Scrollbars(true).Gap(10 * uiScale).Children(func() {
+				ui.ScrollHorizontal(c).Height(rowH).Scrollbars(false).Gap(10 * uiScale).Children(func() {
 					n := len(a.recent)
 					if n > 10 {
 						n = 10
@@ -58,6 +58,7 @@ func (a *app) queuePage(c *ui.Context) {
 								}
 							})
 							a.loadCover(r.BVID, r.Pic)
+							// 单击播放（最近播放建议单击就放）：封面卡片单击即播
 							if box.Clicked() {
 								go a.play(r)
 							}

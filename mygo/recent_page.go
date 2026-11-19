@@ -11,7 +11,7 @@ import (
 
 func (a *app) recentPage(c *ui.Context) {
 	// 整页滚动条（对齐主线）：整页内容包一个 Scroll，不做组件内部滚动条
-	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+	ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
 				ui.Text(c, "最近播放").FontSize(20 * uiScale).Bold().TextColor(clrText)

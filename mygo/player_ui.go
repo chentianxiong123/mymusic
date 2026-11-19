@@ -26,6 +26,7 @@ func (a *app) gridCard(c *ui.Context, coverKey, coverURL, title, subtitle string
 			a.loadCover(coverKey, coverURL)
 		}
 		// hover 不改封面（不加遮罩、不加描边），只让下方标题变粉
+		// 单击触发 onTap（最近播放=播放；歌单=打开歌单）。列表行（songRow）才是双击播放。
 		if box.Clicked() && onTap != nil {
 			onTap()
 		}

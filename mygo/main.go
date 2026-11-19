@@ -65,7 +65,6 @@ type app struct {
 	tokenInput   string                 // 音箱 token 输入框值（粘贴 token 登录）
 	ctxItem      *bilibili.SearchItem   // 右键菜单目标（非空=显示）
 	ctxX, ctxY   float32                // 菜单弹出位置（窗口坐标）
-	tipTitle     string                 // 当前 hover tooltip 标题（单击触发，显示完整标题）
 	clipboard    string                 // 待复制链接（mygo 暂无线程安全 clipboard API，先字段+状态提示）
 
 	// 搜索
@@ -219,7 +218,7 @@ func (a *app) view(c *ui.Context) {
 						a.searchBar(c)
 						a.searchChips(c)
 						a.resultsHeader(c)
-						ui.Scroll(c).Grow(1).Gap(8 * uiScale).Scrollbars(true).Children(func() {
+						ui.Scroll(c).Grow(1).Gap(8 * uiScale).Scrollbars(false).Children(func() {
 							ui.Column(c).Gap(8 * uiScale).Children(func() {
 								for _, r := range a.results {
 									a.listRow(c, r)
@@ -253,31 +252,6 @@ func (a *app) view(c *ui.Context) {
 	// 「添加到歌单」浮层（ctxItem 为目标歌）
 	if a.addToPick && a.ctxItem != nil {
 		a.addToSonglistSheet(c)
-	}
-	// 标题 tooltip（单击歌曲行触发，显示完整标题；再点空白关闭）
-	if a.tipTitle != "" {
-		ui.Overlay(c, func() {
-			// 透明覆盖层：HitTest 只在点 tooltip 外区域时响应（点其它行不拦截，下层 songRow 单击会覆盖 tipTitle）
-			bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
-			bg.Draw(func(p *ui.Painter, r ui.Rect) { p.Fill(r, ui.RGBA(0, 0, 0, 0), 0) })
-			bg.HitTest(func(x, y float32, r ui.Rect) bool {
-				// 点 tooltip 区域外 → 响应关闭；点 tooltip 区域 → 不响应（让下层处理）
-				return y > 80 // tooltip 在 y=48..80，点 y>80 的空白区域才关闭
-			})
-			if bg.Clicked() {
-				a.tipTitle = ""
-				a.win.Invalidate()
-			}
-			// 顶部居中浮层显示完整标题
-			tip := ui.Box(c).Absolute().Top(48).Center().Radius(8).Background(clrCardGlass).PaddingX(14 * uiScale).PaddingY(8 * uiScale)
-			tip.Draw(func(p *ui.Painter, r ui.Rect) {
-				p.Shadow(r, 14, 0, 8, 28, 0, ui.RGBA(0, 0, 0, 0.5))
-				p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCardGlass)
-			})
-			tip.Children(func() {
-				ui.Text(c, a.tipTitle).FontSize(13 * uiScale).TextColor(clrText).MaxWidth(float32(a.winW) - 48)
-			})
-		})
 	}
 }
 
@@ -402,6 +376,8 @@ func main() {
 	}
 	// 主线 playback 接入：SSOT 状态源 + MyGo 出声后端 + SQLite 持久化
 	a.db = ensureDB()
+	// 插件设置统一存储（系统统一管理）：注入 SettingStore，JS/Go 插件设置落 settings 表。
+	plugin.SetSettingStore(newSettingStore(a.db))
 	audioDir := ""
 	if dir, err := os.UserConfigDir(); err == nil {
 		audioDir = filepath.Join(dir, "mymusic-mygo", "cache", "audio")

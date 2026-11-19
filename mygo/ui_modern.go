@@ -6,7 +6,6 @@ package main
 import (
 	"fmt"
 	"image/color"
-	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 
@@ -443,21 +442,28 @@ func (a *app) songRow(c *ui.Context, bvid, pic, title, author, dur string, opt s
 		// Row 高度=内容，box 的 Justify(Center) 让 Row 在 box 内垂直居中
 		ui.Row(c).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
 			if opt.idx != nil {
-				ui.Text(c, fmt.Sprintf("%02d", *opt.idx+1)).FontSize(13 * uiScale).TextColor(clrMuted).Width(26 * uiScale)
+				ui.Text(c, fmt.Sprintf("%02d", *opt.idx+1)).FontSize(13 * uiScale).TextColor(clrMuted).Width(26 * uiScale).PassThrough()
 			}
-			a.coverWide(c, bvid, pic, a.resp(80, 48), a.resp(56, 36))
-			ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-				// 标题（单行）
-				ui.Text(c, bilibili.CleanHTML(title)).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
+			a.coverWide(c, bvid, pic, a.resp(80, 48), a.resp(56, 36)).PassThrough()
+			// 标题列：Box 包裹（不 PassThrough——需 hover 触发原生 Tooltip + 双击播放）。
+			// 原生 Tooltip（系统级，无覆层）：hover 停留显示完整标题；手机无 hover 但标题列宽，天然适配。
+			cleanTitle := bilibili.CleanHTML(title)
+			titleBox := ui.Box(c).Grow(1).Gap(2 * uiScale).Tooltip(cleanTitle)
+			titleBox.Children(func() {
+				ui.Text(c, cleanTitle).FontSize(a.resp(14, 13)).Bold().TextColor(clrText).MaxLines(1)
 				if author != "" {
 					ui.Text(c, author).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1)
 				}
 			})
+			// 双击标题列 → 播放（标题列自身可交互，双击命中即播）
+			if titleBox.DoubleClicked() {
+				go a.play(item)
+			}
 			if opt.isCur {
-				ui.Text(c, "▶ 播放中").FontSize(12 * uiScale).TextColor(clrPink).Bold()
+				ui.Text(c, "▶ 播放中").FontSize(12 * uiScale).TextColor(clrPink).Bold().PassThrough()
 			}
 			if dur != "" {
-				ui.Text(c, dur).FontSize(12 * uiScale).TextColor(clrMuted)
+				ui.Text(c, dur).FontSize(12 * uiScale).TextColor(clrMuted).PassThrough()
 			}
 			if opt.heartFn != nil {
 				// ♥ 实心/空心表示收藏态（不用颜色高亮）；收藏=实心粉，未收藏=空心灰
@@ -475,14 +481,9 @@ func (a *app) songRow(c *ui.Context, bvid, pic, title, author, dur string, opt s
 			}
 		})
 	})
-	// 单击触发：标题较长时显示完整 tooltip（不播放）；双击播放（全站统一）
-	cleanTitle := bilibili.CleanHTML(title)
+	// 双击播放（全站统一）：封面/序号等 PassThrough 区域穿透到 box；单击不播（长标题由原生 Tooltip 显示，无浮层）
 	if box.DoubleClicked() {
 		go a.play(item)
-	} else if box.Clicked() && utf8.RuneCountInString(cleanTitle) > 12 {
-		// 单击 + 标题较长 → 记录 tooltip，全局 Overlay 层渲染
-		a.tipTitle = cleanTitle
-		a.win.Invalidate()
 	}
 }
 

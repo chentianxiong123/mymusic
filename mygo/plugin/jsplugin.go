@@ -22,6 +22,18 @@ type jsMeta struct {
 	Capabilities []string `json:"capabilities"`
 	AllowedHosts []string `json:"allowedHosts"`
 	Order        int      `json:"order"`
+	Settings     []jsSetting `json:"settings"`
+}
+
+// jsSetting JS 插件设置项声明（对齐 plugin.Setting；meta.settings 数组）。
+// 系统统一管理：声明归插件，存储归 SettingStore。
+type jsSetting struct {
+	Key     string   `json:"key"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Options []string `json:"options"`
+	Default string   `json:"default"`
+	Desc    string   `json:"desc"`
 }
 
 // JSPlugin 一个已加载的 JS 插件（包装成接口）。
@@ -38,11 +50,10 @@ type JSPlugin struct {
 // jsTimeout JS 单次调用超时（能力沙箱层，掐断死循环）。
 const jsTimeout = 5 * time.Second
 
-// builtinKeys 内置插件名（JS 不得同名覆盖，防注册表冲突）。
-var builtinKeys = map[string]bool{
-	"bilibili": true, "netease": true, "local": true,
-	"cast": true, "bluetooth": true, "speaker": true,
-}
+// 内置插件 key，按类型分（JS 不得同名覆盖**对应类型**；不同类型可同名，如音源 netease 与歌词 netease）。
+// 音源内置只有 bilibili；歌词内置只有 netease；target 内置 local/cast/bluetooth/speaker。
+var builtinSourceKeys = map[string]bool{"bilibili": true}
+var builtinLyricKeys = map[string]bool{"netease": true}
 
 // LoadFromDir 扫描 dir/*/plugin.js 逐个加载注册。
 // 单个插件失败不拖垮其他；返回错误列表 + 目录读取错误。
@@ -101,8 +112,18 @@ func NewJSPlugin(path, code string) (*JSPlugin, error) {
 	if err := jp.validate(); err != nil {
 		return nil, err
 	}
+	// 绑定插件身份（设置持久化命名空间：pluginType=capabilities[0]，pluginKey=key）
+	ptype := ""
+	if len(jp.meta.Capabilities) > 0 {
+		ptype = jp.meta.Capabilities[0]
+	}
+	jp.host.withPlugin(ptype, jp.meta.Key)
 	jp.host.allowedHosts = jp.meta.AllowedHosts
 	jp.bind()
+	// 注册设置声明（meta.settings → 系统统一存储；NewJSPlugin 即注册，不依赖 register 路径）
+	if len(jp.meta.Settings) > 0 {
+		jp.registerSettings()
+	}
 	return jp, nil
 }
 
@@ -116,8 +137,18 @@ func (jp *JSPlugin) validate() error {
 	if jp.meta.Name == "" {
 		jp.meta.Name = jp.meta.Key
 	}
-	if builtinKeys[jp.meta.Key] {
-		return fmt.Errorf("key %q 与内置插件冲突", jp.meta.Key)
+	// 按 capability 类型检查同名冲突（如 key=netease 音源允许，但若声明 lyric 能力则拒）。
+	for _, cap := range jp.meta.Capabilities {
+		switch cap {
+		case "source":
+			if builtinSourceKeys[jp.meta.Key] {
+				return fmt.Errorf("key %q 与内置音源冲突", jp.meta.Key)
+			}
+		case "lyric":
+			if builtinLyricKeys[jp.meta.Key] {
+				return fmt.Errorf("key %q 与内置歌词冲突", jp.meta.Key)
+			}
+		}
 	}
 	return nil
 }
@@ -159,6 +190,26 @@ func (jp *JSPlugin) register() error {
 		}
 	}
 	return nil
+}
+
+// registerSettings 把 meta.settings 声明注册进设置表（系统统一存储）。
+func (jp *JSPlugin) registerSettings() {
+	ptype := ""
+	if len(jp.meta.Capabilities) > 0 {
+		ptype = jp.meta.Capabilities[0]
+	}
+	items := make([]Setting, 0, len(jp.meta.Settings))
+	for _, js := range jp.meta.Settings {
+		items = append(items, Setting{
+			Key:     js.Key,
+			Name:    js.Name,
+			Type:    SettingValue(js.Type),
+			Options: js.Options,
+			Default: js.Default,
+			Desc:    js.Desc,
+		})
+	}
+	RegisterSettings(ptype, jp.meta.Key, items)
 }
 
 // call 调用 JS 函数（带超时，能力沙箱层）。

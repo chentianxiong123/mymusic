@@ -13,9 +13,9 @@ func TestLiveDemoSearch(t *testing.T) {
 	if _, err := LoadFromDir(filepath.Join("..", "plugins")); err != nil {
 		t.Fatalf("LoadFromDir: %v", err)
 	}
-	src := Sources()["demo"]
+	src := Sources()["netease"]
 	if src == nil {
-		t.Fatal("demo source 未注册")
+		t.Fatal("netease source 未注册")
 	}
 	songs, total, err := src.Search("周杰伦", 1, 5)
 	if err != nil {
@@ -32,13 +32,11 @@ func TestLiveDemoSearch(t *testing.T) {
 	}
 	t.Logf("✅ 取流 url=%s quality=%d", st.URL, st.Quality)
 
+	// 歌词：demo 不声明 lyric 能力（网易云歌词走内置 netease 源），
+	// GetLyric 返回 (nil, nil)。若未来 JS 音源自带歌词，声明 capability "lyric" 即可。
 	lines, err := src.GetLyric(songs[0].ID, nil, 0)
 	if err != nil {
 		t.Fatalf("歌词失败: %v", err)
 	}
-	first := ""
-	if len(lines) > 0 {
-		first = lines[0].Text
-	}
-	t.Logf("✅ 歌词 %d 行 首句=%q", len(lines), first)
+	t.Logf("✅ netease 音源无 lyric 能力，歌词走内置 netease（GetLyric 返回 %d 行）", len(lines))
 }

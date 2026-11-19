@@ -17,11 +17,11 @@ func TestPlayQueueAndNext(t *testing.T) {
 	if len(s.Queue) != 2 || s.QIdx != 1 || s.BVID != "B" {
 		t.Fatalf("Play queue wrong: q=%d idx=%d cur=%s", len(s.Queue), s.QIdx, s.BVID)
 	}
-	// 去重：再播 A → 移尾
+	// 歌在队列：再播 A → 只定位（队列内容/顺序/位置不变，A 仍第 0 位）
 	p.Play(Song{BVID: "A", Title: "a2"})
 	s = p.Snapshot()
-	if len(s.Queue) != 2 || s.QIdx != 1 || s.BVID != "A" || s.Queue[0].BVID != "B" {
-		t.Fatalf("dedupe wrong: q=%d idx=%d cur=%s first=%s", len(s.Queue), s.QIdx, s.BVID, s.Queue[0].BVID)
+	if len(s.Queue) != 2 || s.QIdx != 0 || s.BVID != "A" || s.Queue[0].BVID != "A" || s.Queue[1].BVID != "B" {
+		t.Fatalf("定位不改队列 wrong: q=%d idx=%d cur=%s q0=%s q1=%s", len(s.Queue), s.QIdx, s.BVID, s.Queue[0].BVID, s.Queue[1].BVID)
 	}
 	// next 循环
 	p.Next()
@@ -470,5 +470,42 @@ func TestNextGuardAgainstStaleSpeakerProgress(t *testing.T) {
 	}
 	if s.Position != 0 {
 		t.Fatalf("新歌进度被旧歌位置覆盖: pos=%v", s.Position)
+	}
+}
+
+// TestPlayLocatesWithoutMutatingQueue 播放不改队列：歌在队列 → 只定位 QIdx，
+// 队列内容/顺序/位置完全不变；歌不在队列 → 追加队尾。
+func TestPlayLocatesWithoutMutatingQueue(t *testing.T) {
+	p := NewPlaybackState()
+	p.SetQueue([]Song{{BVID: "A"}, {BVID: "B"}, {BVID: "C"}}, 0)
+
+	// 点队列第 3 首（C）：队列不变，QIdx=2
+	p.Play(Song{BVID: "C", Title: "c"})
+	s := p.Snapshot()
+	if len(s.Queue) != 3 || s.QIdx != 2 || s.BVID != "C" {
+		t.Fatalf("定位失败: q=%d idx=%d cur=%s", len(s.Queue), s.QIdx, s.BVID)
+	}
+	if s.Queue[0].BVID != "A" || s.Queue[1].BVID != "B" || s.Queue[2].BVID != "C" {
+		t.Fatalf("队列顺序被改变: %s %s %s", s.Queue[0].BVID, s.Queue[1].BVID, s.Queue[2].BVID)
+	}
+
+	// 点队列第 1 首（A）：队列不变，QIdx=0
+	p.Play(Song{BVID: "A", Title: "a"})
+	s = p.Snapshot()
+	if len(s.Queue) != 3 || s.QIdx != 0 || s.BVID != "A" {
+		t.Fatalf("定位回第 1 首失败: q=%d idx=%d cur=%s", len(s.Queue), s.QIdx, s.BVID)
+	}
+	if s.Queue[0].BVID != "A" || s.Queue[1].BVID != "B" || s.Queue[2].BVID != "C" {
+		t.Fatalf("队列顺序被改变(2): %s %s %s", s.Queue[0].BVID, s.Queue[1].BVID, s.Queue[2].BVID)
+	}
+
+	// 歌不在队列（D）：追加队尾，QIdx=3
+	p.Play(Song{BVID: "D", Title: "d"})
+	s = p.Snapshot()
+	if len(s.Queue) != 4 || s.QIdx != 3 || s.BVID != "D" || s.Queue[3].BVID != "D" {
+		t.Fatalf("追加队尾失败: q=%d idx=%d cur=%s", len(s.Queue), s.QIdx, s.BVID)
+	}
+	if s.Queue[0].BVID != "A" || s.Queue[1].BVID != "B" || s.Queue[2].BVID != "C" {
+		t.Fatalf("队列前部被改变: %s %s %s", s.Queue[0].BVID, s.Queue[1].BVID, s.Queue[2].BVID)
 	}
 }

@@ -181,6 +181,7 @@ const resp = host.http({
 ## 4. JS 插件文件形态（一个 `plugin.js`）
 
 ```js
+// 形态示例（教学用）。实际正式网易云音源见 plugins/netease/plugin.js（key="netease"）。
 // plugins/demo-source/plugin.js
 export const meta = {
   apiVersion: 1,                      // 契约版本，宿主校验
@@ -357,11 +358,11 @@ new-api 任务插件 = 单文件 `plugin.js`，导出 `meta`（声明式：apiVe
 
 ## 9. 验收清单（✅ 全部通过，2026-11-19 实测）
 
-- [x] `plugins/demo-source/plugin.js` 加载成功（单测 `TestJSPluginLoadDemo` 过）
-- [x] 搜索页/音源列表出现 "示例音源"（demo 注册 + `Info` Order 25）
-- [x] 选 demo 源能搜索出结果（**live 联网：total=275**，首曲"屋顶-周杰伦"）
+- [x] `plugins/netease/plugin.js`（**正式网易云音源**）加载成功（单测 `TestJSPluginLoadNetease` 过）
+- [x] 搜索页/音源列表出现 "网易云"（netease 音源注册 + `Info` Order 20，在 bilibili 10 后）
+- [x] 选网易云源能搜索出结果（**live 联网：total=274**，首曲"屋顶-周杰伦"）
 - [x] 双击播放能取流（**live：真实网易云 CDN mp3 直链**，quality=1）
-- [x] 歌词能取到并滚动（**live：55 行**，宿主 LRC 解析）
+- [x] 歌词能取到（**网易云歌词走内置 netease 源**；netease 音源不声明 lyric 能力，避免与内置重复）
 - [x] 现有 bilibili/netease/local 插件**仍正常**（未改注册逻辑）
 - [x] `CGO_ENABLED=0` 交叉编译通过（**linux/darwin/windows/freebsd**；android 受 UI 框架 cgo 限制，见 §11）
 - [x] 恶意 URL（不在 allowedHosts）被拒（`TestHostAllowed`）
@@ -391,18 +392,19 @@ new-api 任务插件 = 单文件 `plugin.js`，导出 `meta`（声明式：apiVe
 | `plugin/jsplugin.go` | `LoadFromDir` 扫描 + sobek VM 加载 + meta 校验 + 注册 + 5s 超时掐断 |
 | `plugin/jssource.go` | JS 适配器 → `source.MusicSource` / `lyric.Provider`（编译期契约） |
 | `plugin/lrc.go` | 宿主统一 LRC 解析 |
-| `plugins/demo-source/plugin.js` | 示例插件（网易云免登录源：搜索/取流/歌词） |
+| `plugins/netease/plugin.js` | **正式网易云音源**（key=netease，免登录：搜索/取流；歌词用内置 netease，不重复声明） |
 | `plugin/jsplugin_test.go` | 单测（加载/冲突/语法错误/白名单/LRC） |
 | `plugin/jsplugin_live_test.go` | 联网验证（`-tags live`） |
 | `main.go`（+6 行） | 启动时 `plugin.LoadFromDir("plugins")` |
 
-**验证数据**（live 联网）：搜索 total=275（"周杰伦"）、取流真实 CDN mp3（m801.music.126.net）、歌词 55 行。`go vet` 全量干净、`gofmt` 通过、默认 `go test` 全绿。
+**验证数据**（live 联网）：搜索 total=274（"周杰伦"）、取流真实 CDN mp3（m801.music.126.net）。歌词走**内置 netease 源**（netease 音源未声明 lyric 能力）。`go vet` 全量干净、`gofmt` 通过、默认 `go test` 全绿。
 
 **与本文档方案的差异**（务必告知接手者）：
 
 1. **插件形态用全局函数，非 `export`**——sobek 不是 Node，无 ES module 系统；用 `var meta={...}` + `function search(ctx){...}`，宿主 `vm.Get("search")` 取函数。契约（meta/host.http/capabilities）不变，仅去掉 `export const`。
 2. **android 纯 Go 编不过**——本文档 §0/§5F 说的"android 交叉编译通过"指 **sobek 库单独**编，**不是整个 mygo**。整个 mygo 含 `egoist/mygo` UI 框架，其 android 实现是 **cgo 文件**（`jni_android.c`），`CGO_ENABLED=0` 排除 → `onUIThread`/`hostLog` undefined。android 正常构建需 **NDK + cgo**，非纯 Go。**与 JS 插件无关**（插件新增唯一依赖 sobek 是纯 Go）。
 3. **依赖**：`github.com/grafana/sobek`（纯 Go，已入 go.mod/go.sum）；mygo `go 1.27.3`。
+4. **netease 音源不声明 lyric 能力**——网易云歌词已内置（`plugin.RegisterLyric(lyricplug.NewNetease())`），netease 是**音源**（搜索/取流），歌词复用内置 netease。音源 netease 与歌词 netease **同名不冲突**（不同注册表/Type），validate 按类型检查冲突。
 
 **构建/验证命令**（本机验证）：
 

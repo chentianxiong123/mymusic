@@ -127,7 +127,7 @@ func (a *app) songlistCardSize() float32 {
 
 // songlistDetail 歌单详情页：标题 + 操作 + 歌曲行。
 func (a *app) songlistDetail(c *ui.Context) {
-	ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+	ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12 * uiScale).Children(func() {
 			// 标题行：返回 + 歌单名 + 首数 + 操作
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
@@ -272,7 +272,7 @@ func (a *app) addToSonglistSheet(c *ui.Context) {
 				})
 				ui.Text(c, bilibili.CleanHTML(item.Title)).FontSize(12 * uiScale).TextColor(clrMuted).MaxLines(1)
 				// 歌单列表（滚动）
-				ui.Scroll(c).Grow(1).Scrollbars(true).Children(func() {
+				ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 					ui.Column(c).Gap(4 * uiScale).Children(func() {
 						if len(a.songlists) == 0 {
 							ui.Text(c, "还没有歌单，点下方「新建」").FontSize(13 * uiScale).TextColor(clrMuted)

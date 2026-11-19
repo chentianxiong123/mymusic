@@ -23,6 +23,18 @@ type jsHost struct {
 	allowedHosts []string
 	client       *http.Client
 	sem          chan struct{}
+
+	// 插件设置持久化（系统统一管理）：
+	// pluginType = meta.capabilities[0]（插件类型）；pluginKey = meta.key。
+	// config 读写走 SettingStore（注入），未注入=内存态。
+	pluginType string
+	pluginKey  string
+}
+
+// withPlugin 绑定插件身份（设置持久化命名空间用；NewJSPlugin 时调）。
+func (h *jsHost) withPlugin(pluginType, key string) {
+	h.pluginType = pluginType
+	h.pluginKey = key
 }
 
 // maxConcurrentJSHTTP JS 插件并发 HTTP 上限（能力沙箱层）。
@@ -46,7 +58,7 @@ type hostHTTPRequest struct {
 	TimeoutMs int               `json:"timeoutMs"`
 }
 
-// inject 注入 host 全局对象（host.http/log/config/now）。
+// inject 注入 host 全局对象（host.http/log/config/setting/now）。
 func (h *jsHost) inject(vm *sobek.Runtime) error {
 	hostObj := vm.NewObject()
 	if err := hostObj.Set("http", h.httpFunc); err != nil {
@@ -58,11 +70,90 @@ func (h *jsHost) inject(vm *sobek.Runtime) error {
 	if err := hostObj.Set("now", func() int64 { return time.Now().UnixMilli() }); err != nil {
 		return fmt.Errorf("host.now: %w", err)
 	}
-	// config：插件设置（默认空 map；设置持久化后可读写）
-	if err := hostObj.Set("config", map[string]interface{}{}); err != nil {
+	// config：插件设置（系统统一管理，持久化走 SettingStore）。
+	// 读=GetSetting 默认值，写=SetSetting 落库。注入后插件可 host.config.get/set。
+	if err := hostObj.Set("config", h.configObject(vm)); err != nil {
 		return fmt.Errorf("host.config: %w", err)
 	}
+	// setting：底层设置 API（config 的封装，key 不带命名空间前缀）。
+	if err := hostObj.Set("setting", h.settingObject(vm)); err != nil {
+		return fmt.Errorf("host.setting: %w", err)
+	}
 	return vm.Set("host", hostObj)
+}
+
+// configObject host.config：读=默认值（声明未存），写=落库。
+// 提供 get(key[,def]) / set(key,val) / all() 三个方法。
+func (h *jsHost) configObject(vm *sobek.Runtime) *sobek.Object {
+	obj := vm.NewObject()
+	_ = obj.Set("get", func(call sobek.FunctionCall) sobek.Value {
+		if len(call.Arguments) == 0 {
+			return sobek.Undefined()
+		}
+		key := call.Argument(0).String()
+		def := ""
+		if len(call.Arguments) > 1 {
+			def = call.Argument(1).String()
+		}
+		v := GetSetting(h.pluginType, h.pluginKey, key, def)
+		return vm.ToValue(v)
+	})
+	_ = obj.Set("set", func(call sobek.FunctionCall) sobek.Value {
+		if len(call.Arguments) < 2 {
+			return vm.ToValue(false)
+		}
+		key := call.Argument(0).String()
+		val := call.Argument(1).String()
+		if err := SetSetting(h.pluginType, h.pluginKey, key, val); err != nil {
+			return vm.ToValue(false)
+		}
+		return vm.ToValue(true)
+	})
+	// all：读全部已声明设置（含默认值），返回对象。
+	_ = obj.Set("all", func(call sobek.FunctionCall) sobek.Value {
+		out := map[string]string{}
+		for _, it := range SettingsOf(h.pluginType, h.pluginKey) {
+			out[it.Key] = GetSetting(h.pluginType, h.pluginKey, it.Key, it.Default)
+		}
+		return vm.ToValue(out)
+	})
+	return obj
+}
+
+// settingObject host.setting：底层设置 API（同 config，key 直接传）。
+func (h *jsHost) settingObject(vm *sobek.Runtime) *sobek.Object {
+	obj := vm.NewObject()
+	_ = obj.Set("get", func(call sobek.FunctionCall) sobek.Value {
+		if len(call.Arguments) == 0 {
+			return sobek.Undefined()
+		}
+		key := call.Argument(0).String()
+		def := ""
+		if len(call.Arguments) > 1 {
+			def = call.Argument(1).String()
+		}
+		return vm.ToValue(GetSetting(h.pluginType, h.pluginKey, key, def))
+	})
+	_ = obj.Set("set", func(call sobek.FunctionCall) sobek.Value {
+		if len(call.Arguments) < 2 {
+			return vm.ToValue(false)
+		}
+		if err := SetSetting(h.pluginType, h.pluginKey, call.Argument(0).String(), call.Argument(1).String()); err != nil {
+			return vm.ToValue(false)
+		}
+		return vm.ToValue(true)
+	})
+	return obj
+}
+
+// configGet 读插件设置（供测试/内部用；等价 host.config.get）。
+func (h *jsHost) configGet(key, def string) string {
+	return GetSetting(h.pluginType, h.pluginKey, key, def)
+}
+
+// configSet 写插件设置（供测试/内部用；等价 host.config.set）。
+func (h *jsHost) configSet(key, val string) error {
+	return SetSetting(h.pluginType, h.pluginKey, key, val)
 }
 
 // httpFunc 实现 host.http(req) → resp（错误时 resp.error 非空，插件可判断）。
