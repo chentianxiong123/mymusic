@@ -67,8 +67,20 @@ func (a *app) navPanel(c *ui.Context) {
 		if bg.Clicked() {
 			a.navOpen = false
 		}
-		// 面板：左上浮层（w-48 风格）
-		panel := ui.Box(c).Absolute().Left(12).Top(64).Width(200 * uiScale).Radius(16 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale).Background(clrCard)
+		// 面板：右上浮层（与右上汉堡同侧，w-48 风格）。
+		// 动态计算（原 Left(12).Top(64).Width(200*uiScale) 是主线 Tailwind left-3 top-16 w-48 逐字翻译，
+		// 存在 3 处硬编码问题：①Top 未乘 uiScale → uiScale>1 盖导航栏；②Width 窄屏过大；③侧别与汉堡相反）。
+		navH := 56 * uiScale                            // 移动导航栏实际高（navBarMobile Height(56*uiScale)）
+		panelTop := navH + 8*uiScale                    // 导航栏下方 8px
+		panelW := 200 * uiScale                         // w-48 基准宽
+		if m := float32(a.winW) * 0.5; panelW > m {
+			panelW = m // 窄屏限 50% 窗宽（360px 手机 → ≤180px，避免糊半屏）
+		}
+		panelH := float32(a.winH) - panelTop - 16*uiScale // 高度上限（防矮屏/横屏溢出）
+		if panelH < 200*uiScale { // winH 未就绪/窗口过矮 → 兜底，避免 MaxHeight 为 0/负值
+			panelH = 300 * uiScale
+		}
+		panel := ui.Box(c).Absolute().Right(12*uiScale).Top(panelTop).Width(panelW).MaxHeight(panelH).Radius(16 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale).Background(clrCard)
 		panel.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.Shadow(r, 16, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.45))
 		})

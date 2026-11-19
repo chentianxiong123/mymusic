@@ -164,6 +164,8 @@ func (a *app) pluginConfigForm(c *ui.Context) {
 		a.neteaseLyricConfig(c)
 	case "target/speaker":
 		a.speakerConfig(c)
+	case "target/local":
+		a.localConfig(c)
 	default:
 		// JS 插件（meta.settings 声明）：渲染通用设置表单（系统统一管理）。
 		// 解析 pluginDetail = type/name，查设置声明，有则渲染。
