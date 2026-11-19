@@ -155,7 +155,7 @@ func (a *app) updateBtnLabels() []string {
 
 // checkUpdate 检查更新（后台 goroutine；结果经 win.Update 回主线程）。
 func (a *app) checkUpdate() {
-	if !mygo.Updater.Enabled() {
+	if !mygoUpdaterEnabled() {
 		a.win.Update(func() {
 			updateUI.status = "此构建未启用更新：需用 mygo build（含 updates.publicKey）产出"
 		})

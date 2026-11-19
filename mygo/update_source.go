@@ -99,6 +99,9 @@ func (s updateClient) Open(ctx context.Context, u string) (io.ReadCloser, error)
 	return resp.Body, nil
 }
 
+// mygoUpdaterEnabled 当前构建能否自我更新（false=plain go build 开发版，或安装目录不可写）。
+func mygoUpdaterEnabled() bool { return mygo.Updater.Enabled() }
+
 // applyUpdateSource 把用户配置接入 mygo.Updater（运行期生效，不改构建期）。
 // kind 为空 = 不覆盖，回落到构建期 feed（mygo.json 的 github/url）。
 func applyUpdateSource(kind, githu, base, proxy string) {
