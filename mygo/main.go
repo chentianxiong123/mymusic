@@ -75,9 +75,10 @@ type app struct {
 	resultsBySource []srcResult
 	loading         atomic.Bool
 	status          string
-	// 推荐页（内容靠插件实现）：每插件缓存推荐歌曲 + 加载态
-	recommendData   map[string][]source.Song
-	recommendLoaded map[string]bool
+	// 推荐页（内容靠插件实现）：每插件缓存推荐歌曲 + 加载态 + 详情页开关
+	recommendData       map[string][]source.Song
+	recommendLoaded     map[string]bool
+	recommendDetailOpen bool // 推荐详情页是否打开（来源页预览 → 点击进详情）
 
 	// 分页（各列表页当前页，每页 20 条；搜索结果每源独立分页）
 	pg          map[string]int // 列表页当前页：queue/recent/fav/detail（本地切片分页）
@@ -208,8 +209,6 @@ func (a *app) view(c *ui.Context) {
 		// playerBar 被挤出窗口不可见（队列/设置/投屏无控制面板）。
 		ui.Column(c).Grow(1).Fill().Children(func() {
 			switch a.activeTab {
-			case "recommend":
-				a.recommendPage(c)
 			case "queue":
 				a.queuePage(c)
 			case "fav":
@@ -238,7 +237,11 @@ func (a *app) view(c *ui.Context) {
 								a.searchBar(c)
 								a.searchChips(c)
 								a.searchNotFound(c)
+							} else if a.recommendDetailOpen {
+								// 推荐详情页（分插件完整展示；从来源页预览点击进入）
+								a.recommendDetail(c)
 							} else {
+								// 来源页空态：推荐预览（1-2 行精简，吸引点击）在上 + 风格分类在下
 								a.searchEmpty(c)
 							}
 						})

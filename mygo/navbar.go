@@ -25,9 +25,6 @@ func (a *app) navBarDesktop(c *ui.Context) {
 	ui.Row(c).AlignSelf(ui.Stretch).Height(64 * uiScale).PaddingX(px).Gap(navGap).AlignItems(ui.Center).Children(func() {
 		icon(c, icMusic, a.resp(24, 20), clrText)
 		ui.Spacer(c).Width(a.resp(10, 4))
-		if navTab(c, icRecommend, "推荐", a.activeTab == "recommend", false).Clicked() {
-			a.setTab("recommend")
-		}
 		if navTab(c, icList, "队列", a.activeTab == "queue", false).Clicked() {
 			a.setTab("queue")
 		}
@@ -94,7 +91,6 @@ func (a *app) navPanel(c *ui.Context) {
 					label string
 					icon  *ui.SVG
 				}{
-					{"recommend", "推荐", icRecommend},
 					{"queue", "队列", icList},
 					{"fav", "歌单", icFav},
 					{"search", "来源", icSearch},

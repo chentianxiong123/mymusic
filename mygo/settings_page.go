@@ -83,6 +83,8 @@ func (a *app) systemSettings(c *ui.Context) {
 				a.saveHistory()
 				a.win.Invalidate()
 			})
+			// 12 更新（运行期自填源：GitHub / 自建 URL + 代理；校验公钥构建期烙进二进制）
+			a.updateSettings(c)
 		})
 	})
 }

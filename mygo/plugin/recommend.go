@@ -9,10 +9,11 @@ import (
 )
 
 // Recommend 推荐插件：内容 + UI 全由插件实现。
-// 宿主推荐页只遍历 Recommends() 并调 Render（分区布局也归插件，宿主只提供容器 + 能力）。
+// 宿主按 preview 调 Render：preview=true（来源页预览，插件画 1-2 行精简吸引点击）
+// / false（推荐详情页，插件画全部，分插件展示）。插件自控行数。
 type Recommend interface {
 	Name() string                                    // 推荐插件名（展示）
-	Render(c *ui.Context, h RecommendHost)           // 插件自绘推荐 UI（数据/布局全归插件）
+	Render(c *ui.Context, h RecommendHost, preview bool) // 插件自绘推荐 UI（preview 决定行数）
 }
 
 // RecommendHost 推荐页宿主能力（由主程序 app 实现，注入推荐插件）。

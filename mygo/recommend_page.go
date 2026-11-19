@@ -2,10 +2,9 @@
 
 package main
 
-// 推荐页：壳，内容 + UI 全由推荐插件自己实现。
-// 宿主只遍历 plugin.Recommends() 调 Render（插件自绘），并通过 RecommendHost
-// 注入能力（Play/Invalidate/Resp）。宿主不渲染任何推荐内容（一切靠插件）。
-// 插件一注册 → 推荐页自动多一个区块，UI 零改动。
+// 推荐（放来源页上）：来源页空态显示推荐预览（每插件 1-2 行精简，吸引点击），
+// 点击 → 推荐详情页（分插件完整展示）。内容 + UI 全由推荐插件自绘（preview 控制行数）。
+// 宿主只遍历调 Render + 注入能力（RecommendHost），不渲染推荐内容（一切靠插件）。
 
 import (
 	"github.com/egoist/mygo/ui"
@@ -13,30 +12,56 @@ import (
 	"mymusic-mygo/plugin"
 )
 
-// recommendPage 推荐页：整页滚动，遍历推荐插件（每插件自绘自己的推荐 UI）。
-func (a *app) recommendPage(c *ui.Context) {
+// recommendPreview 来源页空态的推荐预览区（每插件 1-2 行精简 + 查看全部入口）。
+// 点击推荐区 → 推荐详情页（分插件完整展示）。
+func (a *app) recommendPreview(c *ui.Context) {
+	recs := plugin.Recommends()
+	if len(recs) == 0 {
+		return // 无推荐插件：不显示推荐区（来源页只留风格分类）
+	}
+	ui.Column(c).Fill().Gap(14 * uiScale).Children(func() {
+		// 标题行：推荐 + 查看全部（进详情页）
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+			ui.Text(c, "推荐").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
+			ui.Spacer(c).Grow(1)
+			if chip(c, "查看全部").Clicked() {
+				a.recommendDetailOpen = true
+				a.win.Invalidate()
+			}
+		})
+		// 每插件预览区块（preview=true：插件画 1-2 行精简，吸引点击进详情）
+		for _, r := range recs {
+			section := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
+			section.Children(func() {
+				r.Render(c, a, true)
+			})
+			// 点击推荐区块 → 推荐详情页（分插件完整展示）
+			if section.Clicked() {
+				a.recommendDetailOpen = true
+				a.win.Invalidate()
+			}
+		}
+	})
+}
+
+// recommendDetail 推荐详情页（分插件完整展示，preview=false 插件画全部）。
+func (a *app) recommendDetail(c *ui.Context) {
 	ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
-			// 标题行
+			// 返回 + 标题
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+				if iconButton2(c, icBack, a.resp(30, 28), clrText).Clicked() {
+					a.recommendDetailOpen = false
+					a.win.Invalidate()
+				}
 				ui.Text(c, "推荐").FontSize(20 * uiScale).Bold().TextColor(clrText)
 				ui.Spacer(c).Grow(1)
 			})
-			recs := plugin.Recommends()
-			if len(recs) == 0 {
-				// 无推荐插件：提示（注册推荐插件后自动出现，内容靠插件）
-				ui.Column(c).Fill().Center().Gap(10 * uiScale).Children(func() {
-					icon(c, icRecommend, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
-					ui.Text(c, "暂无推荐").FontSize(17 * uiScale).Bold().TextColor(clrText)
-					ui.Text(c, "注册推荐插件后，这里按插件自绘展示").FontSize(13 * uiScale).TextColor(clrMuted)
-				})
-				return
-			}
-			// 每插件一个区块：内容 + UI 全由插件 Render 自绘（宿主只提供容器 + 能力）
-			for _, r := range recs {
+			// 分插件完整展示（preview=false）
+			for _, r := range plugin.Recommends() {
 				section := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
 				section.Children(func() {
-					r.Render(c, a) // 插件自绘（宿主 a 实现 RecommendHost）
+					r.Render(c, a, false)
 				})
 			}
 		})

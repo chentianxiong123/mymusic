@@ -2,5 +2,10 @@
   "name": "mymusic-mygo",
   "identifier": "com.example.mymusicmygo",
   "version": "0.1.0",
-  "out": "build"
+  "out": "build",
+  "updates": {
+    "publicKey": "qpr3lYQA+ChMQCJvxJfXgK7vMQV5iJ1ZGqJLNZRpe/I=",
+    "github": "TODO/mymusic-mygo",
+    "tagPrefix": "mygo-"
+  }
 }
