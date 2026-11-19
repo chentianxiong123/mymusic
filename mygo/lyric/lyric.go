@@ -3,6 +3,8 @@
 package lyric
 
 import (
+	"strconv"
+
 	"homecast/service/lyric"
 	"mymusic-mygo/source"
 )
@@ -11,7 +13,7 @@ import (
 // keywords=备选标题关键词（B站分P标题优先），sid>0=网易云精确歌单。
 type Provider interface {
 	Name() string // "netease"
-	Fetch(keywords []string, sid int) ([]source.LyricLine, error)
+	Fetch(keywords []string, sid string) ([]source.LyricLine, error)
 }
 
 // Netease 网易云歌词源（复用主线 lyric.GetLyricLines 纯函数，不重写词源）。
@@ -23,8 +25,9 @@ func NewNetease() *Netease { return &Netease{} }
 func (p *Netease) Name() string { return "netease" }
 
 // Fetch 包装主线 lyric.GetLyricLines：备选标题逐个搜 → 首个有词的候选。
-func (p *Netease) Fetch(keywords []string, sid int) ([]source.LyricLine, error) {
-	res := lyric.GetLyricLines(keywords, sid)
+func (p *Netease) Fetch(keywords []string, sid string) ([]source.LyricLine, error) {
+	sidInt, _ := strconv.Atoi(sid)
+	res := lyric.GetLyricLines(keywords, sidInt)
 	if res == nil {
 		return nil, nil
 	}

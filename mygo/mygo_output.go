@@ -72,6 +72,13 @@ func (o *MyGoOutput) setSrcName(name string) {
 	o.mu.Unlock()
 }
 
+// srcName 当前播放歌来源名（加锁读；空=默认源）。
+func (o *MyGoOutput) srcName() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.curSrc
+}
+
 // sourceByName 按歌来源名路由到对应音源（分开搜索：每源独立，取流用对应源）。
 // name=歌的 Typename（"bilibili"/"netease"/...）；空或未知回退当前 src。
 func (o *MyGoOutput) sourceByName(name string) source.MusicSource {

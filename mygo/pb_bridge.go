@@ -241,7 +241,7 @@ func (a *app) applyState(st playback.State) {
 			go a.loadLyricAsync(st.BVID)
 		}
 	}
-	a.current = &track{bvid: st.BVID, title: st.Title, author: st.Artist, pic: st.Cover}
+	a.current = &track{bvid: st.BVID, title: st.Title, author: st.Artist, pic: st.Cover, src: a.mygoOut.srcName()}
 	// 同步「当前该播的 bvid」给输出端：启动恢复（pb restore）只写 p.cur 不调 Play，
 	// 输出端 o.p==nil。不同步则首次点播放 Resume 无音源可恢复 → 没声音
 	// （必须去队列/搜索重新点歌才放）。

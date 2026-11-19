@@ -34,6 +34,7 @@ import (
 // track 当前曲目。
 type track struct {
 	bvid, cid, title, author, url, pic, duration string
+	src                                          string // 歌来源名（typename：bilibili/netease/migu/...）
 }
 
 // app 是窗口显示的状态。view 在主线程从它构建界面；

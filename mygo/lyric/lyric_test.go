@@ -10,7 +10,7 @@ var _ Provider = (*Netease)(nil)
 // TestNeteaseFetchEmpty 失败路径：空关键词应无词（业务正常），不 panic。
 func TestNeteaseFetchEmpty(t *testing.T) {
 	p := NewNetease()
-	lines, err := p.Fetch(nil, 0)
+	lines, err := p.Fetch(nil, "")
 	if err != nil {
 		t.Fatalf("空关键词不应报错: %v", err)
 	}

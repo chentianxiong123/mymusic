@@ -131,7 +131,7 @@ var _ lyric.Provider = (*jsLyric)(nil)
 func (l *jsLyric) Name() string { return l.jp.meta.Key }
 
 // Fetch 调 JS lyric(ctx) → {lrc} → 宿主 parseLRC。
-func (l *jsLyric) Fetch(keywords []string, sid int) ([]source.LyricLine, error) {
+func (l *jsLyric) Fetch(keywords []string, sid string) ([]source.LyricLine, error) {
 	if l.jp.lyricFn == nil {
 		return nil, nil
 	}

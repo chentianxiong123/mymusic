@@ -8,8 +8,8 @@ var meta = {
   key: "migu",
   name: "咪咕音乐",
   version: "1.0.0",
-  capabilities: ["source"],
-  allowedHosts: ["pd.musicapp.migu.cn", "c.musicapp.migu.cn"],
+  capabilities: ["source", "lyric"],
+  allowedHosts: ["pd.musicapp.migu.cn", "c.musicapp.migu.cn", "y.migu.cn", "d.musicapp.migu.cn"],
   order: 40, // bilibili 10 / 网易云 20 / QQ 30 之后
   settings: [
     { key: "quality", name: "音质", type: "select", options: ["PQ", "ZQ32"], default: "PQ", desc: "取流 toneFlag（PQ=标准免登录；ZQ32=高品，需 cookie）" },
@@ -78,6 +78,23 @@ function getURL(ctx) {
   var data = d.data || {};
   if (!data.url) return { error: "无直链（无损需登录 cookie，切 PQ 或粘贴 cookie）" };
   return { url: data.url, quality: tone === "ZQ32" ? 2 : 0 };
+}
+
+// 歌词：resourceinfo.do 拿 lrcUrl → 拉 lrc（免费歌；收费歌 lyricUrl 可能空）。
+function lyric(ctx) {
+  var id = ctx.sid; // 歌 contentId（loadLyricAsync 传 a.current.BVID）
+  if (!id) return { error: "缺歌 id" };
+  var url = "http://c.musicapp.migu.cn/MIGUM2.0/v1.0/content/resourceinfo.do?resourceId=" + encodeURIComponent(id) + "&resourceType=2";
+  var resp = ctx.host.http({ url: url, headers: { "Referer": "https://y.migu.cn/", "User-Agent": "Android_migu/7.41.13 okhttp/3.12.13" } });
+  if (resp.error) return { error: resp.error };
+  var d = JSON.parse(resp.body);
+  var res = (d.resource || d.Resource || [])[0] || {};
+  var lrcUrl = res.lrcUrl || res.lyricUrl || "";
+  if (!lrcUrl) return { error: "无歌词" };
+  lrcUrl = String(lrcUrl).replace(/^http:/, "https:");
+  var lr = ctx.host.http({ url: lrcUrl, headers: { "Referer": "https://y.migu.cn/" } });
+  if (lr.error) return { error: lr.error };
+  return { lrc: lr.body };
 }
 
 // 工具：秒 → mm:ss。

@@ -140,12 +140,12 @@ func (l *linkCore) Targets() []plugin.TargetBrief {
 
 // ── 歌词 ──
 
-func (l *linkCore) Lyric(keywords []string, sid int) ([]source.LyricLine, error) {
+func (l *linkCore) Lyric(keywords []string, sid string) ([]source.LyricLine, error) {
 	prov := plugin.Lyric("") // 默认网易云
 	if prov == nil {
 		return nil, errors.New("无歌词插件")
 	}
-	return prov.Fetch(keywords, sid)
+	return prov.Fetch(keywords, sid) // sid string（lyric.Provider 签名 string；咪咕 contentId 超 JS 安全整数须字符串保精度）
 }
 
 // findTarget 按 "name" 或 "name/id" 或 "id" 找已注册目标插件。

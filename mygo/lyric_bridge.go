@@ -11,6 +11,8 @@ import (
 	"homecast/service/lyric"
 	"homecast/service/playlist"
 	"homecast/service/widget"
+
+	"mymusic-mygo/plugin"
 )
 
 // loadLyricAsync 后台加载歌词：走主线 LyricHandler 端点（/api/v1/music/lyric），
@@ -32,6 +34,30 @@ func (a *app) loadLyricAsync(bvid string) {
 		// （服务端 bvid 非空会用分P标题覆盖，这边只是 fallback）
 		kwRaw := titleToSongMygo(a.current.title) + " " + a.current.author
 		kw := urlQE(kwRaw)
+		// 歌词按源：歌来源有 JS lyric 插件（咪咕/QQ/酷我等）→ 用该源歌词；无 → 主线端点（网易云兜底）。
+		if prov := plugin.Lyric(a.current.src); prov != nil {
+			// sid 传歌 id 字符串（咪咕 contentId 18 位超 JS 安全整数，必须字符串保精度）。
+			lines, lerr := prov.Fetch([]string{a.current.title, a.current.author}, a.current.bvid)
+			if lerr == nil && len(lines) > 0 {
+				// source.LyricLine{Time,Text} → 主线 lyric.LyricLine [3]any{time,text,0}。
+				srcLines := make([]lyric.LyricLine, len(lines))
+				for i, ln := range lines {
+					srcLines[i] = lyric.LyricLine{ln.Time, ln.Text, 0}
+				}
+				a.win.Update(func() {
+					if a.current == nil || a.current.bvid != bvid {
+						return
+					}
+					a.lyricLines = srcLines
+					a.lyricSID = 0
+					a.lyricOffset = 0
+					log.Printf("[lyric] %s → 源歌词 %s (%d 行)", bvid, a.current.src, len(srcLines))
+					a.win.Invalidate()
+				})
+				return
+			}
+			log.Printf("[lyric] %s 源歌词 %s 失败: %v", bvid, a.current.src, lerr)
+		}
 		// 1) 选定源行列表（同挂件/歌词页：服务端选源+透明缓存权威）
 		res, err := a.lyricGetBVID(bvid, kw)
 		if err != nil {

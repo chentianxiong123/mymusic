@@ -33,7 +33,7 @@ type Link interface {
 	Targets() []TargetBrief
 
 	// Lyric 当前歌歌词（走歌词插件，keywords=备选标题）。
-	Lyric(keywords []string, sid int) ([]source.LyricLine, error)
+	Lyric(keywords []string, sid string) ([]source.LyricLine, error)
 }
 
 // TargetBrief 目标摘要（UI 列表展示用，不含播放句柄）。
