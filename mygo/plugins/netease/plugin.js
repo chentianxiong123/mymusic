@@ -20,15 +20,18 @@ var meta = {
   settings: [
     { key: "quality", name: "音质", type: "select", options: ["128k", "320k"], default: "320k", desc: "取流码率（128k 免费歌可播）" },
     { key: "searchSize", name: "搜索条数", type: "select", options: ["20", "40", "60"], default: "40", desc: "每次搜索请求条数（插件自控，分页同尺寸）" },
+    { key: "cookie", name: "登录 Cookie", type: "text", default: "", desc: "粘贴网易云登录态 Cookie（浏览器 music.163.com 登录后复制），空=免登录 128k；有=无损/VIP" },
   ],
 };
 
-// 免登录明文接口需带的头（Referer + Cookie 匿名设备id，防 405 风控）。
-function wyHeaders() {
-  return {
-    "Referer": "https://music.163.com/",
-    "Cookie": "os=pc; appver=8.7.01; channel=netease",
-  };
+// 请求头：Referer + Cookie（匿名设备 id 防 405 风控；若有登录态 cookie 则追加，无损/VIP）。
+function wyHeaders(ctx) {
+  var c = "os=pc; appver=8.7.01; channel=netease";
+  if (ctx && ctx.config && ctx.config.get) {
+    var extra = ctx.config.get("cookie", "");
+    if (extra) c += "; " + extra;
+  }
+  return { "Referer": "https://music.163.com/", "Cookie": c };
 }
 
 // 音源搜索：网易云明文 /api/search/get/web（免登录）。
@@ -37,7 +40,7 @@ function search(ctx) {
   var resp = ctx.host.http({
     url: "https://music.163.com/api/search/get/web?s=" + encodeURIComponent(ctx.query) +
          "&type=1&offset=" + offset + "&limit=" + ctx.size + "&total=true",
-    headers: wyHeaders(),
+    headers: wyHeaders(ctx),
   });
   if (resp.error) return { error: resp.error, total: 0, songs: [] };
   var data = JSON.parse(resp.body);
@@ -72,7 +75,7 @@ function getURL(ctx) {
   var br = q === "128k" ? 128000 : 320000;
   var resp = ctx.host.http({
     url: "https://music.163.com/api/song/enhance/player/url?ids=[" + id + "]&br=" + br,
-    headers: wyHeaders(),
+    headers: wyHeaders(ctx),
   });
   if (resp.error) return { error: resp.error };
   var data = JSON.parse(resp.body);

@@ -26,8 +26,10 @@ type Client struct {
 	UA      string
 	Referer string
 	Timeout time.Duration
-	buvid3  string
-	hc      *http.Client
+	// Cookie 登录态（可选）。空=匿名（仅 buvid3）；非空=用用户自己的 Cookie（登录态/高清）。
+	Cookie string
+	buvid3 string
+	hc     *http.Client
 }
 
 // NewClient 新建客户端；buvid3 每次随机（防风控，对齐 Python 版 uuid4）
@@ -63,7 +65,11 @@ func (c *Client) defaultHeaders() http.Header {
 	h.Set("User-Agent", c.UA)
 	h.Set("Referer", c.Referer)
 	h.Set("Origin", "https://search.bilibili.com")
-	h.Set("Cookie", "buvid3="+c.buvid3)
+	if c.Cookie != "" {
+		h.Set("Cookie", c.Cookie)
+	} else {
+		h.Set("Cookie", "buvid3="+c.buvid3)
+	}
 	h.Set("Accept", "application/json, text/plain, */*")
 	h.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
 	return h
