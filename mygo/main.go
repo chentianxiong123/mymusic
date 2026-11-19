@@ -391,9 +391,15 @@ func main() {
 		os.Setenv("HC_PORT", "28977")
 	}
 	a.svc = newServices(a.db, a.bili, audioDir)
+	// B站登录 Cookie（可选）：有则用自己的（登录态/高清），空=匿名（仅 buvid3）。
+	a.bili.Cookie = plugin.GetSetting("source", "bilibili", "cookie", "")
 	// 一切皆插件：注册内置插件（音源/歌词）。第三方插件 = 各自 init() 注册，主程序空导入。
 	if a.svc != nil && a.svc.music != nil {
 		plugin.RegisterSource(source.NewBilibili(a.svc.music)) // B站音乐源
+		plugin.RegisterSettings("source", "bilibili", []plugin.Setting{{
+			Key: "cookie", Name: "登录 Cookie", Type: plugin.SettingText, Default: "",
+			Desc: "粘贴 B站登录态 Cookie（浏览器 www.bilibili.com 登录后复制），空=匿名（仅 buvid3）",
+		}})
 	}
 	plugin.RegisterLyric(lyricplug.NewNetease()) // 网易云歌词源
 	// 插件元数据（插件页展示）
