@@ -293,16 +293,17 @@ func (a *app) playerBar(c *ui.Context) {
 		has := a.current != nil
 		// 页面内歌词栏（dock 字幕条 lyricCaption）已按用户要求移除：
 		// 歌词只保留桌面挂件 / 歌词页，播放控制面板不再显示当前歌词行。
-		// 上排：音质 + 循环模式 + 静音 + 音量（对齐主线 dock-tools：全部右对齐）
+		// 上排：收藏 + 歌词开关 + 循环模式 + 静音 + 音量（对齐主线 dock-tools：全部右对齐）
+		// 音质按钮已删（用户：高中低删掉）；♥ 和歌词移到本行（跟音量条同一行）
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(igap).Children(func() {
 			ui.Spacer(c).Grow(1) // 右对齐（对齐主线工具行在进度条右上方）
-			// 音质按钮（对齐主线 d-quality：点击循环 64/128/192k；切换后重播当前歌生效）
-			if qualityChip(c, a.qualityLabel(), a.quality > 0).Clicked() {
-				a.quality = (a.quality + 1) % 3
-				a.win.Invalidate()
-				if a.current != nil {
-					go a.play(*a.currentToItem())
-				}
+			// 收藏（对齐主线 d-fav）
+			if heartButton(c, a.isFav(), a.resp(24, 20), func() {}).Clicked() {
+				a.toggleFav()
+			}
+			// 外部歌词开关（歌词图标，控制桌面挂件外部歌词）
+			if iconButton2(c, icLyric, a.resp(24, 20), accent(a.lyricShown)).Clicked() {
+				a.toggleLyric()
 			}
 			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {
 				a.toggleLoop()
@@ -341,14 +342,7 @@ func (a *app) playerBar(c *ui.Context) {
 				a.showPlayer = true
 				a.win.Invalidate()
 			}
-			// 收藏（对齐主线 d-fav 32×32）
-			if heartButton(c, a.isFav(), a.resp(32, 28), func() {}).Clicked() {
-				a.toggleFav()
-			}
-			// 外部歌词开关（歌词图标，控制桌面挂件外部歌词；对齐主线 d-tick 位置）
-			if iconButton2(c, icLyric, a.resp(32, 28), accent(a.lyricShown)).Clicked() {
-				a.toggleLyric()
-			}
+			// 收藏/歌词已移到上排（用户：♥ 和歌词跟音量条同一行）；下排只留播放控制
 			// 上一首（对齐主线 d-prev 40×40）
 			if iconButton2(c, icPrev, brow, clrMuted).Clicked() {
 				go a.prev()
@@ -420,6 +414,12 @@ func main() {
 	plugin.RegisterSettings("source", "bilibili", []plugin.Setting{
 		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索请求条数（插件自控，分页同尺寸）"},
 		{Key: "quality", Name: "音质", Type: plugin.SettingSelect, Options: []string{"64k", "128k", "192k"}, Default: "192k", Desc: "B站取流音质档（64/128/192k）"},
+	})
+	// 本地文件源（扫目录听本机歌，免登录零版权、无网络）：目录从设置读（空=无搜索结果）。
+	localDir := plugin.GetSetting("source", "local", "dir", "")
+	plugin.RegisterSource(newLocalSource(localDir))
+	plugin.RegisterSettings("source", "local", []plugin.Setting{
+		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav），扫目录听本地歌（免登录零版权）"},
 	})
 	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词源（复用主线 lyric 域 GetLyricLines）", Order: 20})
 	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）", Order: 30})

@@ -182,24 +182,28 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 	}
 	path := f.Name()
 	var resp *http.Response
-	for attempt := 0; attempt < 5; attempt++ {
-		resp, err = o.bili.GetRaw(stream.URL, nil)
+	if strings.HasPrefix(stream.URL, "file://") {
+		// 本地文件源：file:///abs/path 直接读文件，不下载（mp3/flac 解码走 OpenStream magic）。
+		lf, ferr := os.Open(strings.TrimPrefix(stream.URL, "file://"))
+		if ferr != nil {
+			err = ferr
+		} else {
+			_, err = io.Copy(f, lf)
+			lf.Close()
+		}
+	} else {
+		for attempt := 0; attempt < 5; attempt++ {
+			resp, err = o.bili.GetRaw(stream.URL, nil)
+			if err == nil {
+				break
+			}
+			time.Sleep(600 * time.Millisecond)
+		}
 		if err == nil {
-			break
+			_, err = io.Copy(f, resp.Body)
+			resp.Body.Close()
 		}
-		time.Sleep(600 * time.Millisecond)
 	}
-	if err != nil {
-		f.Close()
-		os.Remove(path)
-		log.Printf("[mygo-output] 下载失败 %s: %v", bvid, err)
-		if o.onErr != nil {
-			o.onErr("下载失败：" + err.Error())
-		}
-		return
-	}
-	_, err = io.Copy(f, resp.Body)
-	resp.Body.Close()
 	f.Close()
 	if err != nil {
 		os.Remove(path)
