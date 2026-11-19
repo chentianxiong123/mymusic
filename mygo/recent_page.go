@@ -43,7 +43,7 @@ func (a *app) recentPage(c *ui.Context) {
 				tracks[i] = ui.Fr(1)
 			}
 			page := a.pg["recent"]
-			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
+			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().JustifyItems(ui.Center).Children(func() {
 				for _, item := range pageSlice(a.recent, page) {
 					a.recentCard(c, item)
 				}

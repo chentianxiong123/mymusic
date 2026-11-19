@@ -38,7 +38,7 @@ func (a *app) search() {
 	mygo.RunOnMain(func() { kw = a.query; a.status = "搜索中…" })
 	// 分开搜索（解耦）：遍历 plugin.Sources() 每源独立搜，各自请求/分页，不合并。
 	// 加源（网易云/插件）= 注册后自动多一个独立搜索区，UI 零改动。
-	// 每源 searchSize（插件自控，默认 fetchSize）+ 每源独立 page（searchPages）。
+	// 每源独立分页（用户要求：网易云/bilibili 各自分页显示）：sourcePage(源名) + 各自 searchSize。
 	ch := make(chan srcResult, len(plugin.Sources()))
 	for name, s := range plugin.Sources() {
 		go func(srcName string, src source.MusicSource) {

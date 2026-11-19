@@ -63,7 +63,6 @@ func setDefaultSink(name string) error {
 func (a *app) localConfig(c *ui.Context) {
 	ui.Column(c).Fill().Gap(10 * uiScale).Children(func() {
 		a.setRow(c, "输出声卡")
-		a.setRowText(c, "本机播放走系统默认输出，点选即切换（同蓝牙 bluetoothctl 模式）")
 
 		sinks := audioSinks()
 		cur := defaultSink()

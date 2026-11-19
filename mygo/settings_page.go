@@ -49,7 +49,6 @@ func (a *app) systemSettings(c *ui.Context) {
 			})
 			// 9 歌曲缓存（主线 cache.js：已用/清空未收藏/清空缓存/上限）
 			a.setRow(c, "歌曲缓存")
-			a.setRowText(c, "自动缓存播放超过 60 秒的歌，再次播放秒开；超上限自动淘汰最旧")
 			a.setRowText(c, "已用："+a.cacheUsedLabel())
 			a.setRowBtns(c, []string{"清空未收藏", "清空缓存"}, func(i int) {
 				if i == 0 {
@@ -69,7 +68,6 @@ func (a *app) systemSettings(c *ui.Context) {
 			})
 			// 10 歌词缓存（主线 lyc：记忆歌词源，LRU 50 首）
 			a.setRow(c, "歌词缓存")
-			a.setRowText(c, "字幕条与歌词面板共用：自动记忆你选的歌词源，最多 50 首")
 			a.setRowText(c, "已缓存："+a.lyricCacheCount()+" 首 · "+a.lyricCacheSize())
 			a.setRowBtns(c, []string{"清空歌词缓存"}, func(i int) {
 				if a.svc != nil && a.svc.lyricCache != nil {
@@ -85,9 +83,6 @@ func (a *app) systemSettings(c *ui.Context) {
 				a.saveHistory()
 				a.win.Invalidate()
 			})
-			// 12 关于（主线）
-			a.setRow(c, "关于")
-			a.setRowText(c, "mymusic MyGo 原生版 · 紫粉渐变主题 · SSOT 共享主线 playback 域")
 		})
 	})
 }

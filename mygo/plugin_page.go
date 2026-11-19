@@ -324,7 +324,6 @@ func (a *app) speakerConfig(c *ui.Context) {
 func (a *app) bilibiliSourceConfig(c *ui.Context) {
 	// 音质（主线 d-quality / set-q 三档：64k/128k/192k）——源控制，非系统设置
 	a.setRow(c, "音质")
-	a.setRowText(c, "B站音频码率档（源控制，非系统全局）")
 	a.setRowSeg(c, []string{"低", "中", "高"}, a.quality, func(i int) {
 		a.quality = i
 		a.savePref("mygo_quality", i)
@@ -336,7 +335,6 @@ func (a *app) bilibiliSourceConfig(c *ui.Context) {
 func (a *app) neteaseLyricConfig(c *ui.Context) {
 	// 歌词偏移
 	a.setRow(c, "歌词偏移")
-	a.setRowText(c, "歌词与音频不同步时的微调（+ 提前 / − 延后）")
 	ui.Row(c).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
 		if chip(c, "−0.1s").Clicked() {
 			a.lyricOffset -= 0.1

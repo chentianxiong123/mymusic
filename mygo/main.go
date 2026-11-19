@@ -75,12 +75,15 @@ type app struct {
 	resultsBySource []srcResult
 	loading         atomic.Bool
 	status          string
+	// 推荐页（内容靠插件实现）：每插件缓存推荐歌曲 + 加载态
+	recommendData   map[string][]source.Song
+	recommendLoaded map[string]bool
 
-	// 分页（各列表页当前页，每页 20 条；搜索结果真分页用 searchTotal/searchPages）
+	// 分页（各列表页当前页，每页 20 条；搜索结果每源独立分页）
 	pg          map[string]int // 列表页当前页：queue/recent/fav/detail（本地切片分页）
-	searchPage  int            // 搜索结果当前页（兼容保留，新逻辑每源独立 searchPages）
+	searchPage  int            // 搜索结果当前页（兼容保留）
 	searchTotal int            // 搜索结果总条数
-	searchPages map[string]int // 每源独立分页（插件自控：每源 searchSize/page，源名→page）
+	searchPages map[string]int // 每源独立分页（网易云/bilibili 各自，源名→page）
 
 	// 播放（主线程访问；播放器由 mygoOut 持有，audio.Player 自身安全）
 	current    *track
@@ -205,6 +208,8 @@ func (a *app) view(c *ui.Context) {
 		// playerBar 被挤出窗口不可见（队列/设置/投屏无控制面板）。
 		ui.Column(c).Grow(1).Fill().Children(func() {
 			switch a.activeTab {
+			case "recommend":
+				a.recommendPage(c)
 			case "queue":
 				a.queuePage(c)
 			case "fav":
@@ -218,25 +223,26 @@ func (a *app) view(c *ui.Context) {
 			default:
 				// 搜索页：搜索框 + 热词 + 结果（未搜索时显示风格分类）
 				ui.Column(c).Grow(1).Fill().Padding(4*uiScale, a.resp(24, 12), 0, a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
-					if len(a.results) > 0 {
-						a.searchBar(c)
-						a.searchChips(c)
-						a.resultsHeader(c)
-						ui.Scroll(c).Grow(1).Gap(8 * uiScale).Scrollbars(false).Children(func() {
-							ui.Column(c).Gap(8 * uiScale).Children(func() {
-								// 搜索结果按源分区（插件分组：每个音源一个独立区块 + 每源独立分页）
+					// 搜索页整页滚动（对齐 recent 页模式）：搜索框+热词+结果一起滚，不做组件内部滚动条
+					ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
+						ui.Column(c).Gap(8 * uiScale).Children(func() {
+							if len(a.results) > 0 {
+								a.searchBar(c)
+								a.searchChips(c)
+								a.resultsHeader(c)
+								// 搜索结果按源分区（插件分组：每个音源一个独立区块 + 每源独立分页按钮在下方）
 								for _, grp := range a.resultsBySource {
 									a.searchSourceGroup(c, grp)
 								}
-							})
+							} else if a.searched {
+								a.searchBar(c)
+								a.searchChips(c)
+								a.searchNotFound(c)
+							} else {
+								a.searchEmpty(c)
+							}
 						})
-					} else if a.searched {
-						a.searchBar(c)
-						a.searchChips(c)
-						a.searchNotFound(c)
-					} else {
-						a.searchEmpty(c)
-					}
+					})
 				})
 			}
 		})
@@ -367,13 +373,15 @@ func main() {
 			"https://search.bilibili.com/", // 对齐原项目：www.bilibili.com 会触发风控返 HTML
 			30*time.Second,
 		),
-		covers:       map[string]ui.ImageSource{},
-		coverLoading: map[string]bool{},
-		favSet:       map[string]bool{},
-		pg:           map[string]int{},
-		searchPages:  map[string]int{},
-		activeTab:    "search",
-		volume:       0.8,
+		covers:          map[string]ui.ImageSource{},
+		coverLoading:    map[string]bool{},
+		favSet:          map[string]bool{},
+		pg:              map[string]int{},
+		searchPages:     map[string]int{},
+		recommendData:   map[string][]source.Song{},
+		recommendLoaded: map[string]bool{},
+		activeTab:       "search",
+		volume:          0.8,
 	}
 	// 主线 playback 接入：SSOT 状态源 + MyGo 出声后端 + SQLite 持久化
 	a.db = ensureDB()

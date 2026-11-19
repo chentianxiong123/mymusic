@@ -12,7 +12,7 @@ import (
 )
 
 func TestCardRenders(t *testing.T) {
-	a := &app{covers: map[string]ui.ImageSource{}, coverLoading: map[string]bool{}, searchPages: map[string]int{}}
+	a := &app{covers: map[string]ui.ImageSource{}, coverLoading: map[string]bool{}}
 	a.results = []bilibili.SearchItem{
 		{Title: "测试歌名<em>x</em>", Author: "作者甲", Duration: "3:21", Pic: ""},
 	}
