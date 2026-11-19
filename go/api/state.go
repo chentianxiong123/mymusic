@@ -62,18 +62,18 @@ func (h *StateHandler) Stream(w http.ResponseWriter, r *http.Request) {
 // body: {op: "play|pause|resume|toggle|seek|next|prev|mode|queue|switch_speaker|switch_web|remove|clear", ...}
 func (h *StateHandler) Command(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Op     string  `json:"op"`
-		BVID   string  `json:"bvid"`
-		Title  string  `json:"title"`
-		Artist string  `json:"artist"`
-		Cover  string  `json:"cover"`
-		Duration float64 `json:"duration"`
-		Sec    float64 `json:"sec"`
-		Mode   string  `json:"mode"`
-		Did    string  `json:"did"`
-		Queue  []playback.Song `json:"queue"`
-		QIdx   int     `json:"qidx"`
-		Volume int     `json:"volume"`
+		Op       string          `json:"op"`
+		BVID     string          `json:"bvid"`
+		Title    string          `json:"title"`
+		Artist   string          `json:"artist"`
+		Cover    string          `json:"cover"`
+		Duration float64         `json:"duration"`
+		Sec      float64         `json:"sec"`
+		Mode     string          `json:"mode"`
+		Did      string          `json:"did"`
+		Queue    []playback.Song `json:"queue"`
+		QIdx     int             `json:"qidx"`
+		Volume   int             `json:"volume"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		errResp(w, http.StatusBadRequest, "invalid body")

@@ -66,8 +66,8 @@ func TestFavEndpoints(t *testing.T) {
 
 	// list 包含 BV1（响应是 {code,data,message} 信封）
 	var resp struct {
-		Code int                `json:"code"`
-		Data []fav.FavSong  `json:"data"`
+		Code int           `json:"code"`
+		Data []fav.FavSong `json:"data"`
 	}
 	w := doReq(t, mux, "GET", "/api/v1/fav/list", nil)
 	if w.Code != http.StatusOK {

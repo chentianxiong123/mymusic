@@ -30,13 +30,13 @@ type frag struct {
 	mdatSize int64 // mdat 盒尺寸
 	bt       int64 // tfdt baseMediaDecodeTime（媒体时基 @Timescale）
 	// trun 关键字段（只裁剪 flags=0x201/0x200 型：data-offset+sample-size 表）
-	trunOff    int64   // trun 盒起始
-	trunSize   int64   // trun 盒尺寸
-	flags      uint32  // trun flags（低24位）
-	sampleCnt  uint32  // trun sample_count
-	dataOffset int32   // trun data_offset（相对 moof 起点，flags&1）
+	trunOff    int64    // trun 盒起始
+	trunSize   int64    // trun 盒尺寸
+	flags      uint32   // trun flags（低24位）
+	sampleCnt  uint32   // trun sample_count
+	dataOffset int32    // trun data_offset（相对 moof 起点，flags&1）
 	samples    []uint32 // sample-size 表（flags&0x200 时，顺序与 trun 一致）
-	rowSize    int     // 样本表每行字节
+	rowSize    int      // 样本表每行字节
 }
 
 // Seek 打开 path，返回从 startSec 开始的有效 fMP4 流字节。

@@ -1,11 +1,11 @@
 package api
 
 import (
-	"strings"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"strings"
 	"testing"
 )
 

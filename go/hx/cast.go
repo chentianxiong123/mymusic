@@ -36,11 +36,11 @@ func (h *H) CastPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := h.Cast.Cast("https://www.bilibili.com/video/"+bvid, udn, title); err != nil {
 		log.Printf("[hx cast] %v", err)
-		w.Write([]byte(`<span class="text-red-400 text-sm">投送失败</span>`))
+		_, _ = w.Write([]byte(`<span class="text-red-400 text-sm">投送失败</span>`))
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(`<span class="text-green-400 text-sm">投送成功 ✓</span>`))
+	_, _ = w.Write([]byte(`<span class="text-green-400 text-sm">投送成功 ✓</span>`))
 }
 
 // CastStatus GET /hx/cast/status/{udn} → 设备播放状态片段
@@ -49,18 +49,18 @@ func (h *H) CastStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := h.Cast.Status(udn)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err != nil || status == nil {
-		w.Write([]byte(`<span class="text-gray-500 text-xs">状态不可用</span>`))
+		_, _ = w.Write([]byte(`<span class="text-gray-500 text-xs">状态不可用</span>`))
 		return
 	}
 	state, _ := status["state"].(string)
 	if state == "" {
 		state = "就绪"
 	}
-	w.Write([]byte(`<span class="text-green-500 text-xs">` + state + `</span>`))
+	_, _ = w.Write([]byte(`<span class="text-green-500 text-xs">` + state + `</span>`))
 }
 
 // renderCastList 设备列表片段（共用零件）
 func (h *H) renderCastList(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	h.Tpl.ExecuteTemplate(w, "cast_devices.html", &castPageData{Devices: h.Cast.DeviceList()})
+	_ = h.Tpl.ExecuteTemplate(w, "cast_devices.html", &castPageData{Devices: h.Cast.DeviceList()})
 }

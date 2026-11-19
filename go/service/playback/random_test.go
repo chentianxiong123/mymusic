@@ -73,7 +73,7 @@ func TestOrderModeUnchanged(t *testing.T) {
 	p.Play(Song{BVID: "B"})
 	p.Play(Song{BVID: "C"})
 	p.SetMode("order") // 默认也是 order
-	p.Next() // C→A
+	p.Next()           // C→A
 	if p.Snapshot().BVID != "A" {
 		t.Fatalf("order next: %s", p.Snapshot().BVID)
 	}
@@ -94,7 +94,7 @@ func TestSingleManualNext(t *testing.T) {
 	p.Play(Song{BVID: "A"})
 	p.Play(Song{BVID: "B"})
 	p.SetMode("single")
-	p.Next() // 手动 next：切到下一首（顺序）
+	p.Next()                      // 手动 next：切到下一首（顺序）
 	if p.Snapshot().BVID != "A" { // B 的下一首循环到 A
 		t.Fatalf("single manual next: %s", p.Snapshot().BVID)
 	}

@@ -67,7 +67,7 @@ func (p *PlaylistService) save() {
 	if err != nil {
 		return
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`DELETE FROM playlist`); err != nil {
 		return
 	}

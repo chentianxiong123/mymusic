@@ -66,7 +66,7 @@ func (h *H) FavToggle(w http.ResponseWriter, r *http.Request) {
 	v.Faved = !faved
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	h.Tpl.ExecuteTemplate(w, "fav_btn.html", v)
+	_ = h.Tpl.ExecuteTemplate(w, "fav_btn.html", v)
 }
 
 // FavRemove POST /hx/fav/remove/{bvid} → 返回收藏列表片段替换 #fav-list
@@ -89,7 +89,7 @@ func (h *H) FavClear(w http.ResponseWriter, r *http.Request) {
 // renderFavList 渲染收藏列表片段（共用零件）
 func (h *H) renderFavList(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	h.Tpl.ExecuteTemplate(w, "fav_list.html", &favPageData{Items: h.Fav.List()})
+	_ = h.Tpl.ExecuteTemplate(w, "fav_list.html", &favPageData{Items: h.Fav.List()})
 }
 
 // secondsToStr 秒 → "m:ss"（与 playlist.FormatDuration 一致，避免导入环）

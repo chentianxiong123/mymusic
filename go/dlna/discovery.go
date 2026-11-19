@@ -17,12 +17,12 @@ import (
 
 // Device 投屏设备（对齐 Python DLNADevice）
 type Device struct {
-	UDN        string   `json:"udn"`
-	Name       string   `json:"name"`
-	Location   string   `json:"location"`
-	IP         string   `json:"ip"`
-	Port       int      `json:"port"`
-	DeviceType string   `json:"device_type"`
+	UDN        string `json:"udn"`
+	Name       string `json:"name"`
+	Location   string `json:"location"`
+	IP         string `json:"ip"`
+	Port       int    `json:"port"`
+	DeviceType string `json:"device_type"`
 }
 
 var searchTypes = []string{
@@ -53,12 +53,18 @@ func Search(ctx context.Context, timeout time.Duration) []*Device {
 		wg.Add(1)
 		go func(st string) {
 			defer wg.Done()
-			responses, err := ssdp.RawSearch(ctx, httpuClient, st, 3)
+			responses, err := ssdp.RawSearch(ctx, httpuClient, st, 3) //nolint:bodyclose // 循环内已 Close
 			if err != nil {
 				return
 			}
 			for _, resp := range responses {
+				if resp == nil {
+					continue
+				}
 				dev := parseHTTPResponse(resp)
+				if resp.Body != nil {
+					_ = resp.Body.Close() // 解析完立即关闭（bodyclose）
+				}
 				if dev == nil {
 					continue
 				}
@@ -119,10 +125,7 @@ func parseHTTPResponse(resp *http.Response) *Device {
 }
 
 func parseLocation(location string) (string, int) {
-	u := location
-	if strings.HasPrefix(u, "http://") {
-		u = u[len("http://"):]
-	}
+	u := strings.TrimPrefix(location, "http://")
 	if i := strings.Index(u, "/"); i > 0 {
 		u = u[:i]
 	}
@@ -130,15 +133,15 @@ func parseLocation(location string) (string, int) {
 	ip := parts[0]
 	port := 80
 	if len(parts) > 1 {
-		fmt.Sscanf(parts[1], "%d", &port)
+		_, _ = fmt.Sscanf(parts[1], "%d", &port)
 	}
 	return ip, port
 }
 
 // rootDevice 描述 XML（只取 friendlyName）
 type rootDevice struct {
-	XMLName     xml.Name `xml:"root"`
-	FriendlyName string  `xml:"device>friendlyName"`
+	XMLName      xml.Name `xml:"root"`
+	FriendlyName string   `xml:"device>friendlyName"`
 }
 
 var descHC = &http.Client{Timeout: 3 * time.Second}

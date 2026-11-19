@@ -2,9 +2,9 @@ package music
 
 import (
 	"encoding/json"
-	"reflect"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -32,12 +32,12 @@ func TestSearchRank(t *testing.T) {
 		sec   int
 		want  int
 	}{
-		{"周杰伦《瓦解》", "音乐", 200, 0},    // 《》不在计数符号表([（【]等) → 0
-		{"告白气球", "音乐", 200, 0},                     // 干净标题
-		{"【4K】周杰伦现场", "音乐", 200, 4},               // 【】2 + 4k + 现场 包装词 = 4
+		{"周杰伦《瓦解》", "音乐", 200, 0},      // 《》不在计数符号表([（【]等) → 0
+		{"告白气球", "音乐", 200, 0},         // 干净标题
+		{"【4K】周杰伦现场", "音乐", 200, 4},    // 【】2 + 4k + 现场 包装词 = 4
 		{"零基础学吉他【教程】", "音乐教学", 120, 4}, // 【】2符号 + 教学+2
-		{"周杰伦演唱会完整版", "音乐", 30, 2},               // 过短 +2
-		{"周杰伦演唱会完整版", "音乐", 700, 2},               // 过长 +2
+		{"周杰伦演唱会完整版", "音乐", 30, 2},     // 过短 +2
+		{"周杰伦演唱会完整版", "音乐", 700, 2},    // 过长 +2
 	}
 	for _, c := range cases {
 		got := searchRank(MusicItem{Title: c.title, Typename: c.typ, DurationSec: c.sec})
@@ -90,7 +90,7 @@ func TestMusicServiceSearch(t *testing.T) {
 	// 期望排序（rank 升序，同 rank 时长升序）：
 	// BV-D 晴天 rank0/150s ← BV-B 告白气球 rank0/180s（4:00=240 晴天150 在先）
 	//   —— 等等：BV-B 3:00=180 > 晴天150 → 晴天先
-	// BV-A 【4K】… rank3（符号+包装词）/240s ← BV-E 教学 rank5？ 
+	// BV-A 【4K】… rank3（符号+包装词）/240s ← BV-E 教学 rank5？
 	//   教学 = 符号0 + 教学+2 = 2？【教程】没有——'零基础教程' 无括号 → 教学+2 → rank2
 	// 重新算：BV-A: 【4K】=【】2符号 + 4k包装词 = 3；BV-E: 音乐教学+2 = 2
 	// 排序：BV-D(0)/BV-B(0) → 晴天(150) 告白气球(180)
@@ -106,6 +106,7 @@ func TestMusicServiceSearch(t *testing.T) {
 		}
 	}
 }
+
 // TestLyricsKeywords 分P标题选择（LyricKeywords 是 MusicService 方法，归 music 域测试）：
 // 播放固定第一P → 只取第一P part 清洗 + fallback；占位标题收敛 fallback
 func TestLyricsKeywords(t *testing.T) {

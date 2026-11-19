@@ -27,8 +27,8 @@ func Open(path string) (*sql.DB, error) {
 	//   - WAL：读写不互斥，写不阻塞读（播放进度高频写不再卡读）
 	//   - busy_timeout：写碰撞等 5s 而非立刻 BUSY 报错
 	db.SetMaxOpenConns(1)
-	db.Exec(`PRAGMA journal_mode=WAL`)
-	db.Exec(`PRAGMA busy_timeout=5000`)
+	_, _ = db.Exec(`PRAGMA journal_mode=WAL`)
+	_, _ = db.Exec(`PRAGMA busy_timeout=5000`)
 	return db, nil
 }
 

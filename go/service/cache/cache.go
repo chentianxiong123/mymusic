@@ -100,7 +100,7 @@ func (s *CacheService) ensureHashColumn() {
 			return
 		}
 	}
-	s.db.Exec(`ALTER TABLE audio_cache ADD COLUMN hash INTEGER DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE audio_cache ADD COLUMN hash INTEGER DEFAULT 0`)
 }
 
 // headHash 文件头 4KB 的 FNV-1a hash（低31位；读取失败返回 0 视为未知，不拦截）
@@ -156,31 +156,31 @@ func (s *CacheService) Get(bvid string) (size int64, quality int, ok bool) {
 		if dbSize > fi.Size() {
 			// 文件比元数据小 → 下载中断/截断，serve 后浏览器 seek 到超出实际长度位置会 416
 			// → 音频跳末尾触发 ended 误切歌。删记录返回未命中，让 stream 重拉完整文件。
-			s.db.Exec(`DELETE FROM audio_cache WHERE bvid=?`, bvid)
-			os.Remove(path)
+			_, _ = s.db.Exec(`DELETE FROM audio_cache WHERE bvid=?`, bvid)
+			_ = os.Remove(path)
 			return 0, 0, false
 		}
 		// headHash 校验：落盘写过 hash 且现文件头对不上 → 文件损坏，删缓存重拉
 		if dbHash != 0 {
 			cur, err := headHash(path)
 			if err == nil && cur != dbHash {
-				s.db.Exec(`DELETE FROM audio_cache WHERE bvid=?`, bvid)
-				os.Remove(path)
+				_, _ = s.db.Exec(`DELETE FROM audio_cache WHERE bvid=?`, bvid)
+				_ = os.Remove(path)
 				return 0, 0, false
 			}
 		}
 		if dbSize != fi.Size() { // 元数据过期（文件变大）→ 按实际
-			s.db.Exec(`UPDATE audio_cache SET size=? WHERE bvid=?`, fi.Size(), bvid)
+			_, _ = s.db.Exec(`UPDATE audio_cache SET size=? WHERE bvid=?`, fi.Size(), bvid)
 		}
 		// LRU 触碰降频（review 性能 #4：GET 命中每次都写库是写放大——206 分片高频
 		// 请求每秒多次触碰。只在距上次触碰 ≥60s 才写 last_used，淘汰粒度秒级足够）
 		now := time.Now().UnixMilli()
 		if now-lastUsed >= 60000 {
-			s.db.Exec(`UPDATE audio_cache SET size=?, last_used=? WHERE bvid=?`, fi.Size(), now, bvid)
+			_, _ = s.db.Exec(`UPDATE audio_cache SET size=?, last_used=? WHERE bvid=?`, fi.Size(), now, bvid)
 		}
 	} else {
 		// 文件在但元数据缺（旧库/异常）→ 补插，保持淘汰表完整
-		s.db.Exec(`INSERT INTO audio_cache (bvid,size,quality,hash,last_used) VALUES (?,?,?,?,?)`,
+		_, _ = s.db.Exec(`INSERT INTO audio_cache (bvid,size,quality,hash,last_used) VALUES (?,?,?,?,?)`,
 			bvid, fi.Size(), q, dbHash, time.Now().UnixMilli())
 	}
 	return fi.Size(), int(q), true
@@ -254,7 +254,7 @@ func (s *CacheService) evictLocked() {
 			break
 		}
 		os.Remove(s.filePath(e.bvid))
-		s.db.Exec(`DELETE FROM audio_cache WHERE bvid=?`, e.bvid)
+		_, _ = s.db.Exec(`DELETE FROM audio_cache WHERE bvid=?`, e.bvid)
 		total -= e.size
 	}
 }
@@ -293,9 +293,9 @@ func (s *CacheService) Count() int {
 func (s *CacheService) ClearAll() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	os.RemoveAll(s.audioDir)
-	os.MkdirAll(s.audioDir, 0o755)
-	s.db.Exec(`DELETE FROM audio_cache`)
+	_ = os.RemoveAll(s.audioDir)
+	_ = os.MkdirAll(s.audioDir, 0o755)
+	_, _ = s.db.Exec(`DELETE FROM audio_cache`)
 }
 
 // StreamAndCache 边写 w（响应流）边落盘缓存（temp→rename，防半截文件）；
@@ -326,8 +326,8 @@ func (s *CacheService) StreamAndCache(w io.Writer, bvid string, quality int, bod
 		complete = copyErr == nil
 	}
 	if complete {
-		os.Rename(tmp, s.filePath(bvid))
-		s.Put(bvid, quality, nil) // 已落盘，只写元数据 + 淘汰（Put 会读文件大小）
+		_ = os.Rename(tmp, s.filePath(bvid))
+		_ = s.Put(bvid, quality, nil) // 已落盘，只写元数据 + 淘汰（Put 会读文件大小）
 	} else {
 		os.Remove(tmp)
 	}
@@ -362,6 +362,6 @@ func (s *CacheService) ClearUnfav(favTable string) {
 	rows.Close()
 	for _, d := range del {
 		os.Remove(s.filePath(d.bvid))
-		s.db.Exec(`DELETE FROM audio_cache WHERE bvid=?`, d.bvid)
+		_, _ = s.db.Exec(`DELETE FROM audio_cache WHERE bvid=?`, d.bvid)
 	}
 }

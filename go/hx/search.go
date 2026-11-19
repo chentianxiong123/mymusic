@@ -56,7 +56,7 @@ func (h *H) Search(w http.ResponseWriter, r *http.Request) {
 
 	if kw == "" {
 		if isHX {
-			h.Tpl.ExecuteTemplate(w, "results.html", &searchView{})
+			_ = h.Tpl.ExecuteTemplate(w, "results.html", &searchView{})
 			return
 		}
 		h.searchPage(w, r)
@@ -70,7 +70,7 @@ func (h *H) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	if isHX {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(frag))
+		_, _ = w.Write([]byte(frag))
 		return
 	}
 	h.renderPage(w, "search", "content_search.html", &searchPageData{Keyword: kw, ResultsHTML: frag})

@@ -60,7 +60,7 @@ func (f *FavService) save(favs []FavSong) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`DELETE FROM favs`); err != nil {
 		return err
 	}

@@ -13,9 +13,9 @@ import (
 
 	"github.com/huin/goupnp/dcps/av1"
 
-	"homecast/service/token"
 	"homecast/bilibili"
 	"homecast/dlna"
+	"homecast/service/token"
 )
 
 // Episode 集条目（对齐 Python VideoEpisode JSON）
@@ -106,8 +106,8 @@ func (c *CastService) Sniff(urlStr string) *SniffResult {
 	// 直链视频（复用 isDirectVideoURL，不再内联重复循环）
 	if isDirectVideoURL(urlStr) {
 		return &SniffResult{
-			Title:      "视频",
-			Episodes:   []Episode{{Index: 1, Title: "视频", URL: urlStr}},
+			Title:       "视频",
+			Episodes:    []Episode{{Index: 1, Title: "视频", URL: urlStr}},
 			SniffMethod: "direct",
 		}
 	}

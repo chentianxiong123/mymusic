@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 	"strconv"
 	"strings"
+	"time"
 
 	spk "homecast/service/speaker"
 	"homecast/xiaoai"
@@ -176,12 +176,12 @@ func (h *SpeakerHandler) Devices(w http.ResponseWriter, r *http.Request) {
 // Play POST /api/v1/speaker/play  body: {bvid, did, quality}
 func (h *SpeakerHandler) Play(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		BVID    string  `json:"bvid"`
-		DID     string  `json:"did"`
-		Quality int     `json:"quality"`
-		Title   string  `json:"title"`
+		BVID     string  `json:"bvid"`
+		DID      string  `json:"did"`
+		Quality  int     `json:"quality"`
+		Title    string  `json:"title"`
 		Duration float64 `json:"duration"`
-		NextBVID string `json:"next_bvid"`
+		NextBVID string  `json:"next_bvid"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.BVID == "" || body.DID == "" {
 		errResp(w, http.StatusBadRequest, "bvid and did required")

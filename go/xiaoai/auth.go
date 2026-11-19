@@ -47,12 +47,10 @@ func NeedPlayMusicAPI(hardware string) bool { return needUsePlayMusicAPI[hardwar
 
 // SpeakerAuth 认证管理器
 type SpeakerAuth struct {
-	mu        sync.Mutex
-	account   string
-	password  string
-	client    *miservice.Client
-	tokenPath string
-	loggedIn  bool
+	mu          sync.Mutex
+	client      *miservice.Client
+	tokenPath   string
+	loggedIn    bool
 	lastRefresh time.Time // 上次刷新 serviceToken 的时间（启动/登录/失败重刷时更新）
 }
 
@@ -196,7 +194,7 @@ func (a *SpeakerAuth) refreshServiceToken() error {
 		cookies = append(cookies, &http.Cookie{Name: "userId", Value: c.Token.UserId})
 		cookies = append(cookies, &http.Cookie{Name: "passToken", Value: c.Token.PassToken})
 	}
-	loginURL := fmt.Sprintf("https://account.xiaomi.com/pass/serviceLogin?sid=micoapi&_json=true")
+	loginURL := "https://account.xiaomi.com/pass/serviceLogin?sid=micoapi&_json=true"
 	req, _ := http.NewRequest(http.MethodGet, loginURL, nil)
 	req.Header.Set("User-Agent", miservice.UA)
 	for _, ck := range cookies {
@@ -414,9 +412,11 @@ func (a *SpeakerAuth) PlayerPlayMusicUrl(deviceID, url, audioID string) (any, er
 // Pause 暂停。
 // 铁证：LX05A（本机真机）player_pause 无效——音箱不停声；改用 player_stop 真停。
 // 对齐 MiAir speaker.py pause()：
-//   “某些使用 play_by_music_url 的设备，调用 pause 后 API 状态不会正确更新为
-//    paused (status=2)，需改用 stop 来实现暂停语义”——MiAir 默认(非兼容模式)
-//    暂停即 player_stop；xiaomusic force_stop_xiaoai 同思路。
+//
+//	“某些使用 play_by_music_url 的设备，调用 pause 后 API 状态不会正确更新为
+//	 paused (status=2)，需改用 stop 来实现暂停语义”——MiAir 默认(非兼容模式)
+//	 暂停即 player_stop；xiaomusic force_stop_xiaoai 同思路。
+//
 // 注意：判定与投 URL 的 NeedPlayMusicAPI 无关（LX05A 投URL走 play_by_url，
 // 但暂停 player_pause 无效）——这是两张独立的能力表，以真机实测为准。
 // pauseUsesStop 收录实测“player_pause 停不下来”的硬件，暂停改用 player_stop。

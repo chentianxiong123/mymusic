@@ -33,7 +33,10 @@ func TestDecodeJSONNumUserId(t *testing.T) {
 
 // fixSciNotation 历史坏值清洗：2.908798005e+09 → 2908798005
 func TestFixSciNotation(t *testing.T) {
-	cases := []struct{ in, want string; bad bool }{
+	cases := []struct {
+		in, want string
+		bad      bool
+	}{
 		{"2.908798005e+09", "2908798005", true},
 		{"2908798005", "2908798005", false},
 		{"", "", false},

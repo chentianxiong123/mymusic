@@ -71,10 +71,7 @@ func TestTemplatesHTMLBalance(t *testing.T) {
 
 		// 额外检查：模板不能以未闭合的状态结束（历史残缺模板的特征是结尾大量空白 + 单个 </div>）
 		trimmed := strings.TrimSpace(content)
-		if strings.HasSuffix(trimmed, "{{end}}") || strings.HasSuffix(trimmed, "{{else}}") {
-			// 允许的结束形态
-		} else if strings.HasSuffix(trimmed, "{{end}}\n</div>") {
-			// 历史模板的常见形态，不算错（有对应 {{if}}）
-		}
+		endOK := strings.HasSuffix(trimmed, "{{end}}") || strings.HasSuffix(trimmed, "{{else}}") || strings.HasSuffix(trimmed, "{{end}}\n</div>")
+		_ = endOK // 允许的结束形态（历史模板多样，仅记录不判错）
 	}
 }

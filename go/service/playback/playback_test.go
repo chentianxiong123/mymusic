@@ -167,15 +167,15 @@ func (m *mockOutput) Play(bvid string, opts PlayOpts) error {
 	}
 	return nil
 }
-func (m *mockOutput) Pause() error                { return nil }
-func (m *mockOutput) Resume() error               { return nil }
-func (m *mockOutput) Stop() error                 { return nil }
-func (m *mockOutput) Seek(sec float64) error      { return nil }
-func (m *mockOutput) SetVolume(v int) error       { return nil }
-func (m *mockOutput) Position() ProgressInfo         { return ProgressInfo{} }
-func (m *mockOutput) Caps() Capabilities          { return Capabilities{Play: true} }
-func (m *mockOutput) SetEndedHook(func())         {}
-func (m *mockOutput) Name() string                { return "mock" }
+func (m *mockOutput) Pause() error           { return nil }
+func (m *mockOutput) Resume() error          { return nil }
+func (m *mockOutput) Stop() error            { return nil }
+func (m *mockOutput) Seek(sec float64) error { return nil }
+func (m *mockOutput) SetVolume(v int) error  { return nil }
+func (m *mockOutput) Position() ProgressInfo { return ProgressInfo{} }
+func (m *mockOutput) Caps() Capabilities     { return Capabilities{Play: true} }
+func (m *mockOutput) SetEndedHook(func())    {}
+func (m *mockOutput) Name() string           { return "mock" }
 
 // 音箱模式下 Play 必须真投当前输出(收藏夹/搜索点歌=切歌);失败回滚继续播旧歌
 func TestPlayCallsOutputAndRollback(t *testing.T) {
@@ -234,7 +234,7 @@ func (m *speakerProgOut) Stop() error {
 	return nil
 }
 func (m *speakerProgOut) Seek(sec float64) error { return ErrUnsupported }
-func (m *speakerProgOut) SetVolume(v int) error { m.lastVolume = v; return nil }
+func (m *speakerProgOut) SetVolume(v int) error  { m.lastVolume = v; return nil }
 func (m *speakerProgOut) Position() ProgressInfo {
 	return ProgressInfo{BVID: m.bvid, Title: m.title, Pos: m.pos, Dur: m.dur, Playing: m.playing}
 }
@@ -271,9 +271,9 @@ func TestPlayGuardAgainstStaleSpeakerProgress(t *testing.T) {
 }
 
 // TestVolumeSSOTAndReapply 音量 SSOT 回归：
-// 1) SetVolume 存 SSOT（State.Volume + wantVolume）并下发 Output.SetVolume；
-// 2) 换歌（Play）后重应用 wantVolume——防换歌/音箱重启后音量/静音丢失（静音=volume 0，
-//    换歌若不重应用会突然出声）。
+//  1. SetVolume 存 SSOT（State.Volume + wantVolume）并下发 Output.SetVolume；
+//  2. 换歌（Play）后重应用 wantVolume——防换歌/音箱重启后音量/静音丢失（静音=volume 0，
+//     换歌若不重应用会突然出声）。
 func TestVolumeSSOTAndReapply(t *testing.T) {
 	out := &speakerProgOut{}
 	p := NewPlaybackState()
@@ -461,7 +461,7 @@ func TestNextGuardAgainstStaleSpeakerProgress(t *testing.T) {
 	p.SetQueue([]Song{{BVID: "BV-old", Title: "旧歌"}, {BVID: "BV-new", Title: "新歌"}}, 0)
 	out.bvid, out.title = "BV-old", "旧歌"
 
-	p.Next() // 核心换到 BV-new，但 out.Position() 仍报 BV-old（模拟 out.Play 未完成窗口）
+	p.Next()               // 核心换到 BV-new，但 out.Position() 仍报 BV-old（模拟 out.Play 未完成窗口）
 	p.projectProgress(out) // 滞后投影——必须被守卫拦截
 
 	s := p.Snapshot()

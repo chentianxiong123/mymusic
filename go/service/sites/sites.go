@@ -7,11 +7,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"homecast/service/cast"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
-	"homecast/service/cast"
 )
 
 // Site 嗅探站点（对齐 Python Site）
@@ -103,17 +103,6 @@ func (s *SitesService) Remove(url string) {
 	}
 	d.Sites = out
 	s.save(d)
-}
-
-// ── 详情页集缓存（投屏嗅探缓存） ──
-
-type episodesCache struct {
-	DetailURL     string      `json:"detail_url"`
-	DetailURLHash string      `json:"detail_url_hash"`
-	Title         string      `json:"title"`
-	EpisodesList  []cast.Episode   `json:"episodes_list"`
-	CachedAt      float64     `json:"cached_at"`
-	_             interface{} `json:"-"`
 }
 
 // CacheEpisodes 缓存详情页集数列表

@@ -17,12 +17,11 @@ import (
 
 // SpeakerOutput 绑定某台音箱（did），实现 playback.Output
 type SpeakerOutput struct {
-	svc   *SpeakerService
-	did   string
-	mu    sync.Mutex
+	svc       *SpeakerService
+	did       string
+	mu        sync.Mutex
 	pendBVID  string // 当前该播的 bvid（无播放 URL 时 Resume 回退到 Play 用）
 	pendTitle string
-	onEnded func() // 播完回调（核心注入：自动连播）
 }
 
 // NewSpeakerOutput 构造绑定 did 的音箱输出
@@ -200,22 +199,8 @@ func (o *SpeakerOutput) Caps() playback.Capabilities {
 	}
 }
 
-// SetEndedHook 注入播完回调（核心自动连播用）
-func (o *SpeakerOutput) SetEndedHook(fn func()) {
-	o.mu.Lock()
-	o.onEnded = fn
-	o.mu.Unlock()
-}
-
-// ended 播完（SpeakerService 本地定时器到点回调）→ 转发核心
-func (o *SpeakerOutput) ended() {
-	o.mu.Lock()
-	fn := o.onEnded
-	o.mu.Unlock()
-	if fn != nil {
-		fn()
-	}
-}
+// SetEndedHook 注入播完回调（接口要求；音箱播完由 SpeakerService 本地定时器转发，空实现）
+func (o *SpeakerOutput) SetEndedHook(fn func()) {}
 
 // Name 输出标识
 func (o *SpeakerOutput) Name() string { return "speaker" }

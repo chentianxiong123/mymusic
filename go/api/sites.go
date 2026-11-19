@@ -69,8 +69,8 @@ func (h *SitesHandler) Episodes(w http.ResponseWriter, r *http.Request) {
 // CacheEpisodes POST /api/v1/sites/cache_episodes  body: {detail_url, title, episodes_list}
 func (h *SitesHandler) CacheEpisodes(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		DetailURL    string            `json:"detail_url"`
-		Title        string            `json:"title"`
+		DetailURL    string         `json:"detail_url"`
+		Title        string         `json:"title"`
 		EpisodesList []cast.Episode `json:"episodes_list"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.DetailURL == "" {

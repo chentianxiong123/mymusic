@@ -30,7 +30,6 @@ type StreamGate interface {
 	AnchorStream(did string, at time.Time)
 }
 
-
 // ok 统一响应 {code:0,message:"success",data:...}（前端拦截器依赖 code==0）
 func ok(w http.ResponseWriter, data any) {
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -47,9 +46,9 @@ func errResp(w http.ResponseWriter, status int, msg string) {
 // MusicHandler 音乐端点集合
 type MusicHandler struct {
 	Music  *music.MusicService
-	Cache  *cache.CacheService    // 音频缓存（可空：无缓存功能时直转发）
-	Gate   StreamGate             // 音频供给闸门（音箱断源用；可空）
-	Xcoder *transcode.Transcoder  // 音箱软转码 mp3 秒开（可空/ffmpeg 缺失 → 音箱回退原 m4s 路径）
+	Cache  *cache.CacheService   // 音频缓存（可空：无缓存功能时直转发）
+	Gate   StreamGate            // 音频供给闸门（音箱断源用；可空）
+	Xcoder *transcode.Transcoder // 音箱软转码 mp3 秒开（可空/ffmpeg 缺失 → 音箱回退原 m4s 路径）
 }
 
 // NewMusicHandler 构造

@@ -19,10 +19,10 @@ type TokenEntry struct {
 // TokenStore 内存 token 存储（音箱/DLNA 播放用代理 URL）
 // 过期策略：Store 时定 TTL（默认 1h），Get 惰性删过期项，超上限顺带整体清扫。
 type TokenStore struct {
-	mu      sync.Mutex
-	m       map[string]TokenEntry
-	max     int           // 容量上限（0=不限）
-	ttl     time.Duration // 过期时长
+	mu  sync.Mutex
+	m   map[string]TokenEntry
+	max int           // 容量上限（0=不限）
+	ttl time.Duration // 过期时长
 }
 
 // NewTokenStore 构造

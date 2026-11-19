@@ -13,8 +13,8 @@ import (
 
 // LyricHandler 歌词端点（网易云源）
 type LyricHandler struct {
-	Lyric *lyric.LyricStore
-	Music *music.MusicService // bvid → 分P标题作搜索关键词（B 站合集痛点；带 view 缓存）
+	Lyric      *lyric.LyricStore
+	Music      *music.MusicService    // bvid → 分P标题作搜索关键词（B 站合集痛点；带 view 缓存）
 	LyricCache *lyriccache.LyricCache // 歌词行缓存（后端持有，与音频同逻辑；透明：命中直接返回）
 	// OnOffsetChange 对齐偏移变更回调（offset 改了 → 挂件/显示层需重新定位广播；
 	// 由 server 注入，handler 不依赖 widget 域，保持解耦）
@@ -78,7 +78,7 @@ func (h *LyricHandler) Get(w http.ResponseWriter, r *http.Request) {
 		}
 		// 命中后才写缓存（res 含 lines；bvid 键）
 		if h.LyricCache != nil && len(res.Lines) > 0 {
-			h.LyricCache.Put(bvid, lyriccache.Marshal(res))
+			_ = h.LyricCache.Put(bvid, lyriccache.Marshal(res))
 		}
 	}
 	ok(w, res)
@@ -125,10 +125,8 @@ func (h *LyricHandler) Select(w http.ResponseWriter, r *http.Request) {
 	body.Cover = r.FormValue("cover")
 	body.Duration, _ = strconv.Atoi(r.FormValue("duration"))
 	if body.BVID == "" {
-		// 兼容 JSON body（桌面/网页）
-		if err := json.NewDecoder(r.Body).Decode(&body); err == nil && body.BVID != "" {
-			// 已从 query 读到则 body 不覆盖（query 优先，防安卓壳丢 body 时双重空）
-		}
+		// 兼容 JSON body（桌面/网页）：query 优先，body 仅在 query 为空时填充
+		_ = json.NewDecoder(r.Body).Decode(&body)
 	}
 	if body.BVID == "" {
 		errResp(w, http.StatusBadRequest, "bvid required")

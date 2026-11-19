@@ -93,7 +93,7 @@ func (s *LyricCache) Get(bvid string) (Entry, bool) {
 	// LRU 触碰降频（同上：命中高频，写库降频到 ≥60s 一次）
 	now := time.Now().UnixMilli()
 	if now-lastUsed >= 60000 {
-		s.db.Exec(`UPDATE lyric_cache SET last_used=? WHERE bvid=?`, now, bvid)
+		_, _ = s.db.Exec(`UPDATE lyric_cache SET last_used=? WHERE bvid=?`, now, bvid)
 	}
 	return e, true
 }
@@ -148,7 +148,7 @@ func (s *LyricCache) evictLocked() {
 		if n <= s.limit {
 			break
 		}
-		s.db.Exec(`DELETE FROM lyric_cache WHERE bvid=?`, e.bvid)
+		_, _ = s.db.Exec(`DELETE FROM lyric_cache WHERE bvid=?`, e.bvid)
 		n--
 	}
 }
@@ -185,14 +185,14 @@ func (s *LyricCache) SizeBytes() int64 {
 func (s *LyricCache) Remove(bvid string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.db.Exec(`DELETE FROM lyric_cache WHERE bvid=?`, bvid)
+	_, _ = s.db.Exec(`DELETE FROM lyric_cache WHERE bvid=?`, bvid)
 }
 
 // ClearAll 清空全部歌词缓存
 func (s *LyricCache) ClearAll() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.db.Exec(`DELETE FROM lyric_cache`)
+	_, _ = s.db.Exec(`DELETE FROM lyric_cache`)
 }
 
 // ClearUnfav 只清不在 favs 表（未收藏）的歌；表名拼接前白名单校验（防 SQL 注入，同 cache.ClearUnfav）
@@ -203,7 +203,7 @@ func (s *LyricCache) ClearUnfav(favTable string) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.db.Exec(`DELETE FROM lyric_cache WHERE bvid NOT IN (SELECT bvid FROM ` + favTable + `)`)
+	_, _ = s.db.Exec(`DELETE FROM lyric_cache WHERE bvid NOT IN (SELECT bvid FROM ` + favTable + `)`)
 }
 
 // Marshal 把任意缓存数据序列化为 JSON 字符串（供 Put）

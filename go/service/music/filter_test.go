@@ -44,8 +44,8 @@ func TestFilterSongs(t *testing.T) {
 	items := []MusicItem{
 		{BVID: "BV1", Title: "晴天", Typename: "音乐综合", DurationSec: 270},
 		{BVID: "BV2", Title: "晴天 纯伴奏", Typename: "音乐综合", DurationSec: 270}, // 标题踢
-		{BVID: "BV3", Title: "晴天 翻唱", Typename: "翻唱", DurationSec: 270},       // 分区踢
-		{BVID: "BV4", Title: "晴天片段", Typename: "音乐综合", DurationSec: 30},         // 时长踢
+		{BVID: "BV3", Title: "晴天 翻唱", Typename: "翻唱", DurationSec: 270},    // 分区踢
+		{BVID: "BV4", Title: "晴天片段", Typename: "音乐综合", DurationSec: 30},    // 时长踢
 		{BVID: "BV5", Title: "稻香", Typename: "音乐综合", DurationSec: 224},
 	}
 	// 开过滤：留 BV1/BV5

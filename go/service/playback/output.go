@@ -3,8 +3,9 @@
 // "现在是哪个设备"——只认 Output，装什么都能控制。
 //
 // 区域划分：
-//   playback 包（统一核心）：状态 SSOT + 队列走位 + 控制语义 + 自动连播 + 持久化
-//   Output 实现（各自自洽库）：只管"怎么真正出声 + 怎么上报进度"，不散落状态
+//
+//	playback 包（统一核心）：状态 SSOT + 队列走位 + 控制语义 + 自动连播 + 持久化
+//	Output 实现（各自自洽库）：只管"怎么真正出声 + 怎么上报进度"，不散落状态
 package playback
 
 import "errors"
@@ -38,10 +39,10 @@ type PlayOpts struct {
 // 对齐当前歌——音箱自动连播/蓝牙直播后核心与设备不再分裂）。web=Null 只有
 // pos/dur（bvid 空，核心不覆盖——web 当前歌由前端 Play 命令定）。
 type ProgressInfo struct {
-	BVID   string  // 输出端实际在播的歌（音箱自报；web 空）
-	Title  string  // 同上（歌词/显示用，避免核心旧标题）
-	Pos    float64 // 秒
-	Dur    float64 // 秒
+	BVID    string  // 输出端实际在播的歌（音箱自报；web 空）
+	Title   string  // 同上（歌词/显示用，避免核心旧标题）
+	Pos     float64 // 秒
+	Dur     float64 // 秒
 	Playing bool
 }
 
@@ -77,13 +78,13 @@ type Output interface {
 // NullOutput 空输出（无激活输出时占位：web 模式核心直接广播，前端 audio 响应）
 type NullOutput struct{}
 
-func (NullOutput) Play(string, PlayOpts) error  { return nil }
-func (NullOutput) Pause() error                 { return nil }
-func (NullOutput) Resume() error                { return nil }
-func (NullOutput) Stop() error                  { return nil }
+func (NullOutput) Play(string, PlayOpts) error { return nil }
+func (NullOutput) Pause() error                { return nil }
+func (NullOutput) Resume() error               { return nil }
+func (NullOutput) Stop() error                 { return nil }
 func (NullOutput) Seek(float64) error          { return nil }
 func (NullOutput) SetVolume(int) error         { return nil }
-func (NullOutput) Position() ProgressInfo         { return ProgressInfo{} }
-func (NullOutput) Caps() Capabilities           { return Capabilities{} }
-func (NullOutput) SetEndedHook(func())          {}
-func (NullOutput) Name() string                 { return "null" }
+func (NullOutput) Position() ProgressInfo      { return ProgressInfo{} }
+func (NullOutput) Caps() Capabilities          { return Capabilities{} }
+func (NullOutput) SetEndedHook(func())         {}
+func (NullOutput) Name() string                { return "null" }

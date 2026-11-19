@@ -52,10 +52,10 @@ type DashVideoItem struct {
 
 // AudioStreamInfo playurl 返回
 type AudioStreamInfo struct {
-	Quality  int      `json:"quality"`
-	Format   string   `json:"format"`
-	Dash     *DashInfo `json:"dash"`
-	Durl     []struct {
+	Quality int       `json:"quality"`
+	Format  string    `json:"format"`
+	Dash    *DashInfo `json:"dash"`
+	Durl    []struct {
 		URL  string `json:"url"`
 		Size int    `json:"size"`
 	} `json:"durl"`
@@ -63,11 +63,11 @@ type AudioStreamInfo struct {
 
 // AudioStreamResult 最终取流结果
 type AudioStreamResult struct {
-	URL      string
-	Quality  int
-	Size     int
-	MimeType string
-	Codecs   string
+	URL       string
+	Quality   int
+	Size      int
+	MimeType  string
+	Codecs    string
 	Bandwidth int // 音频码率bps（DASH bandwidth）——进度=拉流字节/码率 + 分片喂流大小用
 }
 

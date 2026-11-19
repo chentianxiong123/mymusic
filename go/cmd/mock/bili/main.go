@@ -1,7 +1,8 @@
 // mockbili 假 B站 API server：供 E2E 无外网跑（前端/后端全链路）
 // 用法：HC_BILI_BASE=http://127.0.0.1:39001 go run ./cmd/mockbili  &（起 39001）
 // 提供：/x/web-interface/search/type（搜索结果）/x/web-interface/view（cid）
-//       /x/player/playurl（DASH 音频 baseUrl 指回自己）/audio.m4s（静音 WAV，真实可播）
+//
+//	/x/player/playurl（DASH 音频 baseUrl 指回自己）/audio.m4s（静音 WAV，真实可播）
 package main
 
 import (
@@ -30,12 +31,12 @@ func wavSilence(seconds int) []byte {
 	copy(buf[8:], "WAVE")
 	copy(buf[12:], "fmt ")
 	binary.LittleEndian.PutUint32(buf[16:], 16)
-	binary.LittleEndian.PutUint16(buf[20:], 1)          // PCM
-	binary.LittleEndian.PutUint16(buf[22:], 1)          // mono
+	binary.LittleEndian.PutUint16(buf[20:], 1) // PCM
+	binary.LittleEndian.PutUint16(buf[22:], 1) // mono
 	binary.LittleEndian.PutUint32(buf[24:], uint32(sampleRate))
 	binary.LittleEndian.PutUint32(buf[28:], uint32(sampleRate*2)) // byte rate
-	binary.LittleEndian.PutUint16(buf[32:], 2)          // block align
-	binary.LittleEndian.PutUint16(buf[34:], 16)         // bits
+	binary.LittleEndian.PutUint16(buf[32:], 2)                    // block align
+	binary.LittleEndian.PutUint16(buf[34:], 16)                   // bits
 	copy(buf[36:], "data")
 	binary.LittleEndian.PutUint32(buf[40:], uint32(dataSize))
 	// 静音：PCM 全 0（已在 buf 里）
@@ -94,7 +95,7 @@ func main() {
 		// Range 支持（前端 audio 可能发 Range）
 		if rng := r.Header.Get("Range"); rng != "" {
 			w.WriteHeader(http.StatusPartialContent)
-			w.Header().Set("Content-Range", "bytes 0-" + strconv.Itoa(len(wav)-1) + "/" + strconv.Itoa(len(wav)))
+			w.Header().Set("Content-Range", "bytes 0-"+strconv.Itoa(len(wav)-1)+"/"+strconv.Itoa(len(wav)))
 		}
 		w.Write(wav)
 	})

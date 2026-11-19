@@ -60,26 +60,26 @@ func toFloatAny(v any) (float64, bool) {
 // 多平台统一：位置→行 定位算法一份住后端（pickLine），SSE 带算好的 line，显示层纯渲染。
 type WidgetState struct {
 	mu          sync.Mutex
-	BVID        string  `json:"bvid"`
-	Title       string  `json:"title"`
-	Artist      string  `json:"artist"`
-	CurrentTime float64 `json:"current_time"`
-	Duration    float64 `json:"duration"`
-	Playing     bool    `json:"playing"`
+	BVID        string                   `json:"bvid"`
+	Title       string                   `json:"title"`
+	Artist      string                   `json:"artist"`
+	CurrentTime float64                  `json:"current_time"`
+	Duration    float64                  `json:"duration"`
+	Playing     bool                     `json:"playing"`
 	subs        map[chan SSEMsg]struct{} // SSE 订阅者（事件名+payload）
 
 	// 日志去重（BroadcastLyricState 每次 Set 触发，250ms 一条；只打变化）
-	lastLogBVID   string
+	lastLogBVID    string
 	lastLogPlaying bool
 
 	// 歌词行缓存（切歌才拉一次，低频；位置→行 定位唯一一份，住后端）
-	lineSrc   LyricSource
-	cacheBvid string
-	cacheLines [][3]any
-	cacheOff   float64
-	cacheOK    bool
-	pendingBvid string // 拉取在途的 bvid（防重复异步拉）
-	lastFailAt time.Time // 最近一次拉取失败时间（去抖：失败后 5s 内不重拉）
+	lineSrc     LyricSource
+	cacheBvid   string
+	cacheLines  [][3]any
+	cacheOff    float64
+	cacheOK     bool
+	pendingBvid string    // 拉取在途的 bvid（防重复异步拉）
+	lastFailAt  time.Time // 最近一次拉取失败时间（去抖：失败后 5s 内不重拉）
 }
 
 // NewWidgetState 构造（lineSrc 可后续用 SetLineSrc 注入，避免循环依赖）
@@ -295,7 +295,6 @@ func (w *WidgetState) Get() (bvid, title, artist string, currentTime, duration f
 	defer w.mu.Unlock()
 	return w.BVID, w.Title, w.Artist, w.CurrentTime, w.Duration, w.Playing
 }
-
 
 // currentLine 兼容包装（单测/外部只取 line）
 func (w *WidgetState) currentLine(bvid string, ct float64) string {

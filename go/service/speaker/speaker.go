@@ -11,27 +11,27 @@ import (
 	"sync"
 	"time"
 
-	"homecast/service/token"
 	"homecast/bilibili"
+	"homecast/service/token"
 	"homecast/xiaoai"
 )
 
 // SpeakerService 音箱服务（对齐 Python speaker_service.py + device_manager.py）
 type SpeakerService struct {
-	Auth   *xiaoai.SpeakerAuth
-	client *bilibili.Client
-	tokens *token.TokenStore
-	mu     sync.Mutex
-	devices  map[string]xiaoai.SpeakerDevice
-	playing  map[string]string // did -> url（统一端点 URL）
-	blocked  map[string]bool   // did -> 断源（暂停/停止）：其拉流请求被拒
-	progress map[string]*SpeakerProgress // did -> 本地模拟进度（零小米云轮询）
-	failCount map[string]int  // did -> 连续播放失败次数（对齐 xiaomusic _play_failed_cnt，>=5 熔断）
-	port     string
+	Auth      *xiaoai.SpeakerAuth
+	client    *bilibili.Client
+	tokens    *token.TokenStore
+	mu        sync.Mutex
+	devices   map[string]xiaoai.SpeakerDevice
+	playing   map[string]string           // did -> url（统一端点 URL）
+	blocked   map[string]bool             // did -> 断源（暂停/停止）：其拉流请求被拒
+	progress  map[string]*SpeakerProgress // did -> 本地模拟进度（零小米云轮询）
+	failCount map[string]int              // did -> 连续播放失败次数（对齐 xiaomusic _play_failed_cnt，>=5 熔断）
+	port      string
 	// eventsSubs /speaker/events SSE 订阅者（服务端唯一 1s tick 广播所有设备进度——
 	// 取代过去每连接自起 tick goroutine：N 个页面=N 个 tick 同时 AllProgress，
 	// 与 /state/stream 双轨推同源进度；统一后与 PlaybackState/Widget 同构的订阅模型）
-	eventsSubs map[chan map[string]map[string]any]struct{}
+	eventsSubs   map[chan map[string]map[string]any]struct{}
 	pendingStops map[string]map[string]any // did -> idle 通知（停止时暂存，下次 tick 广播给前端设备卡刷回静止态）
 	// EndedHook 播完回调（did, nextBVID）——重构后核心自动连播，不再自己递归 Play
 	EndedHook func(did, nextBVID string)
@@ -41,20 +41,20 @@ type SpeakerService struct {
 // LoadedBytes = proxy 已发送字节（音箱实际拉了多少流）；Bitrate = 音频码率bps。
 // 分片喂流下拉取≈播放 → 字节/码率 ≈ 真实播放位置。回退本地时钟（无字节/码率时）。
 type SpeakerProgress struct {
-	BVID     string    `json:"bvid"`
-	Title    string    `json:"title,omitempty"`
-	Duration float64   `json:"duration"`             // 秒（前端已知优先，否则 B 站 view duration）
-	NextBVID string    `json:"next_bvid,omitempty"`  // 播完自动连播的下一首
-	Quality  int       `json:"-"`                    // 本次播放音质（自动连播/恢复沿用，删硬编码 30280）
-	Bitrate  int       `json:"-"`                    // 音频码率bps（DASH bandwidth）——字节/码率=进度
-	LoadedBytes int64  `json:"-"`                    // proxy 已发送字节（音箱实际拉流）——用户思路
-	Started  time.Time `json:"-"`                    // 本次播放开始（本地时钟基准，回退用）
-	PausedAt time.Time `json:"-"`                    // 暂停开始；零值=未暂停
-	Paused   float64   `json:"-"`                    // 累计暂停秒（恢复时补偿）
-	StartPos float64   `json:"-"`                    // 锚定后应处进度（新播 0 / 续播暂停点）
-	anchorPending bool `json:"-"`                    // 等待音箱首次拉流校准（命令→拉流有延迟，虚增进度待扣）
-	timer    *time.Timer `json:"-"`
-	stopped  bool      `json:"-"`
+	BVID          string      `json:"bvid"`
+	Title         string      `json:"title,omitempty"`
+	Duration      float64     `json:"duration"`            // 秒（前端已知优先，否则 B 站 view duration）
+	NextBVID      string      `json:"next_bvid,omitempty"` // 播完自动连播的下一首
+	Quality       int         `json:"-"`                   // 本次播放音质（自动连播/恢复沿用，删硬编码 30280）
+	Bitrate       int         `json:"-"`                   // 音频码率bps（DASH bandwidth）——字节/码率=进度
+	LoadedBytes   int64       `json:"-"`                   // proxy 已发送字节（音箱实际拉流）——用户思路
+	Started       time.Time   `json:"-"`                   // 本次播放开始（本地时钟基准，回退用）
+	PausedAt      time.Time   `json:"-"`                   // 暂停开始；零值=未暂停
+	Paused        float64     `json:"-"`                   // 累计暂停秒（恢复时补偿）
+	StartPos      float64     `json:"-"`                   // 锚定后应处进度（新播 0 / 续播暂停点）
+	anchorPending bool        `json:"-"`                   // 等待音箱首次拉流校准（命令→拉流有延迟，虚增进度待扣）
+	timer         *time.Timer `json:"-"`
+	stopped       bool        `json:"-"`
 }
 
 // Position 当前位置（秒）：优先拉流字节/码率（音箱实际消费，用户思路），
@@ -100,15 +100,15 @@ func NewSpeakerService(auth *xiaoai.SpeakerAuth, client *bilibili.Client, tokens
 		port = "28976"
 	}
 	s := &SpeakerService{
-		Auth:    auth,
-		client:  client,
-		tokens:  tokens,
-		devices: map[string]xiaoai.SpeakerDevice{},
-		playing: map[string]string{},
-		blocked: map[string]bool{},
-		progress: map[string]*SpeakerProgress{},
-		failCount: map[string]int{},
-		port:    port,
+		Auth:       auth,
+		client:     client,
+		tokens:     tokens,
+		devices:    map[string]xiaoai.SpeakerDevice{},
+		playing:    map[string]string{},
+		blocked:    map[string]bool{},
+		progress:   map[string]*SpeakerProgress{},
+		failCount:  map[string]int{},
+		port:       port,
 		eventsSubs: map[chan map[string]map[string]any]struct{}{},
 	}
 	// 服务端唯一广播者：/speaker/events 订阅模型（取代每连接自带 tick）
@@ -220,29 +220,29 @@ func lanIP() string {
 
 // scoreAddr 给候选地址打分，越高越可能是家用局域网网卡；0 表示彻底排除。
 func scoreAddr(ip net.IP, flags net.Flags) int {
-	if ip == nil || len(ip) == 0 {
+	if len(ip) == 0 {
 		return 0
 	}
 	a, b := ip[0], ip[1]
 	switch {
 	// link-local 169.254/16
-	case a==169 && b==254,
+	case a == 169 && b == 254,
 		// Tailscale 100.64.0.0/10（b 在 64..127）
-		a==100 && b&0xC0==64,
+		a == 100 && b&0xC0 == 64,
 		// Mihomo/CGNAT 198.18.0.0/15（b 在 18..19）
-		a==198 && b&0xFE==18:
+		a == 198 && b&0xFE == 18:
 		return 0
 	}
 	var score int
 	switch {
 	// 家用路由器几乎都用 192.168，docker 默认也不用它
-	case a==192 && b==168:
+	case a == 192 && b == 168:
 		score = 100
-	case a==10:
+	case a == 10:
 		score = 40
-	case a==172 && b>=16 && b<=31:
+	case a == 172 && b >= 16 && b <= 31:
 		// docker 默认从 172.17/16 递增，172.17-20 基本是容器网桥
-		if b>=17 && b<=20 {
+		if b >= 17 && b <= 20 {
 			score = 5
 		} else {
 			score = 40
@@ -491,6 +491,7 @@ func (s *SpeakerService) RecordLoaded(did string, bytes int64) {
 // progressTimer 本地模拟播完（定时器到点，唯一出口）：
 //   - 有下一首 → 通知核心自动连播（EndedHook 传 nextBVID）
 //   - 无下一首（单曲/最后一首）→ 播完即停：清进度 + idle 广播 + 通知核心停播态。
+//
 // 旧实现只在 NextBVID!="" 时建 timer，单曲播完本地时钟永不走完（pos 虚涨）、
 // 音箱早已静音核心还说播放中 → 设备卡永远“播放中”撒谎。
 func (s *SpeakerService) progressTimer(did, nextBVID string, quality int, p *SpeakerProgress) {
@@ -576,7 +577,7 @@ func (s *SpeakerService) Unsubscribe(ch chan map[string]map[string]any) {
 }
 
 // progressBroadcaster 服务端唯一 1s tick：向 /speaker/events 订阅者广播所有设备进度
-//（取代过去每个 SSE 连接自带 tick goroutine → N 页面=N 个协程同时 AllProgress；
+// （取代过去每个 SSE 连接自带 tick goroutine → N 页面=N 个协程同时 AllProgress；
 // 与 PlaybackState/Widget 同构的订阅模型，非阻塞丢弃）
 func (s *SpeakerService) progressBroadcaster() {
 	tick := time.NewTicker(1 * time.Second)
@@ -676,7 +677,7 @@ func (s *SpeakerService) Control(did, action string, volume int) (map[string]any
 	case "pause":
 		// 对齐 MiAir/xiaomusic：pause 调 API（player_pause 真暂停）→ 音箱立即停声。
 		// 断源 keep 为兜底：暂停后音箱若还拉旧流则拒绝（MiAir stop+pause 双保险同思路）。
-		ret, err = s.Auth.Pause(device.DeviceID, device.Hardware)
+		_, err = s.Auth.Pause(device.DeviceID, device.Hardware)
 		s.mu.Lock()
 		s.blocked[did] = true
 		s.mu.Unlock()
@@ -790,8 +791,10 @@ func (s *SpeakerService) resumeProgress(did string, startPos float64) {
 // AnchorStream 音箱首次拉流到达时校准进度基准（StreamGate 接口回调）。
 // 原理：命令下发（resume/play）到音箱真正拉流存在延迟（网络+音箱解析），
 // 若进度从命令时刻起算会虚增这段延迟——锚定后进度从拉流时刻起算：
-//   Position(t) = 锚定时（将 Started 平移）使 Position(拉流时刻)=StartPos
-//   （新播 StartPos=0；续播 StartPos=暂停点，两种都对上）。
+//
+//	Position(t) = 锚定时（将 Started 平移）使 Position(拉流时刻)=StartPos
+//	（新播 StartPos=0；续播 StartPos=暂停点，两种都对上）。
+//
 // 拉流可能多次（断点重试），只锚定第一次：anchorPending 置 false。
 func (s *SpeakerService) AnchorStream(did string, at time.Time) {
 	s.mu.Lock()
@@ -870,4 +873,3 @@ func (s *SpeakerService) SetVolume(did string, volume int) (map[string]any, erro
 	}
 	return map[string]any{"code": 0, "message": "success", "data": map[string]any{"volume": volume}}, nil
 }
-

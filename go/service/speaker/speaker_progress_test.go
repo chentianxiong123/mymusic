@@ -110,7 +110,7 @@ func TestSpeakerPauseResume(t *testing.T) {
 		t.Errorf("暂停中 position 应固定: %v → %v", frozen, again)
 	}
 
-	s.resumeProgress("did1", frozen) // 真实路径传暂停点（resumePositionSec），非 0
+	s.resumeProgress("did1", frozen)   // 真实路径传暂停点（resumePositionSec），非 0
 	s.AnchorStream("did1", time.Now()) // 续播会重新拉流 → 模拟锚定后再走时钟
 	time.Sleep(120 * time.Millisecond)
 	pos := s.Progress("did1")["position"].(float64)
@@ -149,6 +149,7 @@ func TestSpeakerStopClears(t *testing.T) {
 		t.Errorf("停止后应 idle: %v", p)
 	}
 }
+
 // TestSpeakerAllProgress 所有设备进度（SSE 单流推所有，零小米云）
 func TestSpeakerAllProgress(t *testing.T) {
 	s := newTestSpeaker(t, false)
@@ -388,7 +389,7 @@ func TestPositionClampedAtDuration(t *testing.T) {
 	// 本地时钟也绝不虚涨到 duration 之外（真机 pos=1415/118 的独立兜底）。
 	p := &SpeakerProgress{
 		BVID:     "BV1clamp",
-		Duration: 30, // 30s 歌
+		Duration: 30,                                 // 30s 歌
 		Started:  time.Now().Add(-120 * time.Second), // 假设已播 2 分钟
 	}
 	if pos := p.Position(); pos > 30 {

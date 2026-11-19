@@ -161,9 +161,9 @@ func numEq0(v any) bool {
 func (q *QRLogin) GenerateQRCode() (map[string]any, error) {
 	client := q.getSession()
 	headers := map[string]string{
-		"User-Agent":    genUserAgent(),
-		"Connection":    "keep-alive",
-		"Content-Type":  "application/x-www-form-urlencoded",
+		"User-Agent":   genUserAgent(),
+		"Connection":   "keep-alive",
+		"Content-Type": "application/x-www-form-urlencoded",
 	}
 
 	serviceLoginURL := fmt.Sprintf("https://account.xiaomi.com/pass/serviceLogin?_json=true&sid=mijia&_locale=%s", q.locale)
@@ -242,11 +242,11 @@ func (q *QRLogin) GenerateQRCode() (map[string]any, error) {
 	q.headers = headers
 
 	return map[string]any{
-		"success": true,
-		"message": "请使用米家 APP 扫描二维码",
-		"qr_url":  qrURL,
-		"qr_image": "data:image/png;base64," + base64.StdEncoding.EncodeToString(png),
-		"status_url": lp,
+		"success":      true,
+		"message":      "请使用米家 APP 扫描二维码",
+		"qr_url":       qrURL,
+		"qr_image":     "data:image/png;base64," + base64.StdEncoding.EncodeToString(png),
+		"status_url":   lp,
 		"is_logged_in": false,
 	}, nil
 }

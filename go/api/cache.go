@@ -13,7 +13,7 @@ import (
 type CacheHandler struct {
 	Cache      *cache.CacheService
 	LyricCache *lyriccache.LyricCache // 歌词行缓存（跟音频同逻辑；clear 一起清）
-	FavTable   string                  // 收藏表名（ClearUnfav 用）
+	FavTable   string                 // 收藏表名（ClearUnfav 用）
 }
 
 // Stats GET /api/v1/cache/stats —— 已用大小/条数/上限

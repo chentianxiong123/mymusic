@@ -26,7 +26,7 @@ func (h *H) SearchMP(w http.ResponseWriter, r *http.Request) {
 	kw := strings.TrimSpace(r.URL.Query().Get("kw"))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if kw == "" {
-		h.Tpl.ExecuteTemplate(w, "results_mp.html", &searchViewMP{})
+		_ = h.Tpl.ExecuteTemplate(w, "results_mp.html", &searchViewMP{})
 		return
 	}
 	frag, err := h.searchFragmentMP(kw)
@@ -34,7 +34,7 @@ func (h *H) SearchMP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "搜索失败："+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Write([]byte(frag))
+	_, _ = w.Write([]byte(frag))
 }
 
 // searchFragmentMP 渲染小程序搜索结果片段（一次 50 条，整体排序，同 web 版不做分页）

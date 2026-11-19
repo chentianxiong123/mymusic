@@ -15,19 +15,19 @@ import (
 	"homecast/service/music"
 	"homecast/service/songlist"
 	spk "homecast/service/speaker"
-	"homecast/xiaoai"
 	"homecast/web"
+	"homecast/xiaoai"
 )
 
 // H 功能上下文：只有各功能要用的数据句柄，无接口无抽象
 type H struct {
-	Music   *music.MusicService
-	Fav     *fav.FavService
+	Music    *music.MusicService
+	Fav      *fav.FavService
 	Songlist *songlist.SonglistService
-	Cast    *cast.CastService
-	Speaker *spk.SpeakerService
-	QR      *xiaoai.QRLogin
-	Tpl     *template.Template
+	Cast     *cast.CastService
+	Speaker  *spk.SpeakerService
+	QR       *xiaoai.QRLogin
+	Tpl      *template.Template
 	// NextBVID 当前歌的下一首 bvid（自动连播用）。由 server 注入核心队列 SSOT，
 	// 投送/切歌时 next 一律从核心算——不依赖前端传参（前端传=不可靠，会断链）
 	NextBVID func() string
@@ -52,7 +52,7 @@ func (h *H) renderPage(w http.ResponseWriter, active, content string, data any) 
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	h.Tpl.ExecuteTemplate(w, "shell.html", &page{Active: active, Content: template.HTML(buf.String())})
+	_ = h.Tpl.ExecuteTemplate(w, "shell.html", &page{Active: active, Content: template.HTML(buf.String())})
 }
 
 // Router 组装 hx 路由（挂在 server 外层 mux 的 "/" 上）
@@ -144,4 +144,3 @@ func (h *H) RecentPage(w http.ResponseWriter, r *http.Request) {
 func (h *H) searchPage(w http.ResponseWriter, r *http.Request) {
 	h.renderPage(w, "search", "content_search.html", &searchPageData{})
 }
-

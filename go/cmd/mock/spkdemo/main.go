@@ -51,7 +51,6 @@ var (
 	flagHC    = flag.String("hc", "http://127.0.0.1:28976", "hcserver 地址")
 	flagDid   = flag.String("did", "108654953", "目标音箱 did")
 	flagLanIP = flag.String("lanip", "", "本机局域网 IP（空=自动探测）")
-	flagVol   = flag.Int("vol", 5, "投送前锁的音量（1-100）")
 	// 静音源文件（暂停用），不存在则暂停仍投当前歌但断流
 	flagSil = flag.String("sil", "/tmp/sil120.mp3", "120s 静音 mp3（暂停时投）")
 )
@@ -69,11 +68,11 @@ type src struct {
 }
 
 var (
-	mu        sync.Mutex
-	srcs      []*src
-	silData   []byte // 静音文件全文（暂停时 serve）
-	silMime   string
-	silDur    float64
+	mu      sync.Mutex
+	srcs    []*src
+	silData []byte // 静音文件全文（暂停时 serve）
+	silMime string
+	silDur  float64
 )
 
 const sampleRate = 22050
@@ -105,12 +104,12 @@ func genWAV(freq float64, durSec int) (hdr, pcm []byte) {
 // ---------- 播放状态 ----------
 
 type psState struct {
-	cur      int     // 当前源 ID
-	pcmPos   int64   // 歌内位置（秒→字节；seek 改它）
-	lastOp   string
-	lastOpAt time.Time
-	lastLat  int64
-	pushes   int64
+	cur          int   // 当前源 ID
+	pcmPos       int64 // 歌内位置（秒→字节；seek 改它）
+	lastOp       string
+	lastOpAt     time.Time
+	lastLat      int64
+	pushes       int64
 	lastPushTime time.Time
 }
 
@@ -132,8 +131,6 @@ func curBPS() int64 {
 	}
 	return int64(*flagBit * 1000 / 8)
 }
-
-func curDur() float64 { return curSrc().DurSec }
 
 // ---------- HTTP serve（全量 200，支持 start 秒参数） ----------
 
@@ -298,7 +295,7 @@ func rePushURL(_ string, title string, dur float64, isSil bool) error {
 		}
 	}
 	mu.Unlock()
-	log.Printf("[push] %s（title=%s dur=%.0fs start=%.1fs sil=%v）", u, title, d, startSec, isSil||isPaused)
+	log.Printf("[push] %s（title=%s dur=%.0fs start=%.1fs sil=%v）", u, title, d, startSec, isSil || isPaused)
 	return nil
 }
 
@@ -329,15 +326,15 @@ func stateMap() map[string]any {
 		pos = 0
 	}
 	res := map[string]any{
-		"cur":       st.cur,
-		"title":     s.Title,
-		"dur":       s.DurSec,
-		"pos":       math.Round(pos*10) / 10,
-		"lastOp":    st.lastOp,
-		"lastLatMs": st.lastLat,
-		"pushes":    st.pushes,
-		"srcs":      len(srcs),
-		"paused":    st.lastOp == "pause（静音）",
+		"cur":        st.cur,
+		"title":      s.Title,
+		"dur":        s.DurSec,
+		"pos":        math.Round(pos*10) / 10,
+		"lastOp":     st.lastOp,
+		"lastLatMs":  st.lastLat,
+		"pushes":     st.pushes,
+		"srcs":       len(srcs),
+		"paused":     st.lastOp == "pause（静音）",
 		"speakerUrl": fmt.Sprintf("http://%s%s/stream", lanIP(), *flagPort),
 	}
 	mu.Unlock()

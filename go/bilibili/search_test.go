@@ -142,9 +142,9 @@ func TestSearchEmptyResult(t *testing.T) {
 func TestCleanHTML(t *testing.T) {
 	cases := map[string]string{
 		"<em class=\"keyword\">周杰伦</em>《瓦解》": "周杰伦《瓦解》",
-		"<b>加粗</b>标题":                           "加粗标题",
-		"无标签纯文本":                               "无标签纯文本",
-		"": "",
+		"<b>加粗</b>标题":                        "加粗标题",
+		"无标签纯文本":                             "无标签纯文本",
+		"":                                   "",
 	}
 	for in, want := range cases {
 		if got := CleanHTML(in); got != want {

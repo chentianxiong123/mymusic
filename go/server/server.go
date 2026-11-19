@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"homecast/hx"
 	"homecast/api"
 	"homecast/bilibili"
+	"homecast/hx"
 	"homecast/service/cache"
 	"homecast/service/cast"
 	"homecast/service/fav"
@@ -21,15 +21,15 @@ import (
 	"homecast/service/music"
 	"homecast/service/playback"
 	"homecast/service/playlist"
-	"homecast/service/songlist"
 	"homecast/service/sites"
+	"homecast/service/songlist"
 	spk "homecast/service/speaker"
 	"homecast/service/token"
 	"homecast/service/transcode"
 	"homecast/service/widget"
-	"homecast/xiaoai"
 	"homecast/store"
 	"homecast/web"
+	"homecast/xiaoai"
 )
 
 // Port 默认端口：Go 版独立端口，与 Python 28974 并存对照
@@ -71,7 +71,7 @@ func New() http.Handler {
 		lyriccache.CacheSchema,
 		transcode.Schema,
 	}, map[string]string{
-		fav.FavTable:     filepath.Join(dataDir, "favorites.json"),
+		fav.FavTable:           filepath.Join(dataDir, "favorites.json"),
 		playlist.PlaylistTable: filepath.Join(dataDir, "playlist.json"),
 	}); err != nil {
 		log.Fatalf("migrate db: %v", err)
@@ -115,9 +115,9 @@ func New() http.Handler {
 	speakerQR := xiaoai.NewQRLogin()
 	speakerHandler := &api.SpeakerHandler{Svc: speakerSvc, QR: speakerQR}
 	sitesHandler := &api.SitesHandler{Sites: sites.NewSitesService("")}
-	widgetState := widget.NewWidgetState() // 先建 state（source 需引用 state 取 title）
+	widgetState := widget.NewWidgetState()                // 先建 state（source 需引用 state 取 title）
 	lyricSrc := newLyricSource(lyricHandler, widgetState) // source 引用 handler+state
-	widgetState.SetLineSrc(lyricSrc)                       // 注入 source（避免循环依赖）
+	widgetState.SetLineSrc(lyricSrc)                      // 注入 source（避免循环依赖）
 	widgetStateGlobal = widgetState
 	widgetHandler := &api.WidgetHandler{State: widgetState}
 
@@ -125,8 +125,8 @@ func New() http.Handler {
 
 	// 统一播放状态源（SSOT）：业务状态唯一住后端，前端订阅 /api/v1/state/stream 渲染
 	playbackState := playback.NewPlaybackState()
-	playbackState.SetDB(db)     // 持久化（settings kv，变更即存）
-	playbackState.Restore(db)   // 启动恢复：队列/模式/上次歌（不自动播）
+	playbackState.SetDB(db)   // 持久化（settings kv，变更即存）
+	playbackState.Restore(db) // 启动恢复：队列/模式/上次歌（不自动播）
 	// 自动连播关键接线：SpeakerService 定时器到点 → progressTimer → 该 hook 必须非 nil！
 	// （之前漏接：timer 到了调 nil hook，什么都不做 → 播完不切歌、一直放）
 	// nextBVID="" = 播完最后一首（音箱已静音）→ 核心落停播态（不再坐正“播放中”）。
@@ -145,7 +145,6 @@ func New() http.Handler {
 		out.SetEndedHook(func() { playbackState.Next() }) // 播完→核心统一自动连播
 		return out
 	})
-	playbackStateGlobal = playbackState
 	stateHandler := &api.StateHandler{Pb: playbackState}
 
 	// 歌词驱动统一：widget = 核心状态的投影订阅者（唯一喂入）。
@@ -175,7 +174,7 @@ func New() http.Handler {
 
 	// htmx 层（Go 渲染页面 + 功能切片）：/ 首页、/assets 静态、/hx/* 切片
 	hxH := &hx.H{Music: musicSvc, Fav: fav.NewFavService(db), Songlist: songlist.NewSonglistService(db), Cast: castSvc, Speaker: speakerSvc, QR: speakerQR, Tpl: web.MustTemplates(),
-		NextBVID:     func() string { return playbackState.NextBVID() },
+		NextBVID:      func() string { return playbackState.NextBVID() },
 		SwitchSpeaker: func(did string) { playbackState.SwitchSpeaker(did) }}
 	outer := http.NewServeMux()
 	outer.Handle("/", hxH.Router())
@@ -195,7 +194,6 @@ func WidgetStateSnapshot() (bvid, title, artist string, currentTime, duration fl
 }
 
 var widgetStateGlobal *widget.WidgetState
-var playbackStateGlobal *playback.PlaybackState
 
 // withCORS 允许任意来源（本地单用户服务；桌面壳 wails:// 域跨域访问）
 func withCORS(h http.Handler) http.Handler {
@@ -226,4 +224,3 @@ func ListenAndServe(addr string) error {
 	log.Printf("homecast-go listening on http://%s (music + fav + lyric + playlist + cast + speaker + sites + widget)", addr)
 	return http.ListenAndServe(addr, New())
 }
-

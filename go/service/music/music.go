@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"homecast/service/lyric"
 	"homecast/bilibili"
+	"homecast/service/lyric"
 )
 
 // 搜索相关（MusicItem/MusicSearchResult/ParseDurationSec/Search/SearchRaw/searchRank）

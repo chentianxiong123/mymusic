@@ -172,16 +172,6 @@ func (p *PlaybackState) SetOutputFactory(f OutputFactory) {
 	p.mu.Unlock()
 }
 
-// outActive 当前激活输出（无则 NullOutput——web 模式前端 audio 接管）
-func (p *PlaybackState) outActive() Output {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.out == nil {
-		return NullOutput{}
-	}
-	return p.out
-}
-
 // SetOutput 直接设当前输出（测试/特殊场景用）
 func (p *PlaybackState) SetOutput(out Output) {
 	p.mu.Lock()
@@ -700,7 +690,7 @@ func (p *PlaybackState) SwitchSpeaker(did string) {
 	p.mu.Unlock()
 	// 独占：换设备（另一台音箱）必须让旧设备闭嘴——锁外真网络调用
 	if prevOut != nil && !sameDevice {
-		prevOut.Stop()
+		_ = prevOut.Stop()
 	}
 	// 回读音箱真实音量 → SSOT + 广播（前端滑块/静音态对齐设备，不靠猜 localStorage）。
 	// 仅 speaker 输出能回读（web 音量前端本地管）。用结构化接口断言（避免 playback→speaker
@@ -743,7 +733,7 @@ func (p *PlaybackState) SwitchWeb() {
 	p.mu.Unlock()
 	// 独占：回 web 前必须让旧输出闭嘴（音箱仍在播=双响）
 	if prevOut != nil {
-		prevOut.Stop()
+		_ = prevOut.Stop()
 	}
 	p.bcastSnapshot()
 }
