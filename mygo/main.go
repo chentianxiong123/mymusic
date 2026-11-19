@@ -101,6 +101,7 @@ type app struct {
 	// 播放控制面板 / 队列 / 收藏
 	showPlayer bool
 	activeTab  string // search|queue|fav|cast|settings
+	settingsTab int  // 设置页子 tab：0=系统设置 1=插件
 	playlist   []bilibili.SearchItem
 	playIndex  int
 	posSec     float64 // 当前播放秒（歌词定位用）
@@ -416,6 +417,10 @@ func main() {
 		plugin.RegisterSource(source.NewBilibili(a.svc.music)) // B站音乐源
 	}
 	plugin.RegisterLyric(lyricplug.NewNetease()) // 网易云歌词源
+	// 插件元数据（插件页展示）
+	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐音源（搜索/取流/歌词，复用主线 music 域）"})
+	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词源（复用主线 lyric 域 GetLyricLines）"})
+	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）"})
 	// 当前源 = 注册表首个（B站）；未来网易云/本地/插件源都注册进表，UI 可选
 	if names := plugin.SourceNames(); len(names) > 0 {
 		a.src = plugin.Sources()[names[0]]

@@ -14,93 +14,106 @@ func (a *app) settingsPage(c *ui.Context) {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "设置").FontSize(20 * uiScale).Bold().TextColor(clrText)
 			ui.Spacer(c).Grow(1)
-			ui.Text(c, "自动 ／ 明亮 ／ 暗黑（点击切换）").FontSize(12 * uiScale).TextColor(clrMuted)
-		})
-		ui.Scroll(c).Grow(1).Gap(10 * uiScale).Scrollbars(true).Children(func() {
-			// 限宽居中（对齐主线 max-w-2xl mx-auto）：宽屏不撑满，条项整体居中
-			ui.Column(c).Gap(10 * uiScale).AlignSelf(ui.Center).WidthPercent(100).MaxWidth(672 * uiScale).Children(func() {
-				// 1 主题模式（主线 THEMES 三态：自动/明亮/暗黑；持久化 settings kv）
-				a.setRow(c, "主题模式")
-				a.setRowSeg(c, []string{"自动", "明亮", "暗黑"}, a.themeMode, func(i int) {
-					a.themeMode = i
-					a.savePref("mygo_theme", i)
-					a.win.Invalidate()
-				})
-				// 2 音质（主线 d-quality / set-q 三档）
-				a.setRow(c, "音质")
-				a.setRowSeg(c, []string{"低", "中", "高"}, a.quality, func(i int) {
-					a.quality = i
-					a.savePref("mygo_quality", i)
-					a.win.Invalidate()
-				})
-				// 4 播放模式（主线 MODES 四态 + 当前模式名）
-				a.setRow(c, "播放模式")
-				a.setRowText(c, "当前："+a.loopLabel()+"（点按钮切换）")
-				a.setRowSeg(c, []string{"顺序播放", "列表循环", "单曲循环", "随机播放"}, a.loopMode, func(i int) {
-					a.loopMode = i
-					a.pb.SetMode(intToMode(i))
-				})
-				// 5 歌词字号（主线 LY_SIZES 14/16/18/22/26）
-				a.setRow(c, "歌词字号")
-				a.setRowSeg(c, []string{"14px", "16px", "18px", "22px", "26px"}, a.lyricSize, func(i int) {
-					a.savePref("mygo_lyricsize", i)
-					a.lyricSize = i
-					a.win.Invalidate()
-				})
-				// 6 歌词背景（主线 set-lybg：封面模糊/纯色）
-				a.setRow(c, "歌词背景")
-				a.setRowSeg(c, []string{"封面模糊", "纯色"}, a.lyricBg, func(i int) {
-					a.lyricBg = i
-					a.win.Invalidate()
-				})
-				// 7 歌词时间显示（主线 set-lytime 开关）
-				a.setRowSwitch(c, "歌词时间显示", "歌词行旁显示时间戳", a.lyricTime, func(on bool) {
-					a.lyricTime = on
-					a.win.Invalidate()
-				})
-
-				// 9 歌曲缓存（主线 cache.js：已用/清空未收藏/清空缓存/上限）
-				a.setRow(c, "歌曲缓存")
-				a.setRowText(c, "自动缓存播放超过 60 秒的歌，再次播放秒开；超上限自动淘汰最旧")
-				a.setRowText(c, "已用："+a.cacheUsedLabel())
-				a.setRowBtns(c, []string{"清空未收藏", "清空缓存"}, func(i int) {
-					if i == 0 {
-						a.clearCache(false)
-					} else {
-						a.clearCache(true)
-					}
-				})
-				a.setRow(c, "缓存上限")
-				a.setRowSeg(c, []string{"关闭", "200MB", "500MB", "1GB", "2GB"}, a.cacheLimit, func(i int) {
-					a.cacheLimit = i
-					a.savePref("mygo_cachelimit", i)
-					if a.svc != nil && a.svc.cache != nil {
-						a.svc.cache.SetLimitMB([]int{0, 200, 500, 1000, 2000}[i])
-					}
-					a.win.Invalidate()
-				})
-				// 10 歌词缓存（主线 lyc：记忆歌词源，LRU 50 首）
-				a.setRow(c, "歌词缓存")
-				a.setRowText(c, "字幕条与歌词面板共用：自动记忆你选的歌词源，最多 50 首")
-				a.setRowText(c, "已缓存："+a.lyricCacheCount()+" 首 · "+a.lyricCacheSize())
-				a.setRowBtns(c, []string{"清空歌词缓存"}, func(i int) {
-					if a.svc != nil && a.svc.lyricCache != nil {
-						a.svc.lyricCache.ClearAll()
-						a.win.Invalidate()
-					}
-				})
-				// 11 数据（主线：搜索历史 + 清空）
-				a.setRow(c, "数据")
-				a.setRowText(c, "搜索历史（"+a.historyCount()+" 条）")
-				a.setRowBtns(c, []string{"清空历史"}, func(i int) {
-					a.searchHistory = nil
-					a.saveHistory()
-					a.win.Invalidate()
-				})
-				// 12 关于（主线）
-				a.setRow(c, "关于")
-				a.setRowText(c, "mymusic MyGo 原生版 · 紫粉渐变主题 · SSOT 共享主线 playback 域")
+			// 子 tab：系统设置 / 插件（同一导航项分页显示）
+			a.setRowSeg(c, []string{"系统设置", "插件"}, a.settingsTab, func(i int) {
+				a.settingsTab = i
+				a.win.Invalidate()
 			})
+		})
+		if a.settingsTab == 1 {
+			a.pluginPage(c)
+		} else {
+			a.systemSettings(c)
+		}
+	})
+}
+
+// systemSettings 系统设置内容（原设置页，主题/音质/缓存等）。
+func (a *app) systemSettings(c *ui.Context) {
+	ui.Scroll(c).Grow(1).Gap(10 * uiScale).Scrollbars(true).Children(func() {
+		// 限宽居中（对齐主线 max-w-2xl mx-auto）：宽屏不撑满，条项整体居中
+		ui.Column(c).Gap(10 * uiScale).AlignSelf(ui.Center).WidthPercent(100).MaxWidth(672 * uiScale).Children(func() {
+			// 1 主题模式（主线 THEMES 三态：自动/明亮/暗黑；持久化 settings kv）
+			a.setRow(c, "主题模式")
+			a.setRowSeg(c, []string{"自动", "明亮", "暗黑"}, a.themeMode, func(i int) {
+				a.themeMode = i
+				a.savePref("mygo_theme", i)
+				a.win.Invalidate()
+			})
+			// 2 音质（主线 d-quality / set-q 三档）
+			a.setRow(c, "音质")
+			a.setRowSeg(c, []string{"低", "中", "高"}, a.quality, func(i int) {
+				a.quality = i
+				a.savePref("mygo_quality", i)
+				a.win.Invalidate()
+			})
+			// 4 播放模式（主线 MODES 四态 + 当前模式名）
+			a.setRow(c, "播放模式")
+			a.setRowText(c, "当前："+a.loopLabel()+"（点按钮切换）")
+			a.setRowSeg(c, []string{"顺序播放", "列表循环", "单曲循环", "随机播放"}, a.loopMode, func(i int) {
+				a.loopMode = i
+				a.pb.SetMode(intToMode(i))
+			})
+			// 5 歌词字号（主线 LY_SIZES 14/16/18/22/26）
+			a.setRow(c, "歌词字号")
+			a.setRowSeg(c, []string{"14px", "16px", "18px", "22px", "26px"}, a.lyricSize, func(i int) {
+				a.savePref("mygo_lyricsize", i)
+				a.lyricSize = i
+				a.win.Invalidate()
+			})
+			// 6 歌词背景（主线 set-lybg：封面模糊/纯色）
+			a.setRow(c, "歌词背景")
+			a.setRowSeg(c, []string{"封面模糊", "纯色"}, a.lyricBg, func(i int) {
+				a.lyricBg = i
+				a.win.Invalidate()
+			})
+			// 7 歌词时间显示（主线 set-lytime 开关）
+			a.setRowSwitch(c, "歌词时间显示", "歌词行旁显示时间戳", a.lyricTime, func(on bool) {
+				a.lyricTime = on
+				a.win.Invalidate()
+			})
+
+			// 9 歌曲缓存（主线 cache.js：已用/清空未收藏/清空缓存/上限）
+			a.setRow(c, "歌曲缓存")
+			a.setRowText(c, "自动缓存播放超过 60 秒的歌，再次播放秒开；超上限自动淘汰最旧")
+			a.setRowText(c, "已用："+a.cacheUsedLabel())
+			a.setRowBtns(c, []string{"清空未收藏", "清空缓存"}, func(i int) {
+				if i == 0 {
+					a.clearCache(false)
+				} else {
+					a.clearCache(true)
+				}
+			})
+			a.setRow(c, "缓存上限")
+			a.setRowSeg(c, []string{"关闭", "200MB", "500MB", "1GB", "2GB"}, a.cacheLimit, func(i int) {
+				a.cacheLimit = i
+				a.savePref("mygo_cachelimit", i)
+				if a.svc != nil && a.svc.cache != nil {
+					a.svc.cache.SetLimitMB([]int{0, 200, 500, 1000, 2000}[i])
+				}
+				a.win.Invalidate()
+			})
+			// 10 歌词缓存（主线 lyc：记忆歌词源，LRU 50 首）
+			a.setRow(c, "歌词缓存")
+			a.setRowText(c, "字幕条与歌词面板共用：自动记忆你选的歌词源，最多 50 首")
+			a.setRowText(c, "已缓存："+a.lyricCacheCount()+" 首 · "+a.lyricCacheSize())
+			a.setRowBtns(c, []string{"清空歌词缓存"}, func(i int) {
+				if a.svc != nil && a.svc.lyricCache != nil {
+					a.svc.lyricCache.ClearAll()
+					a.win.Invalidate()
+				}
+			})
+			// 11 数据（主线：搜索历史 + 清空）
+			a.setRow(c, "数据")
+			a.setRowText(c, "搜索历史（"+a.historyCount()+" 条）")
+			a.setRowBtns(c, []string{"清空历史"}, func(i int) {
+				a.searchHistory = nil
+				a.saveHistory()
+				a.win.Invalidate()
+			})
+			// 12 关于（主线）
+			a.setRow(c, "关于")
+			a.setRowText(c, "mymusic MyGo 原生版 · 紫粉渐变主题 · SSOT 共享主线 playback 域")
 		})
 	})
 }
