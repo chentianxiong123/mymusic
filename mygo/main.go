@@ -45,6 +45,7 @@ type app struct {
 	// 主线 SSOT 接入：业务状态/队列/模式/持久化全在 playback 域包（MyGo 只渲染+发命令）
 	pb           *playback.PlaybackState
 	mygoOut      *MyGoOutput
+	link         plugin.Link // 稳定链路 API（搜索→播放→歌词统一入口，多端复用核心）
 	db           *sql.DB
 	svc          *services              // 主线域包句柄（fav/lyric/cast/speaker）
 	src          source.MusicSource     // 当前音源（阶段 2 解耦：UI 只认接口，不认具体源）
@@ -437,6 +438,7 @@ func main() {
 	a.restoreRecent()    // 恢复最近播放
 	a.restoreHistory()   // 恢复搜索历史
 	a.pb = playback.NewPlaybackState()
+	a.link = NewLink(a.pb) // 稳定链路 API 实现（播放核心注入）
 	a.mygoOut = newMyGoOutput(a.bili)
 	if a.src != nil {
 		a.mygoOut.setSource(a.src) // 音源接口注入（阶段 2 解耦：取流走接口）
