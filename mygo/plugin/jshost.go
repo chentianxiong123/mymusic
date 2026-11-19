@@ -88,6 +88,16 @@ func (h *jsHost) inject(vm *sobek.Runtime) error {
 	}); err != nil {
 		return fmt.Errorf("host.b64encode: %w", err)
 	}
+	// b64decode：base64→UTF-8（酷狗歌词 Content base64；sobek 无内置 atob）。
+	if err := hostObj.Set("b64decode", func(call sobek.FunctionCall) sobek.Value {
+		b, err := base64.StdEncoding.DecodeString(call.Argument(0).String())
+		if err != nil {
+			return vm.ToValue("")
+		}
+		return vm.ToValue(string(b))
+	}); err != nil {
+		return fmt.Errorf("host.b64decode: %w", err)
+	}
 	// md5：hex MD5（千千/百度音乐 sign 算法；sobek 无 crypto）。
 	if err := hostObj.Set("md5", func(call sobek.FunctionCall) sobek.Value {
 		sum := md5.Sum([]byte(call.Argument(0).String()))

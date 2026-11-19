@@ -6,8 +6,8 @@ var meta = {
   apiVersion: 1,
   key: "kugou",
   name: "酷狗音乐",
-  capabilities: ["source"], // 免登录（歌词后续）
-  allowedHosts: ["songsearch.kugou.com", "trackercdn.kugou.com"],
+  capabilities: ["source", "lyric"], // 免登录（歌词 krcs + download fmt=lrc）
+  allowedHosts: ["songsearch.kugou.com", "trackercdn.kugou.com", "krcs.kugou.com", "lyrics.kugou.com"],
   order: 70, // bilibili 10 / 网易云 20 / QQ 30 / 咪咕 40 / 酷我 50 / 千千 55 / Jamendo 60 / archive 65 之后
   settings: [
     { key: "searchSize", name: "搜索条数", type: "select", options: ["20", "40", "60"], default: "40", desc: "每次搜索请求条数（插件自控，分页同尺寸）" },
@@ -65,6 +65,34 @@ function getURL(ctx) {
 // 请求头（酷狗匿名 UA）。
 function kgHeaders(ctx) {
   return { "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 Chrome/80.0.3987.162 Mobile Safari/537.36" };
+}
+
+// 歌词：krcs.search（2 步）→ download fmt=lrc → Content base64 → 明文 lrc（无 krc 解密）。
+function lyric(ctx) {
+  var hash = ctx.sid;
+  if (!hash) return { error: "缺 hash" };
+  var sresp = ctx.host.http({
+    url: "http://krcs.kugou.com/search?ver=1&client=mobi&duration=0&hash=" + encodeURIComponent(hash) + "&album_audio_id=",
+    headers: kgLyricHeaders(ctx)
+  });
+  if (sresp.error) return { error: sresp.error };
+  var sd = JSON.parse(sresp.body);
+  var c = (sd.candidates || [])[0] || {};
+  if (!c.id) return { error: "酷狗无歌词" };
+  var url = "http://lyrics.kugou.com/download?ver=1&client=pc&id=" + encodeURIComponent(c.id) +
+    "&accesskey=" + encodeURIComponent(c.accesskey || "") + "&fmt=lrc&charset=utf8";
+  var lresp = ctx.host.http({ url: url, headers: kgLyricHeaders(ctx) });
+  if (lresp.error) return { error: lresp.error };
+  var ld = JSON.parse(lresp.body);
+  var content = ld.content || "";
+  if (!content) return { error: "酷狗无歌词文本" };
+  // fmt=lrc → Content base64 → 明文 lrc。
+  return { lrc: ctx.host.b64decode(content) };
+}
+
+// 歌词请求头（酷狗 UA + Referer）。
+function kgLyricHeaders(ctx) {
+  return { "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 Chrome/80.0.3987.162 Mobile Safari/537.36", "Referer": "http://www.kugou.com/" };
 }
 
 // 工具：秒 → mm:ss。
