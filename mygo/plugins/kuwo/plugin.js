@@ -8,8 +8,8 @@ var meta = {
   key: "kuwo",
   name: "酷我音乐",
   version: "1.0.0",
-  capabilities: ["source"],
-  allowedHosts: ["search.kuwo.cn", "mobi.kuwo.cn", "www.kuwo.cn"],
+  capabilities: ["source", "lyric"],
+  allowedHosts: ["search.kuwo.cn", "mobi.kuwo.cn", "www.kuwo.cn", "m.kuwo.cn"],
   requiresCookie: true, // 酷我取流需登录 cookie（mobi.s convert_url_with_sign），无 cookie 不激活
   order: 50, // bilibili 10 / 网易云 20 / QQ 30 / 咪咕 40 之后
   settings: [
@@ -95,6 +95,21 @@ function getURL(ctx) {
 // 清理酷我文本（&nbsp; HTML 空格 → 空格）。
 function cleanKw(s) {
   return String(s || "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
+}
+
+// 歌词：songinfoandlrc（m.kuwo.cn）→ lrclist（明文 time+lineLyric）→ lrc 文本。
+// 免 KRC 解密（newlyric.kuwo.cn krc 二进制降级不用）；免费歌匿名可用。
+function lyric(ctx) {
+  var rid = String(ctx.sid || "").replace("MUSIC_", ""); // MUSIC_前缀去（数字 rid）
+  if (!rid) return { error: "缺 rid" };
+  var url = "http://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId=" + encodeURIComponent(rid) + "&httpsStatus=1";
+  var resp = ctx.host.http({ url: url, headers: kwHeaders(ctx) });
+  if (resp.error) return { error: resp.error };
+  var d = JSON.parse(resp.body);
+  var list = ((d.data || {}).lrclist || []);
+  if (!list.length) return { error: "酷我无歌词" };
+  var lrc = list.map(function(l) { return "[" + l.time + "]" + l.lineLyric; }).join("\n");
+  return { lrc: lrc };
 }
 
 // 工具：秒 → mm:ss。
