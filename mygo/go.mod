@@ -7,8 +7,11 @@ tool github.com/egoist/mygo/cmd/mygo
 require (
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/cloudflare/circl v1.6.2 // indirect
+	github.com/dlclark/regexp2/v2 v2.11.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
+	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
@@ -30,6 +33,7 @@ require (
 
 require (
 	github.com/egoist/mygo v0.9.0
+	github.com/grafana/sobek v0.0.0-20261116133901-d070e0f1f200
 	github.com/lsongdev/miservice-go v0.0.0-20260317060819-b3e39634cd06
 	homecast v0.0.0-00010101000000-000000000000
 )

@@ -100,17 +100,17 @@ type app struct {
 	coverOrder   []string // LRU 顺序：封面缓存超过上限时驱逐最旧的
 
 	// 播放控制面板 / 队列 / 收藏
-	showPlayer bool
-	activeTab  string // search|queue|fav|cast|settings
-	settingsTab int  // 设置页子 tab：0=系统设置 1=插件
+	showPlayer   bool
+	activeTab    string // search|queue|fav|cast|settings
+	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件
 	pluginDetail string // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
-	playlist   []bilibili.SearchItem
-	playIndex  int
-	posSec     float64 // 当前播放秒（歌词定位用）
-	volume     float64
-	loopMode   int // 0 顺序 1 列表循环 2 单曲 3 随机（对齐主线 4 态）
-	favorites  []bilibili.SearchItem
-	favSet     map[string]bool
+	playlist     []bilibili.SearchItem
+	playIndex    int
+	posSec       float64 // 当前播放秒（歌词定位用）
+	volume       float64
+	loopMode     int // 0 顺序 1 列表循环 2 单曲 3 随机（对齐主线 4 态）
+	favorites    []bilibili.SearchItem
+	favSet       map[string]bool
 	// 歌单（用户自建、可命名、可多份；与 playlist=播放队列 区分）
 	songlists           []songlist.Songlist // 歌单列表（卡片用）
 	songlistOpen        int64               // 当前打开的歌单 id（0=列表页）
@@ -426,6 +426,15 @@ func main() {
 	plugin.RegisterInfo(plugin.Info{Name: "cast", Type: "target", Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
 	plugin.RegisterInfo(plugin.Info{Name: "bluetooth", Type: "target", Icon: "bluetooth", Version: "1.0", Desc: "蓝牙目标（bluetoothctl 扫描，音频路由到蓝牙 sink）", Order: 50})
 	plugin.RegisterInfo(plugin.Info{Name: "speaker", Type: "target", Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
+	// JS 沙箱插件：扫描 plugins/ 加载第三方 .js 音源/歌词（sobek 纯 Go，无 cgo）。
+	// 单个插件失败不拖垮启动（errs 收集，日志列出原因）。
+	if errs, err := plugin.LoadFromDir("plugins"); err != nil {
+		log.Printf("js plugin dir: %v", err)
+	} else {
+		for _, e := range errs {
+			log.Printf("js plugin load: %v", e)
+		}
+	}
 	// 当前源 = 注册表首个（B站）；未来网易云/本地/插件源都注册进表，UI 可选
 	if names := plugin.SourceNames(); len(names) > 0 {
 		a.src = plugin.Sources()[names[0]]
