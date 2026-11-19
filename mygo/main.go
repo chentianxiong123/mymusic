@@ -418,6 +418,7 @@ func main() {
 	// B站音源插件设置：搜索条数/分页自控（插件声明，系统统一存储 SettingStore）
 	plugin.RegisterSettings("source", "bilibili", []plugin.Setting{
 		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索请求条数（插件自控，分页同尺寸）"},
+		{Key: "quality", Name: "音质", Type: plugin.SettingSelect, Options: []string{"64k", "128k", "192k"}, Default: "192k", Desc: "B站取流音质档（64/128/192k）"},
 	})
 	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词源（复用主线 lyric 域 GetLyricLines）", Order: 20})
 	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）", Order: 30})
@@ -456,6 +457,15 @@ func main() {
 	// 一切皆插件：本机声卡也注册为 target 插件（默认播放路径）
 	plugin.RegisterTarget(target.NewLocal(a.mygoOut))
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
+	// B站音质设置（插件设置）：64k/128k/192k → 音质档 0/1/2（默认 192k）。
+	switch plugin.GetSetting("source", "bilibili", "quality", "192k") {
+	case "64k":
+		a.quality = 0
+	case "128k":
+		a.quality = 1
+	default:
+		a.quality = 2
+	}
 	a.mygoOut.qualFn = func() int { return a.quality } // 音质档实时读取（60k/128k/192k）
 	a.mygoOut.onErr = func(msg string) { // 取流失败 UI 提示（付费/VIP/需登录）
 		a.win.Update(func() { a.status = msg })
