@@ -100,12 +100,20 @@ func (a *app) loopLabel() string {
 
 // isFav 当前曲目是否已收藏（SSOT：fav 域包）。
 func (a *app) isFav() bool {
-	return a.current != nil && a.svc.favHas(a.current.bvid)
+	return a.current != nil && a.favHasSafe(a.current.bvid)
+}
+
+// favHasSafe 收藏查询（nil 安全：svc 未初始化返回 false）。
+func (a *app) favHasSafe(bvid string) bool {
+	if a.svc == nil {
+		return false
+	}
+	return a.svc.favHas(bvid)
 }
 
 // toggleFav 收藏/取消当前曲目（SSOT：fav 域包 Add/Remove）。
 func (a *app) toggleFav() {
-	if a.current == nil {
+	if a.current == nil || a.svc == nil {
 		return
 	}
 	if a.svc.favHas(a.current.bvid) {
@@ -119,7 +127,7 @@ func (a *app) toggleFav() {
 
 // isFavItem 指定曲目是否已收藏（SSOT）。
 func (a *app) isFavItem(item bilibili.SearchItem) bool {
-	return a.svc.favHas(item.BVID)
+	return a.favHasSafe(item.BVID)
 }
 
 // toggleFavItem 收藏/取消指定曲目（SSOT）。

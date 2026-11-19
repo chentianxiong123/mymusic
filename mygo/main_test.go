@@ -12,8 +12,8 @@ import (
 func TestViewSmoke(t *testing.T) {
 	a := &app{}
 	tt := ui.NewTester(a.view, 560, 640)
-	if !tt.HasText("搜索 B站音乐") {
-		t.Errorf("missing search hint, texts %q", tt.Texts())
+	if !tt.HasText("按风格找歌") {
+		t.Errorf("missing genre hint, texts %q", tt.Texts())
 	}
 	if !tt.HasText("未在播放") {
 		t.Errorf("missing player idle text, texts %q", tt.Texts())
