@@ -229,6 +229,9 @@ func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, p
 		r.Close()
 		os.Remove(path)
 		log.Printf("[mygo-output] 解码失败 %s: %v", bvid, err)
+		if o.onErr != nil {
+			o.onErr("解码失败：" + err.Error())
+		}
 		return
 	}
 
