@@ -106,6 +106,8 @@ type app struct {
 	covers       map[string]ui.ImageSource
 	coverLoading map[string]bool
 	coverOrder   []string // LRU 顺序：封面缓存超过上限时驱逐最旧的
+	blurCovers   map[string]ui.ImageSource // 模糊版封面（降采样 12px 放大铺满=背景模糊）
+	coverDir     string   // 封面磁盘缓存目录（cache/cover；重启动命中不重下载）
 
 	// 播放控制面板 / 队列 / 收藏
 	showPlayer   bool
@@ -373,6 +375,7 @@ func main() {
 		),
 		covers:          map[string]ui.ImageSource{},
 		coverLoading:    map[string]bool{},
+		blurCovers:      map[string]ui.ImageSource{},
 		favSet:          map[string]bool{},
 		pg:              map[string]int{},
 		searchPages:     map[string]int{},
@@ -386,10 +389,14 @@ func main() {
 	// 插件设置统一存储（系统统一管理）：注入 SettingStore，JS/Go 插件设置落 settings 表。
 	plugin.SetSettingStore(newSettingStore(a.db))
 	audioDir := ""
+	coverDir := ""
 	if dir, err := os.UserConfigDir(); err == nil {
 		audioDir = filepath.Join(dir, "mymusic-mygo", "cache", "audio")
 		os.MkdirAll(audioDir, 0o755)
+		coverDir = filepath.Join(dir, "mymusic-mygo", "cache", "cover")
+		os.MkdirAll(coverDir, 0o755)
 	}
+	a.coverDir = coverDir
 	// ★必须先设 HC_PORT 再构造 svc：NewSpeakerService 构造时读 HC_PORT 拼音箱拉流 URL。
 	// 之前 startStreamServer（下一行）才 set，导致 speaker 读到默认 28976，而供给端点监听
 	// 28977 → 音箱拉 28976 无服务 → 无声。这里提前 set，使音箱拉流端口=供给端点端口。

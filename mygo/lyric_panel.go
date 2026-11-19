@@ -16,7 +16,11 @@ func (a *app) nowPlaying(c *ui.Context) {
 		bg.Draw(func(p *ui.Painter, r ui.Rect) {
 			// 背景：封面模糊（默认）/ 纯色（对齐主线 ly-bg-cover / ly-bg-solid）
 			if a.lyricBg == 0 {
-				if img, ok := a.covers[a.current.bvid]; ok {
+				// 背景：模糊版封面（降采样放大）优先；模糊未就绪→原图缩略兜底。
+				if img, ok := a.blurCovers[a.current.bvid]; ok {
+					p.Image(img, r, ui.Cover)
+					p.Fill(r, ui.RGBA(0x0a, 0x0b, 0x10, 0.72), 0)
+				} else if img, ok := a.covers[a.current.bvid]; ok {
 					p.Image(img, r, ui.Cover)
 					p.Fill(r, ui.RGBA(0x0a, 0x0b, 0x10, 0.72), 0)
 				} else {

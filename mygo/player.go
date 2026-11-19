@@ -7,11 +7,15 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	_ "golang.org/x/image/webp" // WebP 解码（x/image，image.Decode 自动识别）
 	"io"
 	"mymusic-mygo/plugin"
 	"mymusic-mygo/source"
+	"os"
+	"path/filepath"
 	"net/http"
 	"time"
 
@@ -169,6 +173,9 @@ const coverLimit = 60
 // coverThumbMax 封面缩略图长边上限（px）。显示最多 ~64px，2.5x 保证高分屏清晰。
 const coverThumbMax = 160
 
+// blurCoverMax 模糊版降采样长边（px）：小图放大铺满=背景模糊（低成本，无高斯卷积）。
+const blurCoverMax = 12
+
 // loadCover 异步下载并缓存封面图（B站图床需 UA/referer）。
 // 为避免内存爆炸，缓存的是缩略图（128~160px），不是原图：
 // 原图 1280x720 RGBA ≈ 3.7MB/张，20 张列表 ≈ 240MB；缩略 160x160 ≈ 100KB/张，60 张 ≈ 6MB。
@@ -189,6 +196,13 @@ func (a *app) loadCover(bvid, url string) {
 	if a.coverLoading[bvid] {
 		return
 	}
+	// 磁盘缓存命中（重启不重下载）：读 + 解码（原图字节 .img）。
+	if a.coverDir != "" {
+		if data, err := os.ReadFile(filepath.Join(a.coverDir, bvid+".img")); err == nil {
+			a.decodeCover(bvid, data)
+			return
+		}
+	}
 	a.coverLoading[bvid] = true
 	go func() {
 		defer func() { a.win.Update(func() { a.coverLoading[bvid] = false }) }()
@@ -204,25 +218,35 @@ func (a *app) loadCover(bvid, url string) {
 		if err != nil {
 			return
 		}
-		// 解码 + 缩略（bitmap 在 goroutine 里建，存 map 在主线程）
-		img, _, err := image.Decode(bytes.NewReader(data))
-		if err != nil {
-			// 兜底：SVG 等非位图交给 ui 自己处理（不做缩略，量小）
-			s, serr := ui.DecodeImage(data)
-			if serr != nil {
-				return
-			}
-			a.win.Update(func() { a.covers[bvid] = s })
+		// 写磁盘（原图字节；重启命中不重下载）。
+		if a.coverDir != "" {
+			_ = os.WriteFile(filepath.Join(a.coverDir, bvid+".img"), data, 0o644)
+		}
+		a.decodeCover(bvid, data)
+	}()
+}
+
+// decodeCover 解码 + 缩略 + 模糊版 + 缓存（磁盘命中/下载后共用；bitmap 在 goroutine 建，主线程存 map）。
+func (a *app) decodeCover(bvid string, data []byte) {
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		// 兜底：SVG 等非位图交给 ui 自己处理（不做缩略，量小）
+		s, serr := ui.DecodeImage(data)
+		if serr != nil {
 			return
 		}
-		bmp := ui.NewBitmap(scaleTo(img, coverThumbMax))
-		a.win.Update(func() {
-			a.covers[bvid] = bmp
-			a.coverOrder = append(a.coverOrder, bvid)
-			a.evictCovers()
-			a.win.Invalidate()
-		})
-	}()
+		a.win.Update(func() { a.covers[bvid] = s })
+		return
+	}
+	bmp := ui.NewBitmap(scaleTo(img, coverThumbMax))
+	blur := ui.NewBitmap(scaleTo(img, blurCoverMax)) // 降采样模糊版（放大铺满=背景模糊）
+	a.win.Update(func() {
+		a.covers[bvid] = bmp
+		a.blurCovers[bvid] = blur
+		a.coverOrder = append(a.coverOrder, bvid)
+		a.evictCovers()
+		a.win.Invalidate()
+	})
 }
 
 // evictCovers LRU 驱逐：缓存超限时删最旧，保留当前播放曲目封面。

@@ -25,7 +25,6 @@ require (
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	go.digitalxero.dev/rpm v0.3.4 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
@@ -36,6 +35,7 @@ require (
 	github.com/egoist/mygo v0.9.0
 	github.com/grafana/sobek v0.0.0-20261116133901-d070e0f1f200
 	github.com/lsongdev/miservice-go v0.0.0-20260317060819-b3e39634cd06
+	golang.org/x/image v0.46.0
 	homecast v0.0.0-00010101000000-000000000000
 )
 
