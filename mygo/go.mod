@@ -13,6 +13,7 @@ require (
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/ncruces/go-sqlite3 v0.35.6 // indirect

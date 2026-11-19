@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/egoist/mygo/ui"
+	"homecast/bilibili"
+	"mymusic-mygo/plugin"
 )
 
 func (a *app) searchBar(c *ui.Context) {
@@ -27,7 +29,7 @@ func (a *app) searchBar(c *ui.Context) {
 			Placeholder("搜索喜欢的音乐…").TextColor(clrText)
 		// 搜索按钮：渐变胶囊（跟搜索框配套的主操作）
 		if searchBtn(c, "搜索").Clicked() {
-			a.searchPage = 0 // 新搜索回第 1 页
+			a.resetSearch() // 新搜索回第 1 页（每源独立分页）
 			go a.search()
 		}
 	})
@@ -41,7 +43,7 @@ func (a *app) searchChips(c *ui.Context) {
 				h := h
 				if chip(c, h).Clicked() {
 					a.query = h
-					a.searchPage = 0 // 新搜索回第 1 页
+					a.resetSearch() // 新搜索回第 1 页（每源独立分页）
 					go a.search()
 				}
 			}
@@ -79,7 +81,7 @@ func (a *app) searchEmpty(c *ui.Context) {
 					g := g
 					a.styleCard(c, g, a.recentCardSize(), func() {
 						a.query = g.Name
-						a.searchPage = 0 // 新搜索回第 1 页
+						a.resetSearch() // 新搜索回第 1 页（每源独立分页）
 						go a.search()
 					})
 				}
@@ -148,4 +150,66 @@ func (a *app) searchNotFound(c *ui.Context) {
 			a.win.Invalidate()
 		}
 	})
+}
+
+// searchSourceGroup 一个音源的搜索结果分区（插件分组）：色条标题 + 源名 + 数量 + 该源歌曲行 + 该源独立分页。
+// 每个源一个独立区块（视觉对齐 pluginGroup 分区：背景 clrField 圆角 + 色条标题 + 数量）。
+// 插件（音源）一注册 → plugin.SourceNames() 多一个 → 搜索页自动多一个分区，UI 零改动。
+func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
+	// 分区区块容器（背景 clrField，圆角，内边距；对齐 pluginGroup 视觉）
+	section := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
+	section.Children(func() {
+		ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
+			// 标题行：左侧细色条 + 源名 + 右侧数量（分区标识，非颜色高亮）
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(pluginColor("source")) // 色条（细，克制）
+				ui.Text(c, grp.name).FontSize(13 * uiScale).Bold().TextColor(clrText)
+				ui.Spacer(c).Grow(1)
+				ui.Text(c, fmt.Sprintf("%d 首", len(grp.songs))).FontSize(11 * uiScale).TextColor(clrMuted)
+			})
+			// 该源歌曲行（复用 listRow：双击播放/收藏/播放按钮）
+			for _, r := range grp.songs {
+				a.listRow(c, bilibili.SearchItem{
+					BVID: r.ID, Title: r.Title, Author: r.Artist, Pic: r.Cover,
+					Duration: r.Duration, Typename: r.Typename, Play: 0,
+				})
+			}
+			// 该源独立分页（插件自控条数：分页大小 = 该源 searchSize）
+			if grp.total > srcSearchSize(grp.name) {
+				page := a.sourcePage(grp.name)
+				pageCount := (grp.total + srcSearchSize(grp.name) - 1) / srcSearchSize(grp.name)
+				pager(c, page, pageCount, func(p int) {
+					a.searchPages[grp.name] = p
+					go a.search()
+				})
+			}
+		})
+	})
+}
+
+// srcSearchSize 某音源每次搜索请求条数（插件自控：读 source/<name>/searchSize 设置，默认 fetchSize）。
+// 校验范围（下限 20 保证分页有意义，上限 100 防误配拉爆）。
+func srcSearchSize(name string) int {
+	n := plugin.GetSettingInt("source", name, "searchSize", fetchSize)
+	if n < 20 {
+		return fetchSize
+	}
+	if n > 100 {
+		return 100
+	}
+	return n
+}
+
+// sourcePage 某音源当前页（0 基，每源独立分页；默认第 1 页）。
+func (a *app) sourcePage(name string) int {
+	if p, ok := a.searchPages[name]; ok {
+		return p + 1 // 搜索接口 page 从 1 起
+	}
+	return 1
+}
+
+// resetSearch 新搜索重置分页（每源独立分页清空，全局 searchPage 归 0）。
+func (a *app) resetSearch() {
+	a.searchPage = 0
+	a.searchPages = map[string]int{}
 }

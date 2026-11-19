@@ -25,6 +25,10 @@ func TestLiveDemoSearch(t *testing.T) {
 		t.Fatal("搜索无结果")
 	}
 	t.Logf("✅ 搜索 total=%d 首曲=%s - %s (id=%s)", total, songs[0].Title, songs[0].Artist, songs[0].ID)
+	t.Logf("✅ 封面 cover=%q 专辑=%q VIP=%v", songs[0].Cover, songs[0].Album, songs[0].VIP)
+	if songs[0].Cover == "" {
+		t.Error("封面为空（搜索接口应给歌手图 img1v1Url 兜底）")
+	}
 
 	st, err := src.GetStream(songs[0].ID, 1)
 	if err != nil {

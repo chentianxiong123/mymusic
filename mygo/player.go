@@ -24,22 +24,27 @@ import (
 )
 
 // search 在 goroutine 里搜，结果经 win.Update 回到主线程。
+// srcResult 一个音源的一次搜索结果（保持注册顺序，UI 按源分组渲染）。
+// songs 为音源原始结果，items 为转换后的 UI 行。
+type srcResult struct {
+	name  string
+	songs []source.Song
+	total int
+}
+
 func (a *app) search() {
 	a.loading.Store(true)
 	var kw string
 	mygo.RunOnMain(func() { kw = a.query; a.status = "搜索中…" })
 	// 分开搜索（解耦）：遍历 plugin.Sources() 每源独立搜，各自请求/分页，不合并。
 	// 加源（网易云/插件）= 注册后自动多一个独立搜索区，UI 零改动。
-	page := a.searchPage + 1
-	type srcResult struct {
-		name  string
-		songs []source.Song
-		total int
-	}
+	// 每源 searchSize（插件自控，默认 fetchSize）+ 每源独立 page（searchPages）。
 	ch := make(chan srcResult, len(plugin.Sources()))
 	for name, s := range plugin.Sources() {
 		go func(srcName string, src source.MusicSource) {
-			songs, total, err := src.Search(kw, page, fetchSize)
+			page := a.sourcePage(srcName)
+			size := srcSearchSize(srcName)
+			songs, total, err := src.Search(kw, page, size)
 			if err != nil {
 				ch <- srcResult{name: srcName}
 				return
@@ -68,17 +73,24 @@ func (a *app) search() {
 		a.saveHistory()
 	})
 	a.win.Update(func() {
-		// 每源独立结果 → 按源分组存 a.results（Typename 标记来源，UI 分区展示）
+		// 每源独立结果 → 按源分组存 resultsBySource（UI 分区展示，插件分组）；
+		// 同时拍平存 a.results（兼容 playAll/总数/清空逻辑）。
 		a.results = a.results[:0]
+		a.resultsBySource = a.resultsBySource[:0]
 		var total int
 		for _, r := range perSrc {
-			total += r.total
+			grp := srcResult{name: r.name, songs: r.songs, total: r.total}
 			for _, s := range r.songs {
 				a.results = append(a.results, bilibili.SearchItem{
 					BVID: s.ID, Title: s.Title, Author: s.Artist, Pic: s.Cover,
 					Duration: s.Duration, Typename: s.Typename, Play: 0,
 				})
 			}
+			// 跳过无结果的源（不渲染空分区，但总数统计保留）
+			if len(r.songs) > 0 {
+				a.resultsBySource = append(a.resultsBySource, grp)
+			}
+			total += r.total
 		}
 		a.searchTotal = total
 		a.searched = true

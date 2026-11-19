@@ -24,6 +24,8 @@ type jsSong struct {
 	Duration    string `json:"duration"`
 	DurationSec int    `json:"durationSec"`
 	Typename    string `json:"typename"`
+	Album       string `json:"album"`
+	VIP         bool   `json:"vip"`
 }
 
 // Search 调 JS search(ctx) → {total, songs:[{...}]}。
@@ -54,6 +56,7 @@ func (s *jsSource) Search(keyword string, page, size int) ([]source.Song, int, e
 		songs = append(songs, source.Song{
 			ID: js.ID, Title: js.Title, Artist: js.Artist, Cover: js.Cover,
 			Duration: js.Duration, DurationSec: js.DurationSec, Typename: js.Typename,
+			Album: js.Album, VIP: js.VIP,
 		})
 	}
 	return songs, out.Total, nil

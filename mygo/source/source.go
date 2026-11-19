@@ -18,6 +18,8 @@ type Song struct {
 	Duration    string
 	DurationSec int
 	Typename    string
+	Album       string // 专辑名（网易云=album.name；B站无=空）
+	VIP         bool   // 收费/会员标志（网易云 fee>0；QQ pay==1；B站无）
 }
 
 // Stream 音频流（音源无关；B站 DASH，本地=文件）。

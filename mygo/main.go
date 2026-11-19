@@ -13,6 +13,7 @@ import (
 	"github.com/egoist/mygo"
 	_ "github.com/egoist/mygo/audio/aac" // mp4a (AAC) 解码器
 	_ "github.com/egoist/mygo/audio/mp4" // m4a / fMP4 解码
+	_ "github.com/egoist/mygo/audio/mp3" // mp3 解码（网易云等音源返回 MP3，缺它则无声）
 	"github.com/egoist/mygo/ui"
 
 	"homecast/service/cast"
@@ -70,13 +71,16 @@ type app struct {
 	// 搜索
 	query   string
 	results []bilibili.SearchItem
-	loading atomic.Bool
-	status  string
+	// 搜索结果按源分组（插件分组：每个音源一个独立分区，保持注册顺序）
+	resultsBySource []srcResult
+	loading         atomic.Bool
+	status          string
 
 	// 分页（各列表页当前页，每页 20 条；搜索结果真分页用 searchTotal/searchPages）
 	pg          map[string]int // 列表页当前页：queue/recent/fav/detail（本地切片分页）
-	searchPage  int            // 搜索结果当前页（B站 page 参数真分页）
+	searchPage  int            // 搜索结果当前页（兼容保留，新逻辑每源独立 searchPages）
 	searchTotal int            // 搜索结果总条数
+	searchPages map[string]int // 每源独立分页（插件自控：每源 searchSize/page，源名→page）
 
 	// 播放（主线程访问；播放器由 mygoOut 持有，audio.Player 自身安全）
 	current    *track
@@ -220,14 +224,10 @@ func (a *app) view(c *ui.Context) {
 						a.resultsHeader(c)
 						ui.Scroll(c).Grow(1).Gap(8 * uiScale).Scrollbars(false).Children(func() {
 							ui.Column(c).Gap(8 * uiScale).Children(func() {
-								for _, r := range a.results {
-									a.listRow(c, r)
+								// 搜索结果按源分区（插件分组：每个音源一个独立区块 + 每源独立分页）
+								for _, grp := range a.resultsBySource {
+									a.searchSourceGroup(c, grp)
 								}
-								// 搜索结果真分页：翻页重新请求（searchPage 0 基）
-								pager(c, a.searchPage, fetchPageCount(a.searchTotal), func(p int) {
-									a.searchPage = p
-									go a.search()
-								})
 							})
 						})
 					} else if a.searched {
@@ -371,6 +371,7 @@ func main() {
 		coverLoading: map[string]bool{},
 		favSet:       map[string]bool{},
 		pg:           map[string]int{},
+		searchPages:  map[string]int{},
 		activeTab:    "search",
 		volume:       0.8,
 	}
@@ -397,6 +398,10 @@ func main() {
 	plugin.RegisterLyric(lyricplug.NewNetease()) // 网易云歌词源
 	// 插件元数据（插件页展示）
 	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐音源（搜索/取流/歌词，复用主线 music 域）", Order: 10})
+	// B站音源插件设置：搜索条数/分页自控（插件声明，系统统一存储 SettingStore）
+	plugin.RegisterSettings("source", "bilibili", []plugin.Setting{
+		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索请求条数（插件自控，分页同尺寸）"},
+	})
 	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词源（复用主线 lyric 域 GetLyricLines）", Order: 20})
 	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）", Order: 30})
 	plugin.RegisterInfo(plugin.Info{Name: "cast", Type: "target", Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})

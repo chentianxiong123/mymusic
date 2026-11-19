@@ -19,6 +19,7 @@ var meta = {
   // 插件设置声明（系统统一管理：声明归插件，存储归宿主 SettingStore）。
   settings: [
     { key: "quality", name: "音质", type: "select", options: ["128k", "320k"], default: "320k", desc: "取流码率（128k 免费歌可播）" },
+    { key: "searchSize", name: "搜索条数", type: "select", options: ["20", "40", "60"], default: "40", desc: "每次搜索请求条数（插件自控，分页同尺寸）" },
   ],
 };
 
@@ -48,10 +49,15 @@ function search(ctx) {
       id: String(s.id),
       title: s.name,
       artist: artists,
-      cover: (s.album && s.album.picUrl) || "",
+      // 搜索接口 /api/search/get/web 不返回 album.picUrl（只有 picId + 歌手图 img1v1Url）。
+      // 用歌手图兜底（实测可达 200）；播放时可选调 song/detail 补专辑封面（album.picUrl）。
+      cover: ((s.artists && s.artists[0] && s.artists[0].img1v1Url) || ""),
       duration: fmtDur(sec),
       durationSec: sec,
-      typename: "demo",
+      typename: "netease",
+      // 专辑名（album.name）+ 收费/会员标志（fee>0 = 需会员/付费，如屋顶 fee=8）。
+      album: (s.album && s.album.name) || "",
+      vip: (s.fee || 0) > 0,
     };
   });
   return { total: data.result.songCount || songs.length, songs: songs };
