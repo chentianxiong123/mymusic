@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -78,6 +79,12 @@ func (h *jsHost) inject(vm *sobek.Runtime) error {
 	// setting：底层设置 API（config 的封装，key 不带命名空间前缀）。
 	if err := hostObj.Set("setting", h.settingObject(vm)); err != nil {
 		return fmt.Errorf("host.setting: %w", err)
+	}
+	// b64encode：UTF-8→base64（QQ/酷我歌词名 base64 编码；sobek 无内置 btoa）。
+	if err := hostObj.Set("b64encode", func(call sobek.FunctionCall) sobek.Value {
+		return vm.ToValue(base64.StdEncoding.EncodeToString([]byte(call.Argument(0).String())))
+	}); err != nil {
+		return fmt.Errorf("host.b64encode: %w", err)
 	}
 	return vm.Set("host", hostObj)
 }

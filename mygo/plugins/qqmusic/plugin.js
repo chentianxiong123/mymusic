@@ -9,7 +9,7 @@ var meta = {
   key: "qqmusic",
   name: "QQ音乐",
   version: "1.0.0",
-  capabilities: ["source"],
+  capabilities: ["source", "lyric"],
   allowedHosts: ["c.y.qq.com", "u.y.qq.com"],
   requiresCookie: true, // QQ 匿名取流不可行（code=1000），无 cookie 不激活（需粘贴登录 cookie）
   order: 30, // bilibili 10 / 网易云 20 之后
@@ -81,6 +81,50 @@ function getURL(ctx) {
   var info = (req1.data && req1.data.midurlinfo && req1.data.midurlinfo[0]) || {};
   if (!info.purl) return { error: "需登录或版权受限（QQ 取流要 cookie，粘贴后可用）" };
   return { url: "https://ws.stream.qqmusic.qq.com/" + info.purl, quality: prefix === "M500" ? 0 : 2 };
+}
+
+// 歌词：songmid → 歌曲详情（song_id+元数据）→ GetPlayLyricInfo → lyric（2 步；名 base64）。
+// 免费歌匿名可用；付费/无词返回 error。
+function lyric(ctx) {
+  var sid = ctx.sid; // songmid（loadLyricAsync 传 a.current.BVID）
+  if (!sid) return { error: "缺 songmid" };
+  // 1) 歌曲详情：song_id + name/singer/album/interval。
+  var dresp = ctx.host.http({
+    url: "https://c.y.qq.com/v8/fcg-bin/fcg_play_single_song.fcg?songmid=" + encodeURIComponent(sid) + "&format=json",
+    headers: qqHeaders(ctx)
+  });
+  if (dresp.error) return { error: dresp.error };
+  var dd = JSON.parse(dresp.body);
+  var t = (dd.data || dd.Data || [])[0] || {};
+  if (!t.id) return { error: "QQ 歌曲详情为空" };
+  var songName = t.name || "";
+  var singerName = ((t.singer || [])[0] || {}).name || "";
+  var albumName = (t.album || {}).name || "";
+  // 2) GetPlayLyricInfo（name base64）。
+  var req = {
+    comm: { ct: 24, cv: 0 },
+    req_1: {
+      module: "music.musichallSong.PlayLyricInfo",
+      param: {
+        songID: t.id,
+        albumName: ctx.host.b64encode(albumName),
+        interval: t.interval || 0,
+        singerName: ctx.host.b64encode(singerName),
+        songName: ctx.host.b64encode(songName)
+      }
+    }
+  };
+  var lresp = ctx.host.http({
+    url: "https://u.y.qq.com/cgi-bin/musicu.fcg",
+    method: "POST",
+    headers: qqHeaders(ctx),
+    body: JSON.stringify(req)
+  });
+  if (lresp.error) return { error: lresp.error };
+  var ld = JSON.parse(lresp.body);
+  var lrc = (((ld.req_1 || {}).data || {}).lyric || ((ld.req_1 || {}).data || {}).Lyric) || "";
+  if (!lrc) return { error: "QQ 无歌词（需登录或版权受限）" };
+  return { lrc: lrc };
 }
 
 // 工具：秒 → mm:ss。
