@@ -1,7 +1,9 @@
 package plugin
 
 import (
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,6 +87,13 @@ func (h *jsHost) inject(vm *sobek.Runtime) error {
 		return vm.ToValue(base64.StdEncoding.EncodeToString([]byte(call.Argument(0).String())))
 	}); err != nil {
 		return fmt.Errorf("host.b64encode: %w", err)
+	}
+	// md5：hex MD5（千千/百度音乐 sign 算法；sobek 无 crypto）。
+	if err := hostObj.Set("md5", func(call sobek.FunctionCall) sobek.Value {
+		sum := md5.Sum([]byte(call.Argument(0).String()))
+		return vm.ToValue(hex.EncodeToString(sum[:]))
+	}); err != nil {
+		return fmt.Errorf("host.md5: %w", err)
 	}
 	return vm.Set("host", hostObj)
 }
