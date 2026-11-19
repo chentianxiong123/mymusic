@@ -8,6 +8,7 @@ import (
 	"homecast/service/playback"
 	"mymusic-mygo/plugin"
 	"mymusic-mygo/source"
+	"mymusic-mygo/model"
 	"mymusic-mygo/target"
 )
 
@@ -28,8 +29,8 @@ func (fakeSource) Search(kw string, page, size int) ([]source.Song, int, error) 
 	return []source.Song{{ID: "s1", Title: "歌1", Typename: "fake"}}, 1, nil
 }
 func (fakeSource) GetStream(id string, q int) (*source.Stream, error) { return &source.Stream{URL: "http://x/a.mp3"}, nil }
-func (fakeSource) GetLyric(id string, kw []string, sid int) ([]source.LyricLine, error) {
-	return []source.LyricLine{{Time: 1, Text: "词"}}, nil
+func (fakeSource) GetLyric(id string, kw []string, sid int) ([]model.LyricLine, error) {
+	return []model.LyricLine{{Time: 1, Text: "词"}}, nil
 }
 
 // fakeTarget 假目标（测试注册用）。

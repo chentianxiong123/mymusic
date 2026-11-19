@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"mymusic-mygo/source"
+	"mymusic-mygo/model"
 )
 
 // lrcRe LRC 行： [mm:ss.xx]text（宿主统一解析，别让每个 JS 插件重复实现）。
@@ -13,11 +13,11 @@ var lrcRe = regexp.MustCompile(`\[(\d+):(\d+(?:\.\d+)?)\](.*)`)
 
 // parseLRC 解析 LRC 文本为 LyricLine（时间秒 + 文本）。
 // 格式稳定，宿主统一处理；JS 插件只管返回 lrc 原文。
-func parseLRC(text string) []source.LyricLine {
+func parseLRC(text string) []model.LyricLine {
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}
-	var out []source.LyricLine
+	var out []model.LyricLine
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -32,7 +32,7 @@ func parseLRC(text string) []source.LyricLine {
 		if err1 != nil || err2 != nil {
 			continue
 		}
-		out = append(out, source.LyricLine{Time: float64(mm)*60 + ss, Text: strings.TrimSpace(m[3])})
+		out = append(out, model.LyricLine{Time: float64(mm)*60 + ss, Text: strings.TrimSpace(m[3])})
 	}
 	return out
 }

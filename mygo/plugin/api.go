@@ -5,6 +5,7 @@ package plugin
 
 import (
 	"mymusic-mygo/source"
+	"mymusic-mygo/model"
 )
 
 // Link 播放链路统一 API（稳定契约：后续拓展基于它，不碰 UI）。
@@ -33,7 +34,7 @@ type Link interface {
 	Targets() []TargetBrief
 
 	// Lyric 当前歌歌词（走歌词插件，keywords=备选标题）。
-	Lyric(keywords []string, sid string) ([]source.LyricLine, error)
+	Lyric(keywords []string, sid string) ([]model.LyricLine, error)
 }
 
 // TargetBrief 目标摘要（UI 列表展示用，不含播放句柄）。

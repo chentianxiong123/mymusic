@@ -8,6 +8,7 @@ import (
 
 	"homecast/service/playback"
 	"mymusic-mygo/plugin"
+	"mymusic-mygo/model"
 	"mymusic-mygo/source"
 	"mymusic-mygo/target"
 )
@@ -140,7 +141,7 @@ func (l *linkCore) Targets() []plugin.TargetBrief {
 
 // ── 歌词 ──
 
-func (l *linkCore) Lyric(keywords []string, sid string) ([]source.LyricLine, error) {
+func (l *linkCore) Lyric(keywords []string, sid string) ([]model.LyricLine, error) {
 	prov := plugin.Lyric("") // 默认网易云
 	if prov == nil {
 		return nil, errors.New("无歌词插件")

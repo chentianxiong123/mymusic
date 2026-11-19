@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"mymusic-mygo/model"
 )
 
 // Local 本地文件音源：扫配置目录 mp3/flac/m4a 听本机歌（免登录、零版权、无网络）。
@@ -66,7 +68,7 @@ func (l *Local) GetStream(id string, quality int) (*Stream, error) {
 }
 
 // GetLyric 本地文件无歌词（nil → 播放歌词静默，UI 不报错）。
-func (l *Local) GetLyric(id string, keywords []string, sid int) ([]LyricLine, error) {
+func (l *Local) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
 	return nil, nil
 }
 

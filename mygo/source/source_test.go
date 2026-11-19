@@ -4,6 +4,8 @@ package source
 
 import (
 	"testing"
+
+	"mymusic-mygo/model"
 )
 
 // 编译期契约：B站源必须实现 MusicSource 接口（编译器强制，不满足编译失败）。
@@ -22,7 +24,7 @@ func TestSongFields(t *testing.T) {
 
 // TestLyricLineContract 契约：LyricLine 时间非负。
 func TestLyricLineContract(t *testing.T) {
-	lines := []LyricLine{{Time: 1.5, Text: "词"}, {Time: 0, Text: ""}}
+	lines := []model.LyricLine{{Time: 1.5, Text: "词"}, {Time: 0, Text: ""}}
 	for _, ln := range lines {
 		if ln.Time < 0 {
 			t.Fatalf("歌词时间不能为负: %+v", ln)

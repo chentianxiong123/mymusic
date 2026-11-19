@@ -5,6 +5,7 @@ import (
 
 	"mymusic-mygo/lyric"
 	"mymusic-mygo/source"
+	"mymusic-mygo/model"
 )
 
 // jsSource JS 音源适配器：把 .js 的 search/getURL/lyric 包装成 source.MusicSource。
@@ -94,7 +95,7 @@ func (s *jsSource) GetStream(id string, quality int) (*source.Stream, error) {
 }
 
 // GetLyric 调 JS lyric(ctx) → {lrc} → 宿主 parseLRC。
-func (s *jsSource) GetLyric(id string, keywords []string, sid int) ([]source.LyricLine, error) {
+func (s *jsSource) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
 	if s.jp.lyricFn == nil {
 		return nil, nil
 	}
@@ -131,7 +132,7 @@ var _ lyric.Provider = (*jsLyric)(nil)
 func (l *jsLyric) Name() string { return l.jp.meta.Key }
 
 // Fetch 调 JS lyric(ctx) → {lrc} → 宿主 parseLRC。
-func (l *jsLyric) Fetch(keywords []string, sid string) ([]source.LyricLine, error) {
+func (l *jsLyric) Fetch(keywords []string, sid string) ([]model.LyricLine, error) {
 	if l.jp.lyricFn == nil {
 		return nil, nil
 	}

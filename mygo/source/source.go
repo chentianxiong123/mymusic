@@ -7,6 +7,7 @@ import (
 	"homecast/bilibili"
 	"homecast/service/lyric"
 	"homecast/service/music"
+	"mymusic-mygo/model"
 )
 
 // Song 统一歌曲条目（音源无关的规范结构）。
@@ -30,11 +31,8 @@ type Stream struct {
 	// 扩展字段（未来本地源用）
 }
 
-// LyricLine 歌词行（音源无关）。
-type LyricLine struct {
-	Time float64 // 秒
-	Text string
-}
+// LyricLine 歌词行（共享底层——model 包；避免 歌词域→音源域 越层）。
+// type LyricLine = model.LyricLine
 
 // MusicSource 音源接口：搜索 + 取流 + 歌词。
 // UI/播放核心只认这个接口，不认具体源（B站/网易云/本地）。
@@ -42,7 +40,7 @@ type MusicSource interface {
 	Name() string                                               // "bilibili" / "netease" / "local"
 	Search(keyword string, page, size int) ([]Song, int, error) // 返回 (songs, total, err)
 	GetStream(id string, quality int) (*Stream, error)
-	GetLyric(id string, keywords []string, sid int) ([]LyricLine, error)
+	GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error)
 }
 
 // --- B站实现：包装主线 music.MusicService（不重写 B站逻辑） ---
@@ -94,17 +92,17 @@ func (s *BilibiliSource) GetStream(id string, quality int) (*Stream, error) {
 
 // GetLyric B站歌词：主线 lyric 域（网易云词源）GetLyricLines 纯函数取词。
 // keywords = 标题关键词 + 歌手；sid>0 精确取。返回歌词行（无词返回 nil）。
-func (s *BilibiliSource) GetLyric(id string, keywords []string, sid int) ([]LyricLine, error) {
+func (s *BilibiliSource) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
 	res := lyric.GetLyricLines(keywords, sid)
 	if res == nil {
 		return nil, nil
 	}
-	out := make([]LyricLine, len(res.Lines))
+	out := make([]model.LyricLine, len(res.Lines))
 	for i, ln := range res.Lines {
 		// 主线 LyricLine = [3]any（[0]=秒, [1]=行文本, [2]=行时长）
 		sec, _ := ln[0].(float64)
 		text, _ := ln[1].(string)
-		out[i] = LyricLine{Time: sec, Text: text}
+		out[i] = model.LyricLine{Time: sec, Text: text}
 	}
 	return out, nil
 }
