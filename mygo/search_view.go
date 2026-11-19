@@ -61,31 +61,30 @@ func (a *app) searchChips(c *ui.Context) {
 }
 
 func (a *app) searchEmpty(c *ui.Context) {
-	// 整页滚动条（对齐 recent 页模式）：整页内容包一个 Scroll，不做组件内部滚动条
-	ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
-		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
-			a.searchBar(c)
-			a.searchChips(c)
-			// 主流风格分类（未搜索时展示）：卡片网格，点击 → 复用现有搜索流程
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "按风格找歌").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
-			})
-			// 风格网格（不挤一行：桌面 4 列 → 2 行，紧凑 3 列，手机 2 列）
-			cols := a.styleGridCols()
-			tracks := make([]ui.Track, cols)
-			for i := range tracks {
-				tracks[i] = ui.Fr(1)
+	// 整页滚动由外层（search 分支）统一包 Scroll；这里只渲染内容 Column。
+	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
+		a.searchBar(c)
+		a.searchChips(c)
+		// 主流风格分类（未搜索时展示）：卡片网格，点击 → 复用现有搜索流程
+		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "风格").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
+		})
+		// 风格网格（不挤一行：桌面 4 列 → 2 行，紧凑 3 列，手机 2 列）
+		// JustifyItems(Center)：固定宽卡片在格内水平居中（用户要求：格子自对齐居中）
+		cols := a.styleGridCols()
+		tracks := make([]ui.Track, cols)
+		for i := range tracks {
+			tracks[i] = ui.Fr(1)
+		}
+		ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().JustifyItems(ui.Center).Children(func() {
+			for _, g := range styleGenres {
+				g := g
+				a.styleCard(c, g, a.recentCardSize(), func() {
+					a.query = g.Name
+					a.resetSearch() // 新搜索回第 1 页（每源独立分页）
+					go a.search()
+				})
 			}
-			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
-				for _, g := range styleGenres {
-					g := g
-					a.styleCard(c, g, a.recentCardSize(), func() {
-						a.query = g.Name
-						a.resetSearch() // 新搜索回第 1 页（每源独立分页）
-						go a.search()
-					})
-				}
-			})
 		})
 	})
 }
@@ -163,7 +162,7 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 			// 标题行：左侧细色条 + 源名 + 右侧数量（分区标识，非颜色高亮）
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
 				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(pluginColor("source")) // 色条（细，克制）
-				ui.Text(c, grp.name).FontSize(13 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, sourceDisplayName(grp.name)).FontSize(13 * uiScale).Bold().TextColor(clrText)
 				ui.Spacer(c).Grow(1)
 				ui.Text(c, fmt.Sprintf("%d 首", len(grp.songs))).FontSize(11 * uiScale).TextColor(clrMuted)
 			})
@@ -174,11 +173,11 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 					Duration: r.Duration, Typename: r.Typename, Play: 0,
 				})
 			}
-			// 该源独立分页（插件自控条数：分页大小 = 该源 searchSize）
+			// 该源独立分页（用户要求：网易云/bilibili 各自分页显示，页码按钮放该源结果下方）
 			if grp.total > srcSearchSize(grp.name) {
 				page := a.sourcePage(grp.name)
 				pageCount := (grp.total + srcSearchSize(grp.name) - 1) / srcSearchSize(grp.name)
-				pager(c, page, pageCount, func(p int) {
+				a.pagerButtons(c, page, pageCount, func(p int) {
 					a.searchPages[grp.name] = p
 					go a.search()
 				})
@@ -208,8 +207,105 @@ func (a *app) sourcePage(name string) int {
 	return 1
 }
 
-// resetSearch 新搜索重置分页（每源独立分页清空，全局 searchPage 归 0）。
+// resetSearch 新搜索重置分页（每源独立分页清空，searchPage 归 0）。
 func (a *app) resetSearch() {
 	a.searchPage = 0
 	a.searchPages = map[string]int{}
+}
+
+// pagerButtons 页码按钮式分页（用户要求：给按钮去按，不上下排布、不滚到底部）。
+// 当前页实心高亮，其它空心；首尾页号 + 中间省略（>7 页时）；左右箭头。
+// 放置：结果区显眼处（header 下方），点击跳页。
+func (a *app) pagerButtons(c *ui.Context, page, totalPages int, onGo func(int)) {
+	if totalPages <= 1 {
+		return
+	}
+	ui.Row(c).AlignSelf(ui.Center).AlignItems(ui.Center).Gap(6 * uiScale).PaddingY(8 * uiScale).Children(func() {
+		// 左箭头（首页/上一页：page=0 时禁用）
+		if page > 0 {
+			if iconButton2(c, icChevL, 28, clrText).Clicked() {
+				onGo(page - 1)
+			}
+		} else {
+			iconButton2(c, icChevL, 28, clrMuted)
+		}
+		// 页码按钮：当前页高亮，其余可点；>7 页省略中间（首尾 + 当前±1）
+		for _, p := range pageList(page, totalPages) {
+			if p < 0 {
+				ui.Text(c, "…").FontSize(13 * uiScale).TextColor(clrMuted).PaddingX(2 * uiScale)
+				continue
+			}
+			if p == page {
+				// 当前页：实心高亮（形状=实心，不用色块）
+				cur := ui.Box(c).Width(30 * uiScale).Height(30 * uiScale).Radius(8 * uiScale).Background(clrPink).AlignItems(ui.Center).Justify(ui.Center)
+				cur.Children(func() {
+					ui.Text(c, fmt.Sprintf("%d", p+1)).FontSize(13 * uiScale).Bold().TextColor(ui.RGB(0xff, 0xff, 0xff))
+				})
+			} else {
+				// 其它页：空心按钮（hover 高亮）
+				p := p
+				btn := ui.Box(c).Width(30 * uiScale).Height(30 * uiScale).Radius(8 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
+				btn.Draw(func(pnt *ui.Painter, r ui.Rect) {
+					bg := ui.RGBA(0, 0, 0, 0)
+					if btn.Hovered() {
+						bg = clrCardHov
+					}
+					pnt.Fill(r, bg, 8)
+				})
+				btn.Children(func() {
+					ui.Text(c, fmt.Sprintf("%d", p+1)).FontSize(13 * uiScale).TextColor(clrMuted)
+				})
+				if btn.Clicked() {
+					onGo(p)
+				}
+			}
+		}
+		// 右箭头（下一页：page=last 时禁用）
+		if page < totalPages-1 {
+			if iconButton2(c, icChevR, 28, clrText).Clicked() {
+				onGo(page + 1)
+			}
+		} else {
+			iconButton2(c, icChevR, 28, clrMuted)
+		}
+	})
+}
+
+// pageList 页码列表：<=7 全显；>7 显首尾 + 当前±1，中间用 -1 表示省略号。
+func pageList(page, total int) []int {
+	if total <= 7 {
+		out := make([]int, total)
+		for i := range out {
+			out[i] = i
+		}
+		return out
+	}
+	// 首尾 + 当前±1，去重排序
+	set := map[int]bool{0: true, total - 1: true}
+	for i := page - 1; i <= page+1; i++ {
+		if i >= 0 && i < total {
+			set[i] = true
+		}
+	}
+	out := []int{}
+	last := -2
+	for i := 0; i < total; i++ {
+		if set[i] {
+			if i-last > 1 {
+				out = append(out, -1) // 省略
+			}
+			out = append(out, i)
+			last = i
+		}
+	}
+	return out
+}
+
+// sourceDisplayName 音源显示名：JS 插件显示 meta.name（如"网易云"），否则回退注册 key（bilibili）。
+// 注册表 key 保持稳定（netease），仅显示层用中文名；分页/播放仍走 key（grp.name）。
+func sourceDisplayName(name string) string {
+	if info := plugin.InfoOf("source", name); info.Desc != "" {
+		return info.Desc
+	}
+	return name
 }
