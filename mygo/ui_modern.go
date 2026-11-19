@@ -87,15 +87,16 @@ var styleGenres = []genre{
 // styleCard 风格卡片：文字封面（渐变底 + 风格名大字）+ 标题/副标题。
 // 布局对齐 gridCard（封面 + 标题 + 副标题），但封面用文字不加载图（精简）。
 func (a *app) styleCard(c *ui.Context, g genre, size float32, onTap func()) {
-	ui.Column(c).Width(size).Gap(6 * uiScale).Children(func() {
-		box := ui.Box(c).Width(size).Height(size).Radius(12 * uiScale)
+	// 卡片填满格宽（正方形，AspectRatio(1)）——消空隙（用户：太疏），不再固定 size
+	ui.Column(c).WidthPercent(100).Gap(6 * uiScale).Children(func() {
+		box := ui.Box(c).WidthPercent(100).AspectRatio(1).Radius(12 * uiScale)
 		box.Draw(func(p *ui.Painter, b ui.Rect) {
 			p.FillGradient(b, ui.LinearGradient{From: g.C1, To: g.C2, Angle: 135}, 12)
 		})
 		box.Children(func() {
-			// 封面居中：风格名大字（白色粗体）
+			// 封面居中：风格名大字（白色粗体，字号随格宽自适应）
 			ui.Box(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-				ui.Text(c, g.Name).FontSize(size * 0.22).Bold().TextColor(ui.RGB(0xff, 0xff, 0xff))
+				ui.Text(c, g.Name).FontSize(a.resp(22, 18)).Bold().TextColor(ui.RGB(0xff, 0xff, 0xff))
 			})
 		})
 		if box.Clicked() && onTap != nil {

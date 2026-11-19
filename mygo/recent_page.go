@@ -43,7 +43,7 @@ func (a *app) recentPage(c *ui.Context) {
 				tracks[i] = ui.Fr(1)
 			}
 			page := a.pg["recent"]
-			ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().JustifyItems(ui.Center).Children(func() {
+			ui.Grid(c).ColumnTracks(tracks...).Gap(8 * uiScale).Fill().JustifyItems(ui.Center).Children(func() {
 				for _, item := range pageSlice(a.recent, page) {
 					a.recentCard(c, item)
 				}
@@ -58,14 +58,25 @@ func (a *app) recentPage(c *ui.Context) {
 
 // recentGridCols 最近播放网格列数（对齐主线 grid-cols-3 sm:4 md:6）。
 func (a *app) recentGridCols() int {
-	switch a.tier() {
-	case 0: // 手机（<768）
-		return 3
-	case 1: // 紧凑（768-1024）
-		return 4
-	default: // 桌面（>=1024）
-		return 6
+	return a.cardCols(110) // 目标卡片 ~110px（用户：继续缩小），列数按宽自适应（偶数）
+}
+
+// cardCols 网格列数：按窗口宽自适应（目标卡片 target px），保证卡片适中不疏不大，取偶数（用户：双数行）。
+func (a *app) cardCols(target float32) int {
+	if a.winW <= 0 {
+		return 4 // 窗口未知 → 桌面默认 4
 	}
+	per := int(float32(a.winW) / (target*uiScale + 8*uiScale))
+	if per < 2 {
+		return 2
+	}
+	if per%2 != 0 {
+		per-- // 取偶数（单数不出现）
+	}
+	if per > 8 {
+		per = 8 // 上限（太窄卡片难看）
+	}
+	return per
 }
 
 // recentCard 最近播放网格卡片：方形封面为主 + 标题/歌手文字次之（对齐主线 recent.js 卡片）。

@@ -12,8 +12,9 @@ import (
 
 // setTab 切换导航页。
 func (a *app) gridCard(c *ui.Context, coverKey, coverURL, title, subtitle string, size float32, onTap func()) {
-	ui.Column(c).Width(size).Gap(6 * uiScale).Children(func() {
-		box := ui.Box(c).Width(size).Height(size).Radius(12 * uiScale)
+	// 卡片填满格宽（正方形，AspectRatio(1)）——消空隙（用户：太疏），不再固定 size
+	ui.Column(c).WidthPercent(100).Gap(6 * uiScale).Children(func() {
+		box := ui.Box(c).WidthPercent(100).AspectRatio(1).Radius(12 * uiScale)
 		box.Draw(func(p *ui.Painter, b ui.Rect) {
 			// 无图时用 clrTrack 占位（比 clrCard 浅，避免看起来全黑）
 			if img, ok := a.covers[coverKey]; ok {

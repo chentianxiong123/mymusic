@@ -78,7 +78,7 @@ func (a *app) searchEmpty(c *ui.Context) {
 		for i := range tracks {
 			tracks[i] = ui.Fr(1)
 		}
-		ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().JustifyItems(ui.Center).Children(func() {
+		ui.Grid(c).ColumnTracks(tracks...).Gap(8 * uiScale).Fill().JustifyItems(ui.Center).Children(func() {
 			for _, g := range styleGenres {
 				g := g
 				a.styleCard(c, g, a.recentCardSize(), func() {
@@ -93,14 +93,7 @@ func (a *app) searchEmpty(c *ui.Context) {
 
 // styleGridCols 风格网格列数（不挤一行：桌面 4 列，紧凑 3 列，手机 2 列）。
 func (a *app) styleGridCols() int {
-	switch a.tier() {
-	case 0:
-		return 2
-	case 1:
-		return 3
-	default:
-		return 4
-	}
+	return a.cardCols(110) // 目标卡片 ~110px（用户：继续缩小），列数按宽自适应（偶数）
 }
 
 // chip 小圆角标签。

@@ -91,14 +91,7 @@ func (a *app) createSonglist() {
 
 // songlistGridCols 歌单网格列数（对齐主线 grid-cols-2 sm:3 md:4 lg:5）
 func (a *app) songlistGridCols() int {
-	switch a.tier() {
-	case 0: // 手机（<768）
-		return 2
-	case 1: // 紧凑（768-1024）
-		return 3
-	default: // 桌面（>=1024）
-		return 4
-	}
+	return a.cardCols(110) // 目标卡片 ~110px（用户：继续缩小），列数按宽自适应（偶数）
 }
 
 // songlistCard 歌单网格卡片：方形封面 + 名称 + 首数（对齐主线 songlist_grid.html）

@@ -73,7 +73,7 @@ func (a *app) favPage(c *ui.Context) {
 				for i := range tracks {
 					tracks[i] = ui.Fr(1)
 				}
-				ui.Grid(c).ColumnTracks(tracks...).Gap(12 * uiScale).Fill().Children(func() {
+				ui.Grid(c).ColumnTracks(tracks...).Gap(8 * uiScale).Fill().Children(func() {
 					for _, g := range a.songlists {
 						a.songlistCard(c, g)
 					}
