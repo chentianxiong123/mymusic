@@ -454,6 +454,9 @@ func main() {
 	plugin.RegisterTarget(target.NewLocal(a.mygoOut))
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
 	a.mygoOut.qualFn = func() int { return a.quality } // 音质档实时读取（60k/128k/192k）
+	a.mygoOut.onErr = func(msg string) { // 取流失败 UI 提示（付费/VIP/需登录）
+		a.win.Update(func() { a.status = msg })
+	}
 	a.mygoOut.SetVolume(int(a.volume * 100))           // 恢复音量（restorePrefs 后 mygoOut 才存在）
 	a.pb.SetOutput(a.mygoOut)
 	a.pb.SetDB(a.db)

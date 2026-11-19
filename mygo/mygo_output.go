@@ -47,6 +47,7 @@ type MyGoOutput struct {
 	title string
 	gen   int // 切歌代际：切歌后旧 goroutine 的下载放弃（防竞态）
 	ended func()
+	onErr  func(string) // 取流/播放错误回调 → UI 提示（付费/VIP/需登录等，main 注入）
 }
 
 func newMyGoOutput(bili *bilibili.Client) *MyGoOutput {
@@ -125,6 +126,9 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 		st, serr := o.sourceByName(srcName).GetStream(bvid, o.qualFnQuality())
 		if serr != nil {
 			log.Printf("[mygo-output] 取流失败 %s: %v", bvid, serr)
+			if o.onErr != nil {
+				o.onErr(serr.Error()) // UI 提示（VIP/付费/需登录等）
+			}
 			return
 		}
 		// 接口返回 URL（B站 DASH baseUrl）；包装成主线 AudioStreamResult 供下载复用
@@ -135,12 +139,18 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 		info, ierr := o.bili.GetVideoInfo(bvid)
 		if ierr != nil {
 			log.Printf("[mygo-output] 取视频信息失败 %s: %v", bvid, ierr)
+			if o.onErr != nil {
+				o.onErr("取流失败：" + ierr.Error())
+			}
 			return
 		}
 		stream, err = o.bili.GetBestAudioURL(bvid, info.CID, qn)
 	}
 	if err != nil {
 		log.Printf("[mygo-output] 取流失败 %s: %v", bvid, err)
+		if o.onErr != nil {
+			o.onErr("取流失败：" + err.Error())
+		}
 		return
 	}
 
@@ -158,6 +168,9 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 	f, err := os.CreateTemp("", "mymusic-mygo-*.m4a")
 	if err != nil {
 		log.Printf("[mygo-output] 临时文件失败: %v", err)
+		if o.onErr != nil {
+			o.onErr("临时文件失败：" + err.Error())
+		}
 		return
 	}
 	path := f.Name()
@@ -173,6 +186,9 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 		f.Close()
 		os.Remove(path)
 		log.Printf("[mygo-output] 下载失败 %s: %v", bvid, err)
+		if o.onErr != nil {
+			o.onErr("下载失败：" + err.Error())
+		}
 		return
 	}
 	_, err = io.Copy(f, resp.Body)
@@ -181,6 +197,9 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 	if err != nil {
 		os.Remove(path)
 		log.Printf("[mygo-output] 下载失败 %s: %v", bvid, err)
+		if o.onErr != nil {
+			o.onErr("下载失败：" + err.Error())
+		}
 		return
 	}
 	// 回写缓存域包（SQLite 元数据 + 磁盘）；失败不影响播放
@@ -200,6 +219,9 @@ func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, p
 	if err != nil {
 		os.Remove(path)
 		log.Printf("[mygo-output] 打开音频失败: %v", err)
+		if o.onErr != nil {
+			o.onErr("打开音频失败：" + err.Error())
+		}
 		return
 	}
 	p, err := audio.OpenStream(r)
