@@ -417,7 +417,7 @@ func main() {
 	})
 	// 本地文件源（扫目录听本机歌，免登录零版权、无网络）：目录从设置读（空=无搜索结果）。
 	localDir := plugin.GetSetting("source", "local", "dir", "")
-	plugin.RegisterSource(newLocalSource(localDir))
+	plugin.RegisterSource(source.NewLocal(localDir))
 	plugin.RegisterSettings("source", "local", []plugin.Setting{
 		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav），扫目录听本地歌（免登录零版权）"},
 	})
