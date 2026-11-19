@@ -102,6 +102,7 @@ type app struct {
 	showPlayer bool
 	activeTab  string // search|queue|fav|cast|settings
 	settingsTab int  // 设置页子 tab：0=系统设置 1=插件
+	pluginDetail string // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
 	playlist   []bilibili.SearchItem
 	playIndex  int
 	posSec     float64 // 当前播放秒（歌词定位用）

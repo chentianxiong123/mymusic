@@ -40,13 +40,6 @@ func (a *app) systemSettings(c *ui.Context) {
 				a.savePref("mygo_theme", i)
 				a.win.Invalidate()
 			})
-			// 2 音质（主线 d-quality / set-q 三档）
-			a.setRow(c, "音质")
-			a.setRowSeg(c, []string{"低", "中", "高"}, a.quality, func(i int) {
-				a.quality = i
-				a.savePref("mygo_quality", i)
-				a.win.Invalidate()
-			})
 			// 4 播放模式（主线 MODES 四态 + 当前模式名）
 			a.setRow(c, "播放模式")
 			a.setRowText(c, "当前："+a.loopLabel()+"（点按钮切换）")
@@ -54,25 +47,6 @@ func (a *app) systemSettings(c *ui.Context) {
 				a.loopMode = i
 				a.pb.SetMode(intToMode(i))
 			})
-			// 5 歌词字号（主线 LY_SIZES 14/16/18/22/26）
-			a.setRow(c, "歌词字号")
-			a.setRowSeg(c, []string{"14px", "16px", "18px", "22px", "26px"}, a.lyricSize, func(i int) {
-				a.savePref("mygo_lyricsize", i)
-				a.lyricSize = i
-				a.win.Invalidate()
-			})
-			// 6 歌词背景（主线 set-lybg：封面模糊/纯色）
-			a.setRow(c, "歌词背景")
-			a.setRowSeg(c, []string{"封面模糊", "纯色"}, a.lyricBg, func(i int) {
-				a.lyricBg = i
-				a.win.Invalidate()
-			})
-			// 7 歌词时间显示（主线 set-lytime 开关）
-			a.setRowSwitch(c, "歌词时间显示", "歌词行旁显示时间戳", a.lyricTime, func(on bool) {
-				a.lyricTime = on
-				a.win.Invalidate()
-			})
-
 			// 9 歌曲缓存（主线 cache.js：已用/清空未收藏/清空缓存/上限）
 			a.setRow(c, "歌曲缓存")
 			a.setRowText(c, "自动缓存播放超过 60 秒的歌，再次播放秒开；超上限自动淘汰最旧")

@@ -28,13 +28,13 @@ func (a *app) navBarDesktop(c *ui.Context) {
 		if navTab(c, icList, "队列", a.activeTab == "queue", false).Clicked() {
 			a.setTab("queue")
 		}
-		if navTab(c, icSearch, "搜索", a.activeTab == "search", false).Clicked() {
-			a.setTab("search")
-		}
-		if navTab(c, icFav, "喜欢", a.activeTab == "fav", false).Clicked() {
+		if navTab(c, icFav, "歌单", a.activeTab == "fav", false).Clicked() {
 			a.setTab("fav")
 		}
-		if navTab(c, icCast, "投屏", a.activeTab == "cast", false).Clicked() {
+		if navTab(c, icSearch, "来源", a.activeTab == "search", false).Clicked() {
+			a.setTab("search")
+		}
+		if navTab(c, icCast, "目标", a.activeTab == "cast", false).Clicked() {
 			a.setTab("cast")
 		}
 		if navTab(c, icSet, "设置", a.activeTab == "settings", false).Clicked() {
@@ -80,9 +80,9 @@ func (a *app) navPanel(c *ui.Context) {
 					icon  *ui.SVG
 				}{
 					{"queue", "队列", icList},
-					{"search", "搜索", icSearch},
-					{"fav", "喜欢", icFav},
-					{"cast", "投屏", icCast},
+					{"fav", "歌单", icFav},
+					{"search", "来源", icSearch},
+					{"cast", "目标", icCast},
 					{"settings", "设置", icSet},
 				}
 				for _, it := range items {
