@@ -5,8 +5,11 @@ import (
 	"testing"
 )
 
-// TestLiveQQ 验证 QQ 插件：加载/搜索（匿名可用）/匿名取流（应报需登录）。
+// TestLiveQQ 验证 QQ 插件：加载（requiresCookie 需 cookie 才激活）/搜索/取流报需登录。
 func TestLiveQQ(t *testing.T) {
+	// requiresCookie：QQ 无 cookie 不激活，测试注入假 store + cookie。
+	SetSettingStore(&memSettingStore{m: map[string]string{}})
+	_ = SetSetting("source", "qqmusic", "cookie", "test-cookie")
 	if _, err := LoadFromDir(filepath.Join("..", "plugins")); err != nil {
 		t.Fatalf("LoadFromDir: %v", err)
 	}
@@ -36,3 +39,9 @@ func TestLiveQQ(t *testing.T) {
 		t.Logf("匿名取流 error=%v（预期需登录）", err)
 	}
 }
+
+// memSettingStore 假设置存储（live 测试无 DB；Set/Get 内存 map）。
+type memSettingStore struct{ m map[string]string }
+
+func (s *memSettingStore) Set(k, v string) error { s.m[k] = v; return nil }
+func (s *memSettingStore) Get(k string) (string, bool) { v, ok := s.m[k]; return v, ok }

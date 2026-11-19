@@ -11,6 +11,7 @@ var meta = {
   version: "1.0.0",
   capabilities: ["source"],
   allowedHosts: ["c.y.qq.com", "u.y.qq.com"],
+  requiresCookie: true, // QQ 匿名取流不可行（code=1000），无 cookie 不激活（需粘贴登录 cookie）
   order: 30, // bilibili 10 / 网易云 20 之后
   settings: [
     { key: "quality", name: "音质", type: "select", options: ["M500", "M800"], default: "M800", desc: "取流前缀（M500=128k 标准，M800=320k 高品；无损需 cookie）" },

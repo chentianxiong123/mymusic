@@ -21,6 +21,7 @@ type jsMeta struct {
 	Version      string   `json:"version"`
 	Capabilities []string `json:"capabilities"`
 	AllowedHosts []string `json:"allowedHosts"`
+	RequiresCookie bool `json:"requiresCookie"` // 需 cookie 才激活（无 cookie 不注册）
 	Order        int      `json:"order"`
 	Settings     []jsSetting `json:"settings"`
 }
@@ -83,6 +84,17 @@ func LoadFromDir(dir string) ([]error, error) {
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", p, err))
 			continue
+		}
+		// requiresCookie 源：无 cookie 不激活（跳过注册；加 cookie 重启后激活）。
+		if jp.meta.RequiresCookie {
+			ptype := "source"
+			if len(jp.meta.Capabilities) > 0 {
+				ptype = jp.meta.Capabilities[0]
+			}
+			if GetSetting(ptype, jp.meta.Key, "cookie", "") == "" {
+				fmt.Printf("[plugin] %s 需登录 Cookie 才能激活（无 cookie，跳过）\n", jp.meta.Key)
+				continue
+			}
 		}
 		if err := jp.register(); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", p, err))
