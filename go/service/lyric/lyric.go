@@ -16,6 +16,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yanmingcao/opencc-go"
+	"github.com/yanmingcao/opencc-go/pkg/embeddata"
 )
 
 // ── 歌词（对齐桌面播放器：网易云免费源，无需登录/cookie） ──
@@ -71,12 +74,39 @@ var (
 	noiseWords = []string{"1080P", "4K", "720P", "超清", "高清", "无损", "FLAC", "HIRES", "HQ", "MV", "官方", "哔哩哔哩", "BILI", "纯享", "完整版", "现场版"}
 )
 
-// CleanSearchKeyword 搜索关键词清洗：歌名优先（《》内），去噪音词，折叠空白。
+// ── 繁简折叠（OpenCC t2s，内嵌数据免外部文件）──
+// 华语歌词匹配错的一大来源：标题/歌手是繁体（港台版、官方繁体标签）。
+// 折叠后统一走简体匹配。
+var (
+	simplifierOnce sync.Once
+	simplifier     *opencc.SimpleConverter
+)
+
+// toSimplified 繁体→简体（t2s）；转换器初始化失败时原样返回（不阻断清洗）。
+func toSimplified(s string) string {
+	if s == "" {
+		return s
+	}
+	simplifierOnce.Do(func() {
+		if data, err := embeddata.GetConfig("t2s"); err == nil {
+			if c, err := opencc.NewSimpleConverterFromData(data); err == nil {
+				simplifier = c
+			}
+		}
+	})
+	if simplifier == nil {
+		return s
+	}
+	return simplifier.Convert(s)
+}
+
+// CleanSearchKeyword 搜索关键词清洗：歌名优先（《》内），繁→简，去噪音词，折叠空白。
 func CleanSearchKeyword(title string) string {
 	s := strings.TrimSpace(title)
 	if s == "" {
 		return ""
 	}
+	s = toSimplified(s)
 	if m := bookTitleRe.FindStringSubmatch(s); m != nil {
 		return strings.TrimSpace(m[1])
 	}

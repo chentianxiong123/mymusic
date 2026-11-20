@@ -25,6 +25,10 @@ func TestCleanSearchKeyword(t *testing.T) {
 		{"A·B", "A B"},
 		{"001.周杰伦-晴天", "周杰伦-晴天"},
 		{"12、夜曲", "夜曲"},
+		// 繁→简折叠（港台版/繁体标签）
+		{"周杰倫《晴天》", "晴天"},
+		{"【4K】周杰倫 - 晴天", "周杰伦 - 晴天"},
+		{"海闊天空", "海阔天空"},
 	}
 	for _, c := range cases {
 		got := CleanSearchKeyword(c.in)

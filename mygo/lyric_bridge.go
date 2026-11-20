@@ -30,14 +30,14 @@ func (a *app) loadLyricAsync(bvid string) {
 		if a.current == nil {
 			return
 		}
-		// 关键词对齐主线 lyric.js load()：titleToSong(标题) + ' ' + 歌手
+		// 关键词对齐主线 lyric.js load()：CleanSearchKeyword(标题) + ' ' + 歌手
 		// （服务端 bvid 非空会用分P标题覆盖，这边只是 fallback）
-		kwRaw := titleToSongMygo(a.current.title) + " " + a.current.author
+		kwRaw := lyric.CleanSearchKeyword(a.current.title) + " " + lyric.CleanSearchKeyword(a.current.author)
 		kw := urlQE(kwRaw)
 		// 歌词按源：歌来源有 JS lyric 插件（咪咕/QQ/酷我等）→ 用该源歌词；无 → 主线端点（网易云兜底）。
 		if prov := plugin.Lyric(a.current.src); prov != nil {
 			// sid 传歌 id 字符串（咪咕 contentId 18 位超 JS 安全整数，必须字符串保精度）。
-			lines, lerr := prov.Fetch([]string{a.current.title, a.current.author}, a.current.bvid)
+			lines, lerr := prov.Fetch([]string{lyric.CleanSearchKeyword(a.current.title), lyric.CleanSearchKeyword(a.current.author)}, a.current.bvid)
 			if lerr == nil && len(lines) > 0 {
 				// source.LyricLine{Time,Text} → 主线 lyric.LyricLine [3]any{time,text,0}。
 				srcLines := make([]lyric.LyricLine, len(lines))
@@ -144,7 +144,7 @@ func (a *app) pickLyricSID(bvid string, sid int) {
 	if err := a.lyricSelect(bvid, cand); err != nil {
 		log.Printf("[lyric] select %d 失败: %v", sid, err)
 	}
-	kwRaw := titleToSongMygo(a.current.title) + " " + a.current.author
+	kwRaw := lyric.CleanSearchKeyword(a.current.title) + " " + lyric.CleanSearchKeyword(a.current.author)
 	res, err := a.lyricGetBVID(bvid, urlQE(kwRaw))
 	if err != nil {
 		log.Printf("[lyric] 选源后重拉失败: %v", err)
