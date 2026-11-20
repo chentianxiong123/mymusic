@@ -35,6 +35,15 @@ func (h *LyricHandler) keywordsFor(bvid, keyword string) []string {
 	return nil
 }
 
+// expectDur 期望歌词匹配时长（秒）：B 站视频时长即歌曲时长，候选按时长重排用；
+// 无 bvid 或取不到（接口失败）返回 0（不参与重排，保持原顺序）。
+func (h *LyricHandler) expectDur(bvid string) int {
+	if h.Music == nil || bvid == "" {
+		return 0
+	}
+	return h.Music.LyricDuration(bvid)
+}
+
 // Get GET /api/v1/music/lyric?keyword=&sid=&bvid=
 // bvid 优先：有已选歌词源（前端切源上报持久化）就用已选源——桌面歌词挂件（只带 bvid/keyword）
 // 与歌词页（切源后）拿到同一份歌词，两端同步；bvid 模式同时返回本歌存档的对齐偏移。
@@ -66,7 +75,7 @@ func (h *LyricHandler) Get(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	res := lyric.GetLyricLines(keywords, sid)
+	res := lyric.GetLyricLines(keywords, sid, h.expectDur(bvid))
 	if res == nil {
 		// 找不到歌词是正常业务，code=0 data=null（前端拦截器按 code!=0 弹错）
 		ok(w, nil)
@@ -187,5 +196,5 @@ func (h *LyricHandler) Candidates(w http.ResponseWriter, r *http.Request) {
 	if limit == 0 {
 		limit = 8
 	}
-	ok(w, lyric.SearchLyricCandidatesByTitles(keywords, limit))
+	ok(w, lyric.SearchLyricCandidatesByTitles(keywords, limit, h.expectDur(q.Get("bvid"))))
 }

@@ -93,7 +93,7 @@ func (s *BilibiliSource) GetStream(id string, quality int) (*Stream, error) {
 // GetLyric B站歌词：主线 lyric 域（网易云词源）GetLyricLines 纯函数取词。
 // keywords = 标题关键词 + 歌手；sid>0 精确取。返回歌词行（无词返回 nil）。
 func (s *BilibiliSource) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
-	res := lyric.GetLyricLines(keywords, sid)
+	res := lyric.GetLyricLines(keywords, sid, s.svc.LyricDuration(id))
 	if res == nil {
 		return nil, nil
 	}

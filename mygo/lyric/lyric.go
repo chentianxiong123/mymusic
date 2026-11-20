@@ -27,7 +27,7 @@ func (p *Netease) Name() string { return "netease" }
 // Fetch 包装主线 lyric.GetLyricLines：备选标题逐个搜 → 首个有词的候选。
 func (p *Netease) Fetch(keywords []string, sid string) ([]model.LyricLine, error) {
 	sidInt, _ := strconv.Atoi(sid)
-	res := lyric.GetLyricLines(keywords, sidInt)
+	res := lyric.GetLyricLines(keywords, sidInt, 0)
 	if res == nil {
 		return nil, nil
 	}

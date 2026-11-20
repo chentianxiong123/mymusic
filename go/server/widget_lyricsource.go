@@ -21,7 +21,7 @@ func (l *lyricSource) Lines(bvid string) ([][3]any, float64, bool) {
 	}
 	// ① 已选源优先（用户切源上报持久化）：与 /music/lyric?bvid= 同一份歌词 + offset
 	if sel := l.handler.Lyric.SelectedSID(bvid); sel > 0 {
-		if res := lyric.GetLyricLines(nil, sel); res != nil {
+		if res := lyric.GetLyricLines(nil, sel, 0); res != nil {
 			if selRec, ok := l.handler.Lyric.Get(bvid); ok {
 				return toLrcLines(res.Lines), selRec.Offset, true
 			}
@@ -45,11 +45,19 @@ func (l *lyricSource) Lines(bvid string) ([][3]any, float64, bool) {
 		}
 	}
 	if len(kws) > 0 {
-		if res := lyric.GetLyricLines(kws, 0); res != nil {
+		if res := lyric.GetLyricLines(kws, 0, l.dur(bvid)); res != nil {
 			return toLrcLines(res.Lines), 0, true
 		}
 	}
 	return nil, 0, false
+}
+
+// dur 期望歌词匹配时长（秒）：B 站视频时长即歌曲时长；无 bvid/取不到返回 0。
+func (l *lyricSource) dur(bvid string) int {
+	if l.handler.Music == nil || bvid == "" {
+		return 0
+	}
+	return l.handler.Music.LyricDuration(bvid)
 }
 
 // toLrcLines 转 lyric.LyricLine（[3]any）→ [][3]any（widget.LyricSource 行格式）

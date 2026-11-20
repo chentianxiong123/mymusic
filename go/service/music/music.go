@@ -80,6 +80,18 @@ func (m *MusicService) LyricKeywords(bvid, fallback string) []string {
 	return out
 }
 
+// LyricDuration 歌词匹配期望时长（秒）：B 站视频时长即歌曲时长，用于候选按时长重排；
+// 拿不到（无 bvid/接口失败）返回 0（不参与重排，不误伤）。
+func (m *MusicService) LyricDuration(bvid string) int {
+	if m == nil || m.Client == nil || bvid == "" {
+		return 0
+	}
+	if info, err := m.VideoInfo(bvid); err == nil {
+		return info.Duration
+	}
+	return 0
+}
+
 // GetAudioStream 播放链路：view 拿 cid → playurl 取 DASH 音频
 func (m *MusicService) GetAudioStream(bvid string, quality int) (*bilibili.AudioStreamResult, error) {
 	info, err := m.VideoInfo(bvid)

@@ -302,9 +302,11 @@ func fetchLyricLines(sid int) []LyricLine {
 }
 
 // SearchLyricCandidates 搜歌名 → 候选。惰性取词（musicxx 两段式 API 同思路）：
-// 搜索只回元数据；第一个有词候选验证并带 Lines（保住“自动选第一有词源、自动跳脏候选”语义），
-// 其余候选不拉正文（前端选中时懒拉 /api/v1/music/lyric?sid=）→ 9 次串行请求降到 2 次。
-func SearchLyricCandidates(keyword string, limit int) []LyricResult {
+// 搜索只回元数据；候选先按期望时长重排（时长匹配的版本优先，避免“海阔天空 239s
+// 翻录排第一、326s 原版排第三”这类版本错配），再对重排后第一个 ≥3 行候选验证并带
+// Lines（保住“自动选第一有词源、自动跳脏候选”语义），其余候选不拉正文（前端选中
+// 时懒拉 /api/v1/music/lyric?sid=）→ 请求数可控。
+func SearchLyricCandidates(keyword string, limit, expectDur int) []LyricResult {
 	keyword = CleanSearchKeyword(keyword)
 	if keyword == "" {
 		return nil
@@ -323,8 +325,8 @@ func SearchLyricCandidates(keyword string, limit int) []LyricResult {
 	}
 	result, _ := j["result"].(map[string]any)
 	songs, _ := result["songs"].([]any)
+	// 先收齐候选元数据（含时长），再按期望时长重排。
 	var out []LyricResult
-	gotLines := false
 	for _, s := range songs {
 		song, ok := s.(map[string]any)
 		if !ok {
@@ -345,28 +347,66 @@ func SearchLyricCandidates(keyword string, limit int) []LyricResult {
 		if al, ok := song["album"].(map[string]any); ok {
 			album, _ = al["name"].(string)
 		}
-		r := LyricResult{
+		out = append(out, LyricResult{
 			ID:       sid,
 			Name:     strAny(song["name"]),
 			Artist:   artist,
 			Album:    album,
 			Duration: int(toFloat(song["duration"]) / 1000),
-		}
+		})
+	}
+	rankByDuration(out, expectDur)
+	// 重排后逐个拉词，第一个 ≥3 行即选定（带 Lines）；其余仅元数据（懒拉）。
+	gotLines := false
+	res := out[:0]
+	for _, r := range out {
 		if !gotLines {
-			if lines := fetchLyricLines(sid); len(lines) >= 3 {
+			if lines := fetchLyricLines(r.ID); len(lines) >= 3 {
 				r.Lines = lines
 				gotLines = true
 			} else {
 				continue // 无词/拉词失败：不展示（保持“候选只含有词≥3行”体验）
 			}
 		}
-		out = append(out, r)
+		res = append(res, r)
 	}
-	return out
+	return res
+}
+
+// rankByDuration 候选按期望时长匹配度重排（稳定：同分保持网易云相关度顺序）。
+// expectDur<=0（无期望时长）时不重排，保持原顺序，不误伤。
+func rankByDuration(cands []LyricResult, expectDur int) {
+	if expectDur <= 0 {
+		return
+	}
+	sort.SliceStable(cands, func(i, j int) bool {
+		return durScore(cands[i].Duration, expectDur) > durScore(cands[j].Duration, expectDur)
+	})
+}
+
+// durScore 时长匹配分：±2s 满分，±5s 良，±10s 及格；其余/未知 0（不提前，保持原序）。
+func durScore(d, expect int) int {
+	if d <= 0 {
+		return 0
+	}
+	diff := d - expect
+	if diff < 0 {
+		diff = -diff
+	}
+	switch {
+	case diff <= 2:
+		return 1000
+	case diff <= 5:
+		return 600
+	case diff <= 10:
+		return 300
+	default:
+		return 0
+	}
 }
 
 // GetLyricLines 按备选关键词取第一源；或 sid 精确取。找不到返回 nil（业务正常）
-func GetLyricLines(keywords []string, sid int) *LyricResult {
+func GetLyricLines(keywords []string, sid, expectDur int) *LyricResult {
 	if len(keywords) == 0 && sid == 0 {
 		return nil // 空关键词不发网易云（挂件 bvid 模式无已选源时）
 	}
@@ -377,7 +417,7 @@ func GetLyricLines(keywords []string, sid int) *LyricResult {
 		}
 		return nil
 	}
-	cands := SearchLyricCandidatesByTitles(keywords, 8)
+	cands := SearchLyricCandidatesByTitles(keywords, 8, expectDur)
 	if len(cands) > 0 && len(cands[0].Lines) >= 3 {
 		return &cands[0]
 	}
@@ -386,12 +426,12 @@ func GetLyricLines(keywords []string, sid int) *LyricResult {
 
 // SearchLyricCandidatesByTitles 备用标题逐个搜（bili-music lyricSearchTitles 同款）：
 // 第一个搜到候选（且第一候选有词）的关键词即用，避免“第一P占位标题”直接翻车。
-func SearchLyricCandidatesByTitles(titles []string, limit int) []LyricResult {
+func SearchLyricCandidatesByTitles(titles []string, limit, expectDur int) []LyricResult {
 	for _, kw := range titles {
 		if kw == "" {
 			continue
 		}
-		if res := SearchLyricCandidates(kw, limit); len(res) > 0 {
+		if res := SearchLyricCandidates(kw, limit, expectDur); len(res) > 0 {
 			return res
 		}
 	}
