@@ -61,6 +61,17 @@ var lrcTimeRe = regexp.MustCompile(`\[(\d+):(\d+(?:.\d+)?)\]`)
 // 解析时折进每行时间（t' = t + offsetMs/1000），前端零感知。
 var offsetTagRe = regexp.MustCompile(`(?i)^\[offset[:,](-?\d+)\]$`)
 
+// titleBracketRe 歌名归一用：各类型括号及其内容（版本标记）。（）()【】[]《》「」以及方括号。
+var titleBracketRe = regexp.MustCompile(`[（(【\[《「][^）)】\]》」]*[）)】\]》」]`)
+
+// titleVersionWords 歌名归一时剥离的版本/音质标记词（对齐 musicxx 版本字段权重思路：
+// 版本是独立维度，不应让“枫(钢琴版)”被误判成另一首歌）。
+var titleVersionWords = []string{
+	"钢琴版", "原唱", "伴奏", "演奏版", "粤语版", "国语版", "完整版", "现场版", "无损版",
+	"封面", "翻唱", "cover", "live", "dj", "remix", "rnb", "纯享", "无损", "hi-res", "flac",
+	"wav", "4k", "8k", "超清", "48k", "192k", "320k",
+}
+
 // ── 搜索关键词清洗（musicxx 智能识别规则子集 + bili-music 正则回退同款） ──
 // 对齐 bili-music meting_logic.extractSearchKeyword：《》「」优先提取，剥【】；
 // 再按 musicxx 智能识别思路去 B 站标题噪音词（4K/无损/纯享…）：
@@ -355,7 +366,7 @@ func SearchLyricCandidates(keyword string, limit, expectDur int) []LyricResult {
 			Duration: int(toFloat(song["duration"]) / 1000),
 		})
 	}
-	rankByDuration(out, expectDur)
+	rankCandidates(out, expectDur, keyword)
 	// 重排后逐个拉词，第一个 ≥3 行即选定（带 Lines）；其余仅元数据（懒拉）。
 	gotLines := false
 	res := out[:0]
@@ -373,15 +384,71 @@ func SearchLyricCandidates(keyword string, limit, expectDur int) []LyricResult {
 	return res
 }
 
-// rankByDuration 候选按期望时长匹配度重排（稳定：同分保持网易云相关度顺序）。
-// expectDur<=0（无期望时长）时不重排，保持原顺序，不误伤。
-func rankByDuration(cands []LyricResult, expectDur int) {
-	if expectDur <= 0 {
-		return
-	}
+// rankCandidates 候选重排：**时长主 + 标题次 + 网易云相关度兜底**（两次稳定排序，
+// 字典序：时长匹配优先，同分按标题相似度，再同分保持网易云原序）。
+// expectDur<=0 时只做标题重排；两者都无时保持原序，不误伤。
+func rankCandidates(cands []LyricResult, expectDur int, expectTitle string) {
+	// 次级：标题相似度（先排，稳定）——把“搜“枫”却排进来《默》”这类不同歌沉底
 	sort.SliceStable(cands, func(i, j int) bool {
-		return durScore(cands[i].Duration, expectDur) > durScore(cands[j].Duration, expectDur)
+		return titleScore(cands[i].Name, expectTitle) > titleScore(cands[j].Name, expectTitle)
 	})
+	// 主级：时长匹配（后稳定排，保持标题次序）
+	if expectDur > 0 {
+		sort.SliceStable(cands, func(i, j int) bool {
+			return durScore(cands[i].Duration, expectDur) > durScore(cands[j].Duration, expectDur)
+		})
+	}
+}
+
+// coreTitle 歌名归一（学 musicxx 智能识别的思路，取标题核心）：小写、剥各类型括号内容
+// （版本标记：钢琴版/Live/DJ/Remix/Cover/原唱等）、去版本词、去连字符、去重空白。
+// 让“枫 (钢琴版) [原唱: 周杰伦]”与“枫”归到同一核心，不被误判成不同歌。
+func coreTitle(s string) string {
+	if s == "" {
+		return ""
+	}
+	t := strings.ToLower(strings.TrimSpace(s))
+	t = titleBracketRe.ReplaceAllString(t, " ")
+	for _, w := range titleVersionWords {
+		t = strings.ReplaceAll(t, w, " ")
+	}
+	t = strings.ReplaceAll(t, "-", " ")
+	t = strings.Join(strings.Fields(t), " ")
+	return strings.TrimSpace(t)
+}
+
+// titleScore 候选歌名与期望标题相似度（0-100）：相同 100，包含 80，共享 2 字子串 60，
+// 无重叠 0（大概率不同歌，沉底）。expectTitle 通常就是清洗后的搜索关键词（常含标题）。
+func titleScore(name, expect string) int {
+	n := coreTitle(name)
+	e := coreTitle(expect)
+	if n == "" || e == "" {
+		return 0
+	}
+	if n == e {
+		return 100
+	}
+	if strings.Contains(n, e) || strings.Contains(e, n) {
+		return 80
+	}
+	if sharesTwoRunes(n, e) {
+		return 60
+	}
+	return 0
+}
+
+// sharesTwoRunes 两个字符串是否共享连续 2 个码元（中文歌名核心字）。
+func sharesTwoRunes(a, b string) bool {
+	ra := []rune(a)
+	if len(ra) < 2 {
+		return false
+	}
+	for i := 0; i+1 < len(ra); i++ {
+		if strings.Contains(b, string(ra[i:i+2])) {
+			return true
+		}
+	}
+	return false
 }
 
 // durScore 时长匹配分：±2s 满分，±5s 良，±10s 及格；其余/未知 0（不提前，保持原序）。
