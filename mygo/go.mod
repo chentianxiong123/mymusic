@@ -23,6 +23,7 @@ require (
 	github.com/tphakala/go-aac v0.7.1 // indirect
 	github.com/tphakala/simd v1.11.0 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
+	github.com/yanmingcao/opencc-go v1.0.0 // indirect
 	go.digitalxero.dev/rpm v0.3.4 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
