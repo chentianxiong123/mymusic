@@ -1,0 +1,158 @@
+# mygo CI/CD —— 与 wails3 的 ci.yml 完全独立（纯 Go 无 cgo，任何平台可交叉编译）
+#
+# 触发：
+#   · 测试：push/PR 触及 mygo/** 或本文件（每次改动跑一遍 build+test）
+#   · 发布：push tag mygo-<version>（对齐 mygo.json 的 tagPrefix "mygo-"）
+#
+# 发布产物（GitHub Release，供更新机制消费）：
+#   · 桌面：deb/rpm/tar.gz/exe + 签名 update-<platform>.json（manifest）
+#   · 安卓：APK（移动端"发现→前往下载"）
+#   · 校验公钥在构建期烙进二进制（mygo.json updates.publicKey），私钥走 secret
+#
+# 前提（仓库 Settings → Secrets and variables → Actions）：
+#   · MYGO_UPDATER_PRIVATE_KEY = mygo keygen 生成的私钥内容（`mygo keygen`）
+#
+# 注意：安卓 job 最重（JDK21 + NDK28.2 + Gradle9.3.1 + 克隆官方 mobile 源码打补丁），
+#       如 CI 首次跑挂，大概率是 Gradle/NDK 版本或镜像，调 android/build-android.sh 后重跑。
+
+name: mygo CI/CD
+
+on:
+  push:
+    paths:
+      - 'mygo/**'
+      - '.github/workflows/mygo.yml'
+    tags:
+      - 'mygo-*'
+  pull_request:
+    paths:
+      - 'mygo/**'
+      - '.github/workflows/mygo.yml'
+
+env:
+  GOPROXY: 'https://goproxy.cn,direct'
+  GOFLAGS: '-mod=mod -tags=native'
+
+jobs:
+  # ── 每次改动：build + test（纯 Go，快）────────────────────────────
+  test:
+    name: 测试
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mygo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mygo/go.mod
+          cache: false
+      - name: 构建 + 测试
+        run: go build ./... && go test ./...
+
+  # ── 桌面构建：linux/amd64 + windows/amd64 交叉（无 cgo，从 linux 编译）──
+  build-desktop:
+    name: 桌面构建
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs: test
+    defaults:
+      run:
+        working-directory: mygo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mygo/go.mod
+          cache: false
+      - name: 安装 mygo CLI（与 go.mod replace 同版 pseudo-version）
+        run: go install github.com/egoist/mygo/cmd/mygo@v0.9.1-0.20261115172007-ea96ba60e107
+      - name: 构建桌面（签名更新包）
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          mygo build -platform linux/amd64,windows/amd64
+      - name: 收集产物（拍平到 release 根，update-*.json 必须在根）
+        run: |
+          mkdir -p ../artifacts
+          cp build/linux-amd64/* ../artifacts/ 2>/dev/null || true
+          cp build/windows-amd64/* ../artifacts/ 2>/dev/null || true
+          ls -la ../artifacts/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mygo-desktop
+          path: ../artifacts/
+
+  # ── 发布 GitHub Release（非 draft，releases/latest/download/ 才能命中更新源）──
+  release:
+    name: 发布 GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs: build-desktop
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mygo-desktop
+          path: dist
+      - name: 创建 + 上传 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#mygo-}"
+          gh release create "$GITHUB_REF_NAME" $(find dist -type f) \
+            --title "mymusic-mygo ${VERSION}" --generate-notes
+
+  # ── 安卓构建（移动端 APK 分发）──────────────────────────────────
+  android:
+    name: 安卓构建
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: 安装 Android SDK + NDK 28.2.13676358
+        uses: android-actions/setup-android@v3
+        with:
+          sdkmanager: 'platforms;android-34'
+      - name: 安装 NDK 28.2.13676358
+        run: sdkmanager "ndk;28.2.13676358"
+      - name: 构建 APK
+        env:
+          MYGO_MOBILE_SRC: ${{ github.workspace }}/.cache/mygo-mobile-src
+          MYGO_CLI_BIN: ${{ github.workspace }}/.cache/go-bin/mygo
+          GOPATH: ${{ github.workspace }}/.cache/gopath
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/28.2.13676358
+        run: |
+          mkdir -p "$MYGO_CLI_BIN"
+          bash android/build-android.sh
+      - name: 收集 APK
+        run: |
+          mkdir -p ../apk
+          find . -name "*.apk" -path "*build*" -exec cp {} ../apk/ \;
+          ls -la ../apk/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mygo-android
+          path: ../apk/
+
+  # ── 把 APK 也挂到同一个 Release（移动端下载走同一页）──────────────
+  release-android:
+    name: 发布安卓到 Release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs: [android, release]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mygo-android
+          path: apk
+      - name: 上传 APK 到现有 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" $(find apk -type f) --clobber
