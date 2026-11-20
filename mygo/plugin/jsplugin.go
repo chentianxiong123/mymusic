@@ -51,10 +51,8 @@ type JSPlugin struct {
 // jsTimeout JS 单次调用超时（能力沙箱层，掐断死循环）。
 const jsTimeout = 5 * time.Second
 
-// 内置插件 key，按类型分（JS 不得同名覆盖**对应类型**；不同类型可同名，如音源 netease 与歌词 netease）。
-// 音源内置只有 bilibili；歌词内置只有 netease；target 内置 local/cast/bluetooth/speaker。
-var builtinSourceKeys = map[string]bool{"bilibili": true}
-var builtinLyricKeys = map[string]bool{"netease": true}
+// 系统级（Go 内置）能力 key 的防护清单见 builtin.go：由 RegisterSystem* 注册行为派生，
+// 此处不再硬编码副本（避免新增 Go 内置能力时忘了同步）。
 
 // LoadFromDir 扫描 dir/*/plugin.js 逐个加载注册。
 // 单个插件失败不拖垮其他；返回错误列表 + 目录读取错误。
@@ -149,17 +147,11 @@ func (jp *JSPlugin) validate() error {
 	if jp.meta.Name == "" {
 		jp.meta.Name = jp.meta.Key
 	}
-	// 按 capability 类型检查同名冲突（如 key=netease 音源允许，但若声明 lyric 能力则拒）。
+	// 按 capability 类型校验系统级 key 占用（JS 不得覆盖 Go 内置能力）。
+	// 防护清单由 RegisterSystem* 注册行为派生（builtin.go），不含人工副本。
 	for _, cap := range jp.meta.Capabilities {
-		switch cap {
-		case "source":
-			if builtinSourceKeys[jp.meta.Key] {
-				return fmt.Errorf("key %q 与内置音源冲突", jp.meta.Key)
-			}
-		case "lyric":
-			if builtinLyricKeys[jp.meta.Key] {
-				return fmt.Errorf("key %q 与内置歌词冲突", jp.meta.Key)
-			}
+		if err := CheckPluginKey(cap, jp.meta.Key); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -10,6 +10,8 @@
 package plugin
 
 import (
+	"log"
+
 	"mymusic-mygo/lyric"
 	"mymusic-mygo/source"
 	"mymusic-mygo/target"
@@ -23,7 +25,22 @@ var (
 )
 
 // RegisterSource 注册音源插件（init 里调）。同名覆盖（后注册胜）。
+// 系统级（Go 内置）音源的 key 受保护：命中则拒绝覆盖并记日志（防御层；
+// 主报错路径是 JS 插件加载期 CheckPluginKey）。
 func RegisterSource(s source.MusicSource) {
+	if IsBuiltinKey("source", s.Name()) {
+		log.Printf("[plugin] 拒绝覆盖系统级音源 %q", s.Name())
+		return
+	}
+	if _, ok := sources[s.Name()]; !ok {
+		order = append(order, "source:"+s.Name())
+	}
+	sources[s.Name()] = s
+}
+
+// RegisterSystemSource 注册系统级（Go 内置）音源：key 必须在 systemCapabilities 已声明。
+func RegisterSystemSource(s source.MusicSource) {
+	ensureSystemKey("source", s.Name())
 	if _, ok := sources[s.Name()]; !ok {
 		order = append(order, "source:"+s.Name())
 	}
@@ -32,10 +49,25 @@ func RegisterSource(s source.MusicSource) {
 
 // RegisterTarget 注册目标插件（init 里调）。同名覆盖。
 func RegisterTarget(t target.Target) {
-	if _, ok := targets[t.Name()+"/"+t.DeviceID()]; !ok {
+	k := t.Name() + "/" + t.DeviceID()
+	if IsBuiltinKey("target", t.Name()) {
+		log.Printf("[plugin] 拒绝覆盖系统级目标 %q", t.Name())
+		return
+	}
+	if _, ok := targets[k]; !ok {
 		order = append(order, "target:"+t.Name())
 	}
-	targets[t.Name()+"/"+t.DeviceID()] = t
+	targets[k] = t
+}
+
+// RegisterSystemTarget 注册系统级（Go 内置）播放目标：key 必须在 systemCapabilities 已声明。
+func RegisterSystemTarget(t target.Target) {
+	ensureSystemKey("target", t.Name())
+	k := t.Name() + "/" + t.DeviceID()
+	if _, ok := targets[k]; !ok {
+		order = append(order, "target:"+t.Name())
+	}
+	targets[k] = t
 }
 
 // Sources 已注册音源（启动后 UI 选源用）。
@@ -61,7 +93,20 @@ func SourceNames() []string {
 var lyrics = map[string]lyric.Provider{}
 
 // RegisterLyric 注册歌词插件（init 里调）。同名覆盖。
-func RegisterLyric(l lyric.Provider) { lyrics[l.Name()] = l }
+// 系统级（Go 内置）词源的 key 受保护：命中则拒绝覆盖并记日志。
+func RegisterLyric(l lyric.Provider) {
+	if IsBuiltinKey("lyric", l.Name()) {
+		log.Printf("[plugin] 拒绝覆盖系统级词源 %q", l.Name())
+		return
+	}
+	lyrics[l.Name()] = l
+}
+
+// RegisterSystemLyric 注册系统级（Go 内置）词源：key 必须在 systemCapabilities 已声明。
+func RegisterSystemLyric(l lyric.Provider) {
+	ensureSystemKey("lyric", l.Name())
+	lyrics[l.Name()] = l
+}
 
 // Lyric 取指定歌词插件（网易云默认）。
 func Lyric(name string) lyric.Provider {

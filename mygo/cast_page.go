@@ -156,7 +156,7 @@ func (a *app) refreshSpeakers() {
 		a.speakers = list
 		// 一切皆插件：每台小爱音箱注册为 target 插件（投送目标）
 		for _, sp := range list {
-			plugin.RegisterTarget(target.NewXiaoai(a.svc.speaker, a.pb, sp.DID, sp.Name))
+			plugin.RegisterSystemTarget(target.NewXiaoai(a.svc.speaker, a.pb, sp.DID, sp.Name))
 		}
 		a.win.Invalidate()
 	})
@@ -168,7 +168,7 @@ func (a *app) discoverBluetooth() {
 	a.win.Update(func() {
 		a.btDevices = list
 		for _, d := range list {
-			plugin.RegisterTarget(target.NewBluetooth(d.MAC, d.Name))
+			plugin.RegisterSystemTarget(target.NewBluetooth(d.MAC, d.Name))
 		}
 		a.status = fmt.Sprintf("发现 %d 个蓝牙设备", len(list))
 		a.win.Invalidate()
@@ -186,7 +186,7 @@ func (a *app) discoverCast() {
 		a.castDevices = list
 		// 一切皆插件：每台 DLNA 设备注册为 target 插件（投屏目标）
 		for _, d := range list {
-			plugin.RegisterTarget(target.NewCast(a.svc.cast, d.UDN, d.Name))
+			plugin.RegisterSystemTarget(target.NewCast(a.svc.cast, d.UDN, d.Name))
 		}
 		// 小米音箱设备也拉一次（登录后才有）
 		if a.svc.speaker != nil {

@@ -408,13 +408,13 @@ func main() {
 	a.bili.Cookie = plugin.GetSetting("source", "bilibili", "cookie", "")
 	// 一切皆插件：注册内置插件（音源/歌词）。第三方插件 = 各自 init() 注册，主程序空导入。
 	if a.svc != nil && a.svc.music != nil {
-		plugin.RegisterSource(source.NewBilibili(a.svc.music)) // B站音乐源
+		plugin.RegisterSystemSource(source.NewBilibili(a.svc.music)) // B站音乐源（系统级）
 		plugin.RegisterSettings("source", "bilibili", []plugin.Setting{{
 			Key: "cookie", Name: "登录 Cookie", Type: plugin.SettingText, Default: "",
 			Desc: "粘贴 B站登录态 Cookie（浏览器 www.bilibili.com 登录后复制），空=匿名（仅 buvid3）",
 		}})
 	}
-	plugin.RegisterLyric(lyricplug.NewNetease()) // 网易云歌词源
+	plugin.RegisterSystemLyric(lyricplug.NewNetease()) // 网易云歌词源（系统级兜底）
 	// 插件元数据（插件页展示）
 	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐音源（搜索/取流/歌词，复用主线 music 域）", Order: 10})
 	// B站音源插件设置：搜索条数/分页自控（插件声明，系统统一存储 SettingStore）
@@ -424,7 +424,7 @@ func main() {
 	})
 	// 本地文件源（扫目录听本机歌，免登录零版权、无网络）：目录从设置读（空=无搜索结果）。
 	localDir := plugin.GetSetting("source", "local", "dir", "")
-	plugin.RegisterSource(source.NewLocal(localDir))
+	plugin.RegisterSystemSource(source.NewLocal(localDir))
 	plugin.RegisterSettings("source", "local", []plugin.Setting{
 		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav），扫目录听本地歌（免登录零版权）"},
 	})
@@ -463,7 +463,7 @@ func main() {
 		a.mygoOut.setMusic(a.svc.music) // 取流复用主线（view 缓存）
 	}
 	// 一切皆插件：本机声卡也注册为 target 插件（默认播放路径）
-	plugin.RegisterTarget(target.NewLocal(a.mygoOut))
+	plugin.RegisterSystemTarget(target.NewLocal(a.mygoOut))
 	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
 	// B站音质设置（插件设置）：64k/128k/192k → 音质档 0/1/2（默认 192k）。
 	switch plugin.GetSetting("source", "bilibili", "quality", "192k") {
