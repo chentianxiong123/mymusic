@@ -1,5 +1,8 @@
 # wails3/ — 统一壳（🐧 Linux 🪟 Windows 🤖 安卓，一个入口三端构建）
 
+> 状态：**与 mygo 并重的两条实现线之一**（见根 README）。mygo（Go 原生框架，无 cgo）为**主发行线**；
+> 本线（wails3 + htmx + SQLite）保留原多端壳 + 桌面歌词挂件。
+
 mymusic 的应用壳。**同一个 `main.go`**，平台差异全部走同目录 build tag 文件，构建脚本按端分开。
 
 ```
