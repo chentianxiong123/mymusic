@@ -49,3 +49,9 @@ jobs:
           set -euo pipefail
           grep -q 'urlCheck' wails3/build/wechat/project.config.json || { echo 'project.config.json 缺 urlCheck'; exit 1; }
           echo "urlCheck 配置在位"
+      - name: 假装构建（web-view 壳零构建，模拟打包）
+        run: |
+          echo "小程序壳 = web-view 方案（<web-view src=后端H5整站>），零构建"
+          echo "模拟打包：app.* + pages/index + components/mp-html + project.config.json"
+          echo "  → 微信开发者工具可导入（导入 wails3/build/wechat，勾不校验合法域名）"
+          echo "✓ 假构建完成（真上传需 miniprogram-ci + AppID/上传私钥 secret，手动）"
