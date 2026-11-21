@@ -1,0 +1,118 @@
+# wails iOS 构建（Linux 黑色打法，走到底：osxcross 编译 + Linux 签名）—— 永远手动触发。
+#
+# 黑路原理：wails3 的 iOS 宿主是 **ObjC/cgo**（0 Swift），osxcross clang 能编 → 不用 macos 编译。
+# 卡点：wails3 的 wake 管线硬性要求 darwin 宿主（environment.go:322 `host.os != "darwin"`）+ xcrun + codesign。
+# 黑路 = ①补丁 wake（去掉 darwin 检查）②shim xcrun→osxcross clang+SDK ③shim codesign→ldid（Linux ad-hoc 签）④全 Linux 组装+签名。
+# 签名用 ldid（Saurik，ProcursusTeam/ldid）——ad-hoc 签 Mach-O，Linux 能跑，**零 macos**。
+# 注意：这是 **PoC**（补丁/shim 脆弱，未在 GitHub 实测）。wails-ios.yml 是白路（macos-latest）。
+name: wails iOS 构建（Linux 黑色 osxcross）
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 组装 + 签名 iOS .app（全 Linux，零 macos）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: wails3/go.sum
+      - name: 安装 osxcross 依赖 + ldid
+        run: sudo apt-get update && sudo apt-get install -y clang cmake xz-utils wget build-essential ldid
+      - name: 缓存 osxcross（工具链 + SDK）
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/osxcross
+          key: osxcross-iphoneos15.5-stable
+      - name: 克隆 osxcross + 下载 iPhoneOS SDK（缓存未命中）
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/tpoechtrager/osxcross.git /tmp/osxcross
+          mkdir -p /tmp/osxcross/tarballs
+          wget -q https://github.com/growtopiajaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS15.5.sdk.tar.xz \
+            -O /tmp/osxcross/tarballs/iPhoneOS15.5.sdk.tar.xz
+      - name: 构建 osxcross（非交互）
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cd /tmp/osxcross && BUILD_FLAVOR=stable UNATTENDED=1 ./build.sh
+      - name: 补丁 wake（去掉 darwin 宿主硬检查）+ 重编 wails3 CLI
+        run: |
+          set -euo pipefail
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          # 克隆 wails3 源码 → 补丁 → 重编 CLI（类似 build-android.sh 模式）
+          git clone --depth 1 --branch v3.1.0 https://github.com/wailsapp/wails.git /tmp/wails3
+          # ①environment.go:322 的 darwin 检查改掉（host.os != "darwin" → false，允许 linux）
+          sed -i 's|if host.os != "darwin" {|if false {|' /tmp/wails3/internal/wake/pipeline/environment.go
+          # ②capabilities.go:165 ipa 的 Hosts: HostDarwin → HostAny（第二处 darwin 检查）
+          sed -i 's|Hosts: HostDarwin, RequiredTools: \[3\]string{"xcrun", "codesign"}|Hosts: HostAny, RequiredTools: [3]string{"xcrun", "codesign"}|' /tmp/wails3/internal/wake/buildinfo/capabilities.go
+          cd /tmp/wails3 && go build -o "$(go env GOPATH)/bin/wails3" ./cmd/wails3
+      - name: shim xcrun→osxcross + codesign→ldid（放 PATH 前，零 macos）
+        run: |
+          mkdir -p /tmp/shim
+          IOS_SDK=$(ls -d /tmp/osxcross/target/SDK/iPhoneOS*.sdk 2>/dev/null | head -1)
+          IOS_CLANG=$(ls /tmp/osxcross/target/bin/*apple-ios*-clang 2>/dev/null | head -1)
+          echo "SDK=$IOS_SDK  CLANG=$IOS_CLANG"
+          # xcrun shim：--sdk 路径 / --find clang / clang 执行，全部指 osxcross
+          cat > /tmp/shim/xcrun <<EOF
+          #!/usr/bin/env bash
+          case "\$1" in
+            --sdk) case "\$2" in iphoneos*|macosx*) echo "$IOS_SDK"; exit 0;; esac;;
+            --find) echo "$IOS_CLANG"; exit 0;;
+            clang|--sdk*) exec "$IOS_CLANG" "\$@";;
+          esac
+          exit 1
+          EOF
+          # codesign shim：ad-hoc（-s -）→ ldid -S（递归签 bundle 内所有 Mach-O）
+          cat > /tmp/shim/codesign <<EOF
+          #!/usr/bin/env bash
+          # 解析 codesign 常见参数（--force --deep --sign - --entitlements 等），落到 ldid
+          TARGET=""
+          IDENTITY=""
+          ENTITLEMENTS=""
+          while [ \$# -gt 0 ]; do
+            case "\$1" in
+              --force|--deep|-f|-d) shift;;
+              -s|--sign) IDENTITY="\$2"; shift 2;;
+              --entitlements) ENTITLEMENTS="\$2"; shift 2;;
+              --verify|--verify-*|-v) echo "ldid 模式：跳过 verify"; shift;;
+              *) TARGET="\$1"; shift;;
+            esac
+          done
+          [ -z "\$TARGET" ] && { echo "codesign shim: 无目标"; exit 1; }
+          # ldid -S = ad-hoc；若主目标是 .app，递归签所有 Mach-O
+          if [ -d "\$TARGET" ]; then
+            find "\$TARGET" -type f | while read -r f; do
+              file "\$f" 2>/dev/null | grep -q "Mach-O" && ldid -S "\$f" 2>/dev/null
+            done
+          else
+            ldid -S "\$TARGET"
+          fi
+          echo "codesign shim（ldid ad-hoc）完成: \$TARGET"
+          EOF
+          chmod +x /tmp/shim/xcrun /tmp/shim/codesign
+          echo "export PATH=/tmp/shim:\$PATH" >> "$GITHUB_ENV"
+      - name: 组装 + 签名 iOS（wails3 CLI，shim 顶替 xcrun/codesign，全 Linux）
+        run: |
+          export PATH="/tmp/shim:$PATH:$(go env GOPATH)/bin"
+          export CGO_ENABLED=1
+          export CC="$(ls /tmp/osxcross/target/bin/*apple-ios*-clang | head -1)"
+          cd wails3 && wails3 task ios:package
+      - name: 上传签名 .app（zip 避免目录打散）
+        run: |
+          set -euo pipefail
+          app=$(find wails3/bin -maxdepth 2 -name "*.app" | head -1)
+          test -n "$app" || { echo '未产出 .app'; ls -R wails3/bin; exit 1; }
+          cd "$(dirname "$app")" && zip -qr "$GITHUB_WORKSPACE/mymusic-ios-linux-signed.app.zip" "$(basename "$app")"
+          ls -lh "$GITHUB_WORKSPACE/mymusic-ios-linux-signed.app.zip"
+      - name: 上传签名产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: wails-ios-linux-signed
+          path: mymusic-ios-linux-signed.app.zip
