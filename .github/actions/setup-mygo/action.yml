@@ -20,8 +20,9 @@ runs:
         go-version-file: mygo/go.mod
         cache: true
 
-    # mygo CLI：锁死与 go.mod replace 同版 pseudo-version（可复现，防 @latest 漂移）
+    # mygo CLI：v0.10.0 起支持 iOS/Android 移动平台（ios.go/mobilePlatform）
+    # 锁死版本（可复现，防 @latest 漂移）
     - name: 安装 mygo CLI
       if: inputs.install-cli == 'true'
       shell: bash
-      run: go install github.com/egoist/mygo/cmd/mygo@v0.9.1-0.20261115172007-ea96ba60e107
+      run: go install github.com/egoist/mygo/cmd/mygo@v0.10.0
