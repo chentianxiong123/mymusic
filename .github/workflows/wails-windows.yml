@@ -1,0 +1,43 @@
+# wails Windows 桌面构建 + 发布（端：windows）—— 永远手动触发。
+# mingw 交叉编译（无需 Windows runner）；tag = v<version>。
+name: wails Windows 构建
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（release tag = v<version>）'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 Windows 桌面
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: |
+            go/go.sum
+            wails3/go.sum
+      - name: 安装 mingw-w64 + GTK4/WebKitGTK-6.0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 libgtk-4-dev libwebkitgtk-6.0-dev libayatana-appindicator3-dev
+      - name: 安装 wails3 CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+      - name: 官方构建（mingw + CGO）
+        run: |
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          cd wails3 && wails3 build GOOS=windows && cp bin/hcexp.exe ../mymusic-windows.exe && chmod +x ../mymusic-windows.exe && ls -lh ../mymusic-windows.exe
+      - name: 发布（create || upload）
+        run: |
+          TAG="v${{ github.event.inputs.version }}"
+          gh release create "$TAG" mymusic-windows.exe --generate-notes \
+            --title "mymusic ${{ github.event.inputs.version }}" 2>/dev/null \
+            || gh release upload "$TAG" mymusic-windows.exe --clobber

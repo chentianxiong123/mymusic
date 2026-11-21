@@ -1,0 +1,21 @@
+# mygo 测试（实现方法：测试）—— 永远手动触发，绝不自动跑。
+name: mygo 测试
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: vet + 单测
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mygo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mygo/go.mod
+          cache: true
+      - name: vet + 单测（native tag 纪律）
+        run: go vet ./... && go test -tags native ./...

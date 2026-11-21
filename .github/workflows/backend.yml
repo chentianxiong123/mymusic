@@ -1,0 +1,26 @@
+# backend 后端静态检查 + 单测（端：backend，go/ homecast 模块）—— 永远手动触发。
+name: backend 测试
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 后端 vet + 单测
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: |
+            go/go.sum
+            wails3/go.sum
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...

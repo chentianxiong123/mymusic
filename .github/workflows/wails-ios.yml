@@ -1,0 +1,46 @@
+# wails iOS 模拟器构建 + 发布（端：ios）—— 永远手动触发。
+# 需要 macos runner + Xcode（模拟器 ad-hoc 签名，无需真机签名）；tag = v<version>。
+name: wails iOS 构建
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（release tag = v<version>）'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 iOS 模拟器
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: |
+            go/go.sum
+            wails3/go.sum
+      - name: 安装 wails3 CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+      - name: iOS 模拟器构建 + 打包（架构自适应，ad-hoc 签名）
+        run: |
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          cd wails3 && wails3 task ios:package
+      - name: 打包 iOS 模拟器 .app（zip 避免目录打散）
+        run: |
+          set -euo pipefail
+          cd wails3/bin
+          test -d hcexp.app || { echo '未产出 hcexp.app'; ls -R .; exit 1; }
+          zip -qr ../../mymusic-ios-simulator.app.zip hcexp.app
+          ls -lh ../..
+      - name: 发布（create || upload）
+        run: |
+          TAG="v${{ github.event.inputs.version }}"
+          gh release create "$TAG" mymusic-ios-simulator.app.zip --generate-notes \
+            --title "mymusic ${{ github.event.inputs.version }}" 2>/dev/null \
+            || gh release upload "$TAG" mymusic-ios-simulator.app.zip --clobber

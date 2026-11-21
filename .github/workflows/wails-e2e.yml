@@ -1,0 +1,35 @@
+# wails Linux 壳级 E2E 冒烟（端：e2e）—— 永远手动触发。
+# Xvfb 启动真实 wails3 app，断言最小链路：进程不崩 + 后端端口 + 首页渲染 + 后端 API。
+# 自包含：本 job 内构建 linux 再跑 e2e（跨 workflow 拿不到别的构建产物）。
+name: wails E2E 冒烟
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Linux 壳级 E2E 冒烟
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: |
+            go/go.sum
+            wails3/go.sum
+      - name: 安装 GTK4 / WebKitGTK-6.0 / appindicator / Xvfb 依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libayatana-appindicator3-dev xvfb curl
+      - name: 安装 wails3 CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+      - name: 构建 Linux（gtk4）
+        run: |
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          cd wails3 && wails3 build && cp bin/hcexp ../wails3/bin/hcexp && chmod +x ../wails3/bin/hcexp
+      - name: 壳级 E2E 冒烟（Xvfb 启动真实 app + 断言进程/后端/页面/API）
+        run: |
+          cp wails3/bin/hcexp wails3/bin/hcexp
+          bash scripts/shell-e2e.sh wails3/bin/hcexp

@@ -1,0 +1,29 @@
+# mygo macOS 构建 + 发布（端：mygo-macos）—— 永远手动触发。
+# Linux 交叉编译（纯 Go 无 cgo）：CLI 直接出 .app + tar.gz + 签名 manifest（已实测）。
+name: mygo macOS 构建
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 macOS（arm64 + amd64）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-mygo
+      - name: 构建 darwin arm64 + amd64（含 .app + manifest）
+        working-directory: mygo
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: mygo build -platform darwin/arm64,darwin/amd64
+      - name: 发布（create || upload）
+        working-directory: mygo
+        run: |
+          VER="$(jq -r .version mygo.json)"
+          TAG="mygo-${VER}"
+          gh release create "$TAG" build/darwin-arm64/* build/darwin-amd64/* \
+            --generate-notes --title "mymusic-mygo $VER" 2>/dev/null \
+            || gh release upload "$TAG" build/darwin-arm64/* build/darwin-amd64/* --clobber

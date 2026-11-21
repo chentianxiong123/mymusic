@@ -1,0 +1,27 @@
+# 公共 mygo 环境：checkout + Go(cache) + mygo CLI。
+# 复用点：test / build-desktop / build-android 三个 job 共享，避免重复。
+name: Setup mygo
+description: checkout + setup-go(缓存) + 安装 mygo CLI
+
+inputs:
+  install-cli:
+    description: '安装 mygo CLI（桌面构建需要；安卓 job 用 build-android.sh 自建 CLI，可关）'
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+
+    # 缓存①：Go module（setup-go 按 go.sum hash 缓存 GOMODCACHE + build cache）
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: mygo/go.mod
+        cache: true
+
+    # mygo CLI：锁死与 go.mod replace 同版 pseudo-version（可复现，防 @latest 漂移）
+    - name: 安装 mygo CLI
+      if: inputs.install-cli == 'true'
+      shell: bash
+      run: go install github.com/egoist/mygo/cmd/mygo@v0.9.1-0.20261115172007-ea96ba60e107

@@ -1,0 +1,45 @@
+# wails Linux 桌面构建 + 发布（端：linux）—— 永远手动触发。
+# cgo + GTK4/WebKitGTK-6.0；发布 tag = v<version>（版本手动输入）。
+name: wails Linux 构建
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（release tag = v<version>）'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 Linux 桌面
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: |
+            go/go.sum
+            wails3/go.sum
+      - name: 安装 GTK4 / WebKitGTK-6.0 / appindicator 依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libayatana-appindicator3-dev
+      - name: wails3 模块 vet
+        run: cd wails3 && go vet ./...
+      - name: 安装 wails3 CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+      - name: 官方构建（gtk4 + go:embed）
+        run: |
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          cd wails3 && wails3 build && cp bin/hcexp ../mymusic-linux && chmod +x ../mymusic-linux && ls -lh ../mymusic-linux
+      - name: 发布（create || upload）
+        run: |
+          TAG="v${{ github.event.inputs.version }}"
+          gh release create "$TAG" mymusic-linux --generate-notes \
+            --title "mymusic ${{ github.event.inputs.version }}" 2>/dev/null \
+            || gh release upload "$TAG" mymusic-linux --clobber

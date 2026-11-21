@@ -1,0 +1,23 @@
+# mygo web 版构建（端：mygo-web）—— 永远手动触发，归 mygo 管。
+# 无 native tag → web_main.go（`//go:build !native`）：MyGo 壳 + 原项目 htmx 后端（server.New）。
+# 注：与 wails3 H5 几乎重复（都是 htmx 整站），保留仅为"每个端被看到"。
+name: mygo web 构建
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: 构建 web 版（htmx 后端壳）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mygo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mygo/go.mod
+          cache: true
+      - name: 构建 web 版（无 native tag → web_main.go）
+        run: go build -o mygo-web .

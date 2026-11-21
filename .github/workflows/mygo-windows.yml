@@ -1,0 +1,29 @@
+# mygo Windows 桌面构建 + 发布（实现方法：windows/amd64）—— 永远手动触发。
+# 从 Linux 交叉编译（纯 Go 无 cgo）；tag = mygo-<version>。
+name: mygo Windows 构建
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 windows/amd64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-mygo
+      - name: 构建 + 签名 manifest
+        working-directory: mygo
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: mygo build -platform windows/amd64
+      - name: 发布（create || upload）
+        working-directory: mygo
+        run: |
+          VER="$(jq -r .version mygo.json)"
+          TAG="mygo-${VER}"
+          gh release create "$TAG" build/windows-amd64/* --generate-notes \
+            --title "mymusic-mygo $VER" 2>/dev/null \
+            || gh release upload "$TAG" build/windows-amd64/* --clobber

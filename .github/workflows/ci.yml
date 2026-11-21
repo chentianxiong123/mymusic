@@ -1,34 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches: [master]
-    tags: ['v*']
-  pull_request:
-    branches: [master]
+  workflow_dispatch: # 永远手动触发，绝不自动跑（push/tag 都不触发，杜绝 artifact 堆积）
 
 jobs:
-  # ── 后端：静态检查 + 单元测试（go/ 模块，纯 Go 无 GUI 依赖）──
-  backend-test:
-    name: 后端 vet + 单测
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: go
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-          cache-dependency-path: |
-            go/go.sum
-            wails3/go.sum
-      - name: go vet
-        run: go vet ./...
-      - name: go test
-        run: go test ./...
-
   # ── Linux 桌面构建（wails3 壳，cgo + GTK3/WebKitGTK）──
   build-linux:
     name: 构建 Linux 桌面
@@ -57,6 +32,7 @@ jobs:
           export PATH="$PATH:$(go env GOPATH)/bin"
           cd wails3 && wails3 build && cp bin/hcexp ../mymusic-linux && chmod +x ../mymusic-linux && ls -lh ../mymusic-linux
       - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')   # 只发版上传；平时手动跑只验证构建不产 artifact
         with:
           name: mymusic-linux
           path: mymusic-linux
@@ -116,6 +92,7 @@ jobs:
           export PATH="$PATH:$(go env GOPATH)/bin"
           cd wails3 && wails3 build GOOS=windows && cp bin/hcexp.exe ../mymusic-windows.exe && chmod +x ../mymusic-windows.exe && ls -lh ../mymusic-windows.exe
       - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: mymusic-windows
           path: mymusic-windows.exe
@@ -220,6 +197,7 @@ jobs:
           cp "$APK" mymusic-android-arm64.apk
           ls -lh mymusic-android-arm64.apk
       - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: mymusic-android
           path: mymusic-android-arm64.apk
@@ -251,6 +229,7 @@ jobs:
           if [ -d hcexp.app ]; then zip -qr ../../mymusic-macos.app.zip hcexp.app; else cp hcexp ../../mymusic-macos; fi
           ls -lh ../..
       - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: mymusic-macos
           path: mymusic-macos*
@@ -307,6 +286,7 @@ jobs:
           zip -qr ../../mymusic-ios-simulator.app.zip hcexp.app
           ls -lh ../..
       - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: mymusic-ios
           path: mymusic-ios-simulator.app.zip

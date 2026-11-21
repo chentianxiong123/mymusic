@@ -1,0 +1,51 @@
+# wails 微信小程序壳资产检查（端：wechat）—— 永远手动触发。
+# 小程序壳 = 一个 <web-view> 加载后端 H5 整站（零构建、零 npm）；
+# GitHub runner 无法构建/上传（要 miniprogram-ci + AppID/私钥），这里只守壳文件齐全防回归。
+name: wails 小程序检查
+
+on:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: 小程序壳资产检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 壳工程关键文件齐全
+        run: |
+          set -euo pipefail
+          W=wails3/build/wechat
+          for f in \
+            $W/app.js \
+            $W/app.json \
+            $W/app.wxss \
+            $W/project.config.json \
+            $W/sitemap.json \
+            $W/utils/config.js \
+            $W/pages/index/index.wxml \
+            $W/pages/index/index.js \
+            $W/pages/index/index.json \
+            $W/pages/index/index.wxss \
+            $W/components/mp-html/index.js \
+            $W/components/mp-html/index.json \
+            $W/components/mp-html/index.wxml \
+            $W/components/mp-html/index.wxss \
+            $W/components/mp-html/parser.js \
+            $W/components/mp-html/node/node.js \
+            $W/components/mp-html/node/node.wxml \
+            $W/components/mp-html/node/node.wxss \
+            $W/components/mp-html/node/node.json; do
+            test -f "$f" || { echo "MISSING: $f"; exit 1; }
+          done
+          echo "小程序壳文件齐全"
+      - name: 壳为 web-view 方案（index.wxml 含 web-view）
+        run: |
+          set -euo pipefail
+          grep -q 'web-view' wails3/build/wechat/pages/index/index.wxml || { echo 'index.wxml 缺 web-view（当前默认 A 方案）'; exit 1; }
+          echo "web-view 壳在位"
+      - name: project.config.json 含 urlCheck 关闭（调试）或合法域名配置
+        run: |
+          set -euo pipefail
+          grep -q 'urlCheck' wails3/build/wechat/project.config.json || { echo 'project.config.json 缺 urlCheck'; exit 1; }
+          echo "urlCheck 配置在位"

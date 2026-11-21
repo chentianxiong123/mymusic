@@ -1,0 +1,64 @@
+# mygo 安卓 APK 构建 + 发布（实现方法：android）—— 永远手动触发。
+# 重 job：JDK21 + NDK28.2 + Gradle9.3.1 + 克隆官方 mobile 源码打补丁；
+# 首次跑挂大概率 Gradle/NDK 版本或镜像，调 mygo/android/build-android.sh 后重跑。
+# 签名：固定 release.keystore（提交 repo）→ apksigner 重签 → 覆盖安装保数据。
+name: mygo 安卓构建
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建安卓 APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-mygo
+        with:
+          install-cli: 'false' # 安卓用 build-android.sh 自建 CLI（mobile 分支模板）
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: mygo-gradle-${{ runner.os }}-${{ hashFiles('mygo/**') }}
+          restore-keys: mygo-gradle-${{ runner.os }}-
+      - name: 安装 NDK 28.2 + platform-tools（runner 未必预装 28.2）
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKM" || SDKM="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)"
+          yes | "$SDKM" --licenses >/dev/null 2>&1 || true
+          "$SDKM" "ndk;28.2.13676358" "platform-tools" | tail -3
+      - name: 构建安卓 APK
+        env:
+          ANDROID_NDK_HOME: $ANDROID_HOME/ndk/28.2.13676358
+        run: bash mygo/android/build-android.sh
+      - name: 固定签名 APK（覆盖安装保数据）
+        env:
+          KEYSTORE_PASS: ${{ secrets.MYGO_ANDROID_KEYSTORE_PASS || 'mymusic-release-2026' }}
+        run: |
+          set -euo pipefail
+          APK="$(ls mygo/build/android/*.apk | head -1)"
+          test -n "$APK" || { echo '未找到 APK'; exit 1; }
+          BT="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort | tail -1)"
+          BT_DIR="$(dirname "$BT")"
+          "$BT_DIR/zipalign" -p -f 4 "$APK" /tmp/aligned.apk
+          "$BT" sign --ks mygo/android/release.keystore --ks-key-alias mygo \
+            --ks-pass "pass:${KEYSTORE_PASS}" --key-pass "pass:${KEYSTORE_PASS}" \
+            --out /tmp/mymusic-release.apk /tmp/aligned.apk
+          "$BT" verify /tmp/mymusic-release.apk
+          mv /tmp/mymusic-release.apk mygo/build/android/mymusic-mygo.apk
+          ls -lh mygo/build/android/mymusic-mygo.apk
+      - name: 发布（create || upload）
+        run: |
+          VER="$(jq -r .version mygo/mygo.json)"
+          TAG="mygo-${VER}"
+          gh release create "$TAG" mygo/build/android/mymusic-mygo.apk --generate-notes \
+            --title "mymusic-mygo $VER" 2>/dev/null \
+            || gh release upload "$TAG" mygo/build/android/mymusic-mygo.apk --clobber

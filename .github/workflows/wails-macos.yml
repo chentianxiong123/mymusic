@@ -1,0 +1,45 @@
+# wails macOS 桌面构建 + 发布（端：macos）—— 永远手动触发。
+# 需要 macos runner + Xcode（cgo + Cocoa/WebKit）；tag = v<version>。
+name: wails macOS 构建
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（release tag = v<version>）'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 macOS 桌面
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: |
+            go/go.sum
+            wails3/go.sum
+      - name: 安装 wails3 CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+      - name: 官方构建（Cocoa + WebKit，原生架构）
+        run: |
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          cd wails3 && wails3 build
+      - name: 打包 macOS 产物
+        run: |
+          set -euo pipefail
+          cd wails3/bin
+          if [ -d hcexp.app ]; then zip -qr ../../mymusic-macos.app.zip hcexp.app; else cp hcexp ../../mymusic-macos; fi
+          ls -lh ../..
+      - name: 发布（create || upload）
+        run: |
+          TAG="v${{ github.event.inputs.version }}"
+          gh release create "$TAG" mymusic-macos* --generate-notes \
+            --title "mymusic ${{ github.event.inputs.version }}" 2>/dev/null \
+            || gh release upload "$TAG" mymusic-macos* --clobber
