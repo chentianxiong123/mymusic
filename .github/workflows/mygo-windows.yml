@@ -25,5 +25,5 @@ jobs:
           VER="$(jq -r .version mygo.json)"
           TAG="mygo-${VER}"
           gh release create "$TAG" build/windows-amd64/* --generate-notes \
-            --title "mymusic-mygo $VER" 2>/dev/null \
+            --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" build/windows-amd64/* --clobber

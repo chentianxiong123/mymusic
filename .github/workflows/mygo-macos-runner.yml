@@ -30,5 +30,5 @@ jobs:
           VER="${{ github.event.inputs.version }}"
           TAG="mygo-${VER}"
           gh release create "$TAG" build/darwin-arm64/* build/darwin-amd64/* \
-            --generate-notes --title "mymusic-mygo $VER" 2>/dev/null \
+            --generate-notes --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" build/darwin-arm64/* build/darwin-amd64/* --clobber

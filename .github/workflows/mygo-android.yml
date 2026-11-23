@@ -56,12 +56,12 @@ jobs:
             --ks-pass "pass:${KEYSTORE_PASS}" --key-pass "pass:${KEYSTORE_PASS}" \
             --out /tmp/mymusic-release.apk /tmp/aligned.apk
           "$BT" verify /tmp/mymusic-release.apk
-          mv /tmp/mymusic-release.apk mygo/build/android/mymusic-mygo.apk
-          ls -lh mygo/build/android/mymusic-mygo.apk
+          mv /tmp/mymusic-release.apk mygo/build/android/mymusic.apk
+          ls -lh mygo/build/android/mymusic.apk
       - name: 发布（create || upload）
         run: |
           VER="$(jq -r .version mygo/mygo.json)"
           TAG="mygo-${VER}"
-          gh release create "$TAG" mygo/build/android/mymusic-mygo.apk --generate-notes \
-            --title "mymusic-mygo $VER" 2>/dev/null \
-            || gh release upload "$TAG" mygo/build/android/mymusic-mygo.apk --clobber
+          gh release create "$TAG" mygo/build/android/mymusic.apk --generate-notes \
+            --title "MyMusic $VER" 2>/dev/null \
+            || gh release upload "$TAG" mygo/build/android/mymusic.apk --clobber

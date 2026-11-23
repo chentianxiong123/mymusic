@@ -515,13 +515,15 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:     "mymusic-mygo",
+			Title:     "MyMusic",
 			Width:     980,
 			Height:    680,
 			MinWidth:  500,
 			MinHeight: 480,
 			Content:   ui.View(a.view),
 		})
+		// 🎵 应用图标：Linux/Windows 标题栏 + 任务栏（不给就是裸 X11 默认图标）
+		applyAppIcon(a.win)
 		// 分辨率适配：窗口尺寸变化时更新宽度感知（断点切换 compact），仅重绘不重建
 		b := a.win.Bounds()
 		a.winW, a.winH = b.Width, b.Height

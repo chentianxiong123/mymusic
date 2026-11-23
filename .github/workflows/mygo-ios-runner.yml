@@ -1,6 +1,6 @@
 # mygo iOS 构建（macos-latest runner 直干）—— 永远手动触发。
-# Swift host + Xcode（swiftc/xcrun）全在 macos 上跑，最稳但烧 macos 额度。
-# 另一套 mygo-ios-osxcross.yml = Linux 灰色（Go 大头免费编）。
+# Swift host + Xcode（swiftc/xcrun）全在 macos 上跑；Linux 编不了（Swift 硬墙）。
+# 真机 .ipa 需 Apple 开发者签名：secrets MYGO_IOS_TEAM（+ 可选 MYGO_IOS_PROFILE）。
 name: mygo iOS 构建（runner）
 
 on:
@@ -19,6 +19,15 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: ./.github/actions/setup-mygo
+      - name: 注入 iOS 签名配置（Team ID / Provisioning Profile）
+        working-directory: mygo
+        env:
+          IOS_TEAM: ${{ secrets.MYGO_IOS_TEAM }}
+          IOS_PROFILE: ${{ secrets.MYGO_IOS_PROFILE }}
+        run: |
+          set -euo pipefail
+          test -n "$IOS_TEAM" || { echo '需设置 secret MYGO_IOS_TEAM（Apple Developer Team ID）'; exit 1; }
+          jq --arg t "$IOS_TEAM" --arg p "$IOS_PROFILE" '.ios = {team:$t} + (if $p == "" then {} else {provisioningProfile:$p} end)' mygo.json > /tmp/mygo.json && mv /tmp/mygo.json mygo.json
       - name: 构建 iOS（Swift host + c-archive + 签名）
         working-directory: mygo
         env:
@@ -31,5 +40,5 @@ jobs:
           VER="${{ github.event.inputs.version }}"
           TAG="mygo-${VER}"
           gh release create "$TAG" build/ios/* \
-            --generate-notes --title "mymusic-mygo $VER" 2>/dev/null \
+            --generate-notes --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" build/ios/* --clobber

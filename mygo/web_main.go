@@ -21,7 +21,7 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		mygo.NewWindow(mygo.WindowOptions{
-			Title:     "mymusic-mygo",
+			Title:     "MyMusic",
 			Width:     920,
 			Height:    720,
 			MinWidth:  640,

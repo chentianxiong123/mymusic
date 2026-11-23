@@ -1,7 +1,12 @@
 {
-  "name": "mymusic-mygo",
-  "identifier": "com.example.mymusicmygo",
+  "name": "MyMusic",
+  "slug": "mymusic",
+  "identifier": "com.chentianxiong.mymusic",
   "version": "0.1.0",
+  "publisher": "Chen Tianxiong",
+  "copyright": "Copyright © 2026 Chen Tianxiong",
+  "license": "MIT",
+  "icon": "resources/icon.png",
   "out": "build",
   "updates": {
     "publicKey": "qpr3lYQA+ChMQCJvxJfXgK7vMQV5iJ1ZGqJLNZRpe/I=",
