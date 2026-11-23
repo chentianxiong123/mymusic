@@ -166,7 +166,7 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 			// 标题行：左侧细色条 + 源名 + 右侧数量（分区标识，非颜色高亮）
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
 				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(pluginColor("source")) // 色条（细，克制）
-				ui.Text(c, sourceDisplayName(grp.name)).FontSize(13 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, sourceShortName(grp.name)).FontSize(13 * uiScale).Bold().TextColor(clrText)
 				ui.Spacer(c).Grow(1)
 				ui.Text(c, fmt.Sprintf("%d 首", len(grp.songs))).FontSize(11 * uiScale).TextColor(clrMuted)
 			})
@@ -357,8 +357,8 @@ func pageList(page, total int) []int {
 	return out
 }
 
-// sourceShortName 音源短名（下拉框用）：优先插件 meta.name（中文，如"网易云"），
-// 否则几个内置源固定映射，最后回退 key。Desc 是长描述，不适合下拉框。
+// sourceShortName 音源短名（下拉框/结果分组标题用）：优先插件 meta.name（中文，
+// 如"网易云"），否则内置源固定映射，最后回退 key。Desc 是长描述，不适合标题。
 func sourceShortName(name string) string {
 	// JS 插件注册时 Info.Name=英文key、Info.Desc=meta.name（中文，如"网易云"）——
 	// 取 Desc 才是中文。内置 bilibili 的 Desc 是长描述，特判短名。
@@ -390,11 +390,3 @@ func sourceShortName(name string) string {
 	}
 }
 
-// sourceDisplayName 音源显示名：JS 插件显示 meta.name（如"网易云"），否则回退注册 key（bilibili）。
-// 注册表 key 保持稳定（netease），仅显示层用中文名；分页/播放仍走 key（grp.name）。
-func sourceDisplayName(name string) string {
-	if info := plugin.InfoOf("source", name); info.Desc != "" {
-		return info.Desc
-	}
-	return name
-}
