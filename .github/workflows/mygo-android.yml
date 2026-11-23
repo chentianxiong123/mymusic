@@ -37,10 +37,12 @@ jobs:
           "$SDKM" "ndk;28.2.13676358" "platform-tools" | tail -3
       - name: 构建安卓 APK（v0.10.0 CLI 直编）
         env:
-          ANDROID_NDK_HOME: $ANDROID_HOME/ndk/28.2.13676358
-          ANDROID_NDK_ROOT: $ANDROID_HOME/ndk/28.2.13676358
           GOFLAGS: -mod=mod -tags=native
         run: |
+          set -euo pipefail
+          # env: 里 $ANDROID_HOME 不展开 → 必须在 run 里 export（之前是字面量，NDk 路径错误）
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+          export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358"
           cd mygo
           mygo build -platform android
       - name: 固定签名 APK（覆盖安装保数据）

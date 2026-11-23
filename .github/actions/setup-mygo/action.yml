@@ -19,6 +19,7 @@ runs:
       with:
         go-version-file: mygo/go.mod
         cache: true
+        cache-dependency-path: mygo/go.sum
 
     # mygo CLI：v0.10.0 起支持 iOS/Android 移动平台（ios.go/mobilePlatform）
     # 锁死版本（可复现，防 @latest 漂移）

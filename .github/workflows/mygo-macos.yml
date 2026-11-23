@@ -27,5 +27,6 @@ jobs:
           name: macos-unsigned
           path: |
             mygo/build/darwin-arm64/*.app
+            mygo/build/darwin-arm64/update-darwin-arm64.json
             mygo/build/darwin-amd64/*.app
-            mygo/build/update-darwin-*.json
+            mygo/build/darwin-amd64/update-darwin-amd64.json
