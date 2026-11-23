@@ -14,9 +14,9 @@ var meta = {
   requiresCookie: true, // QQ 匿名取流不可行（code=1000），无 cookie 不激活（需粘贴登录 cookie）
   order: 30, // bilibili 10 / 网易云 20 之后
   settings: [
-    { key: "quality", name: "音质", type: "select", options: ["M500", "M800"], default: "M800", desc: "取流前缀（M500=128k 标准，M800=320k 高品；无损需 cookie）" },
+    { key: "quality", name: "音质", type: "select", options: ["M500", "M800"], default: "M800", desc: "播放音质（标准 / 高品质）" },
     { key: "searchSize", name: "搜索条数", type: "select", options: ["20", "40", "60"], default: "40", desc: "每次搜索请求条数（插件自控，分页同尺寸）" },
-    { key: "cookie", name: "登录 Cookie", type: "text", default: "", desc: "粘贴 QQ 音乐登录态 Cookie（浏览器 y.qq.com 登录后复制），空=匿名（仅搜索，取流需登录）" },
+    { key: "cookie", name: "登录 Cookie", type: "text", default: "", desc: "粘贴 QQ 音乐登录 Cookie（浏览器 y.qq.com 登录后复制）" },
   ],
 };
 
@@ -79,7 +79,7 @@ function getURL(ctx) {
   var data = JSON.parse(resp.body);
   var req1 = data.req_1 || {};
   var info = (req1.data && req1.data.midurlinfo && req1.data.midurlinfo[0]) || {};
-  if (!info.purl) return { error: "需登录或版权受限（QQ 取流要 cookie，粘贴后可用）" };
+  if (!info.purl) return { error: "需登录或版权受限（填写 Cookie 后可播放）" };
   return { url: "https://ws.stream.qqmusic.qq.com/" + info.purl, quality: prefix === "M500" ? 0 : 2 };
 }
 

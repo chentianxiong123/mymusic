@@ -10,10 +10,10 @@ var meta = {
   version: "1.0.0",
   capabilities: ["source", "lyric"],
   allowedHosts: ["search.kuwo.cn", "mobi.kuwo.cn", "www.kuwo.cn", "m.kuwo.cn"],
-  requiresCookie: true, // 酷我取流需登录 cookie（mobi.s convert_url_with_sign），无 cookie 不激活
+  requiresCookie: true, // 酷我播放需登录 cookie（mobi.s convert_url_with_sign），无 cookie 不激活
   order: 50, // bilibili 10 / 网易云 20 / QQ 30 / 咪咕 40 之后
   settings: [
-    { key: "quality", name: "音质", type: "select", options: ["128k", "320k"], default: "128k", desc: "取流码率（128kmp3/320kmp3；无损需 cookie）" },
+    { key: "quality", name: "音质", type: "select", options: ["128k", "320k"], default: "128k", desc: "播放音质（128k/320k）" },
     { key: "searchSize", name: "搜索条数", type: "select", options: ["20", "40", "60"], default: "40", desc: "每次搜索请求条数（插件自控，分页同尺寸）" },
     { key: "cookie", name: "登录 Cookie", type: "text", default: "", desc: "粘贴酷我登录态 Cookie（浏览器 www.kuwo.cn 登录后复制），空=不激活" },
   ],
@@ -89,7 +89,7 @@ function getURL(ctx) {
       if (fd.data && fd.data.url && fd.data.url.indexOf("http") === 0) return { url: fd.data.url };
     } catch (e) {}
   }
-  return { error: "酷我取流失败（需登录 cookie 或版权受限）" };
+  return { error: "酷我播放失败（需登录或版权受限）" };
 }
 
 // 清理酷我文本（&nbsp; HTML 空格 → 空格）。

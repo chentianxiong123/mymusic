@@ -12,7 +12,7 @@ var meta = {
   allowedHosts: ["pd.musicapp.migu.cn", "c.musicapp.migu.cn", "y.migu.cn", "d.musicapp.migu.cn"],
   order: 40, // bilibili 10 / 网易云 20 / QQ 30 之后
   settings: [
-    { key: "quality", name: "音质", type: "select", options: ["PQ", "ZQ32"], default: "PQ", desc: "取流 toneFlag（PQ=标准免登录；ZQ32=高品，需 cookie）" },
+    { key: "quality", name: "音质", type: "select", options: ["PQ", "ZQ32"], default: "PQ", desc: "音质（标准 / 高品质）" },
     { key: "searchSize", name: "搜索条数", type: "select", options: ["20", "40", "60"], default: "40", desc: "每次搜索请求条数（插件自控，分页同尺寸）" },
     { key: "cookie", name: "登录 Cookie", type: "text", default: "", desc: "粘贴咪咕登录态 Cookie（浏览器 music.migu.cn 登录后复制），空=匿名（PQ 免登录）" },
   ],

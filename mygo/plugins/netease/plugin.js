@@ -18,7 +18,7 @@ var meta = {
   order: 20, // bilibili 10 之后；歌词元数据 netease 同为 20，Type 不同不冲突
   // 插件设置声明（系统统一管理：声明归插件，存储归宿主 SettingStore）。
   settings: [
-    { key: "quality", name: "音质", type: "select", options: ["128k", "320k"], default: "320k", desc: "取流码率（128k 免费歌可播）" },
+    { key: "quality", name: "音质", type: "select", options: ["128k", "320k"], default: "320k", desc: "播放音质（128k / 320k）" },
     { key: "searchSize", name: "搜索条数", type: "select", options: ["20", "40", "60"], default: "40", desc: "每次搜索请求条数（插件自控，分页同尺寸）" },
     { key: "cookie", name: "登录 Cookie", type: "text", default: "", desc: "粘贴网易云登录态 Cookie（浏览器 music.163.com 登录后复制），空=免登录 128k；有=无损/VIP" },
   ],

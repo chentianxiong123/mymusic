@@ -11,19 +11,34 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// pluginPage 插件页：三个独立分区区块（音源/歌词/输出目标），视觉分区明确不堆叠。
-// 系统设置页同一导航项内分页显示（settingsTab==1 时进入）。
+// pluginPage 插件页：3 个分页 tab（音源 / 歌词 / 输出）——每页只显示一类，
+// 不再三类全堆一起让用户滚很久。设置页子 tab（settingsTab==1）进入。
 func (a *app) pluginPage(c *ui.Context) {
-	// 子页：点击某插件「编辑」后进入，显示该插件配置（复页显示配置）
+	// 子页：点击某插件「详情」后进入，显示该插件配置（复页显示配置）
 	if a.pluginDetail != "" {
 		a.pluginDetailPage(c)
 		return
 	}
-	ui.Scroll(c).Grow(1).Gap(18 * uiScale).Scrollbars(false).Children(func() {
-		ui.Column(c).Gap(18 * uiScale).AlignSelf(ui.Center).WidthPercent(100).MaxWidth(672 * uiScale).Children(func() {
-		a.pluginGroup(c, "音源", "source")
-		a.pluginGroup(c, "歌词", "lyric")
-		a.pluginGroup(c, "输出目标", "target")
+	ui.Column(c).Fill().Gap(10 * uiScale).Children(func() {
+		// 分页 tab：音源 | 歌词 | 输出（复用设置页的分段选择器）
+		a.setRowSeg(c, []string{"音源", "歌词", "输出"}, a.pluginTab, func(i int) {
+			a.pluginTab = i
+			a.win.Invalidate()
+		})
+		// 只渲染当前 tab 的那一类插件
+		var kind, title string
+		switch a.pluginTab {
+		case 1:
+			kind, title = "lyric", "歌词插件"
+		case 2:
+			kind, title = "target", "输出目标"
+		default:
+			kind, title = "source", "音源插件"
+		}
+		ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
+			ui.Column(c).AlignSelf(ui.Center).WidthPercent(100).MaxWidth(672 * uiScale).Children(func() {
+				a.pluginGroup(c, title, kind)
+			})
 		})
 	})
 }
@@ -65,7 +80,7 @@ func (a *app) pluginGroup(c *ui.Context, title, kind string) {
 								ui.Text(c, sourceShortName(in.Name)+" · v"+in.Version).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
 								ui.Text(c, in.Desc).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(2)
 							})
-							if chip(c, "编辑").Clicked() {
+							if chip(c, "详情").Clicked() {
 								a.pluginDetail = in.Type + "/" + in.Name
 								a.win.Invalidate()
 							}
@@ -76,12 +91,9 @@ func (a *app) pluginGroup(c *ui.Context, title, kind string) {
 								a.win.Invalidate()
 							}
 						})
-						if in.Type == "target" && in.Name == "speaker" {
-							a.pluginSpeakerLoginRow(c)
-						}
 					})
 				})
-			}).Height(float32(len(infos)) * 72 * uiScale) // List 需要高度（虚拟列表按行算）
+			}).Height(float32(len(infos)) * 60 * uiScale) // List 需要高度（虚拟列表按行算）
 		})
 	})
 }
@@ -159,7 +171,7 @@ func (a *app) pluginDetailPage(c *ui.Context) {
 	})
 }
 
-// pluginDetailName 子页标题：当前编辑插件名。
+// pluginDetailName 子页标题：当前插件名。
 func (a *app) pluginDetailName() string {
 	if a.pluginDetail == "" {
 		return ""
@@ -384,24 +396,5 @@ func (a *app) neteaseLyricConfig(c *ui.Context) {
 	a.setRowSwitch(c, "歌词时间显示", "歌词行旁显示时间戳", a.lyricTime, func(on bool) {
 		a.lyricTime = on
 		a.win.Invalidate()
-	})
-}
-
-// pluginSpeakerLoginRow 小爱音箱插件卡片上的登录状态行（登录归插件页显示）。
-func (a *app) pluginSpeakerLoginRow(c *ui.Context) {
-	box := ui.Box(c).Fill().Radius(8 * uiScale).PaddingX(10 * uiScale).PaddingY(6 * uiScale).Background(clrField)
-	box.Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-			if a.svc != nil && a.svc.speakerLoggedIn() {
-				icon(c, icMsg, 14, clrGreen)
-				ui.Text(c, "已登录 · "+a.svc.speakerUserID()).FontSize(11 * uiScale).TextColor(clrText).Grow(1)
-				if chip(c, "刷新设备").Clicked() {
-					go a.refreshSpeakers()
-				}
-			} else {
-				icon(c, icMsg, 14, clrMuted)
-				ui.Text(c, "未登录（点「编辑」扫码/token 登录）").FontSize(11 * uiScale).TextColor(clrMuted).Grow(1)
-			}
-		})
 	})
 }

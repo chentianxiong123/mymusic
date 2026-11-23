@@ -117,6 +117,7 @@ type app struct {
 	showPlayer   bool
 	activeTab    string // search|queue|fav|cast|settings
 	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件
+	pluginTab    int    // 插件页子 tab：0=音源 1=歌词 2=输出
 	pluginDetail string // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
 	playlist     []bilibili.SearchItem
 	playIndex    int
@@ -422,22 +423,22 @@ func main() {
 	}
 	plugin.RegisterSystemLyric(lyricplug.NewNetease()) // 网易云歌词源（系统级兜底）
 	// 插件元数据（插件页展示）
-	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐音源（搜索/取流/歌词，复用主线 music 域）", Order: 10})
+	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐 · 搜索、播放、歌词", Order: 10})
 	// B站音源插件设置：搜索条数/分页自控（插件声明，系统统一存储 SettingStore）
 	plugin.RegisterSettings("source", "bilibili", []plugin.Setting{
-		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索请求条数（插件自控，分页同尺寸）"},
-		{Key: "quality", Name: "音质", Type: plugin.SettingSelect, Options: []string{"64k", "128k", "192k"}, Default: "192k", Desc: "B站取流音质档（64/128/192k）"},
+		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索显示的条数"},
+		{Key: "quality", Name: "音质", Type: plugin.SettingSelect, Options: []string{"64k", "128k", "192k"}, Default: "192k", Desc: "播放音质（64/128/192k）"},
 	})
 	// 本地文件源（扫目录听本机歌，免登录零版权、无网络）：目录从设置读（空=无搜索结果）。
 	localDir := plugin.GetSetting("source", "local", "dir", "")
 	plugin.RegisterSystemSource(source.NewLocal(localDir))
 	plugin.RegisterSettings("source", "local", []plugin.Setting{
-		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav），扫目录听本地歌（免登录零版权）"},
+		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav）"},
 	})
-	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词源（复用主线 lyric 域 GetLyricLines）", Order: 20})
+	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词 · 智能匹配", Order: 20})
 	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）", Order: 30})
 	plugin.RegisterInfo(plugin.Info{Name: "cast", Type: "target", Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
-	plugin.RegisterInfo(plugin.Info{Name: "bluetooth", Type: "target", Icon: "bluetooth", Version: "1.0", Desc: "蓝牙目标（bluetoothctl 扫描，音频路由到蓝牙 sink）", Order: 50})
+	plugin.RegisterInfo(plugin.Info{Name: "bluetooth", Type: "target", Icon: "bluetooth", Version: "1.0", Desc: "蓝牙设备 · 无线播放", Order: 50})
 	plugin.RegisterInfo(plugin.Info{Name: "speaker", Type: "target", Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
 	// JS 沙箱插件：扫描 plugins/ 加载第三方 .js 音源/歌词（sobek 纯 Go，无 cgo）。
 	// 单个插件失败不拖垮启动（errs 收集，日志列出原因）。

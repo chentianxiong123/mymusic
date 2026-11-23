@@ -11,7 +11,7 @@ var meta = {
   allowedHosts: ["music.91q.com"],
   order: 55, // bilibili 10 / 网易云 20 / QQ 30 / 咪咕 40 / 酷我 50 之后
   settings: [
-    { key: "quality", name: "音质", type: "select", options: ["128", "320"], default: "320", desc: "取流码率（128=128k，320=高品；无损 3000 需接口支持）" },
+    { key: "quality", name: "音质", type: "select", options: ["128", "320"], default: "320", desc: "播放音质（标准 / 高品质）" },
     { key: "searchSize", name: "搜索条数", type: "select", options: ["20", "40", "60"], default: "40", desc: "每次搜索请求条数（插件自控，分页同尺寸）" },
   ],
 };
