@@ -310,7 +310,12 @@ func (a *app) playerBar(c *ui.Context) {
 			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {
 				a.toggleLoop()
 			}
-			if iconButton2(c, icVol, a.resp(24, 20), accent(a.muted)).Clicked() {
+			// 静音时换 🔇（带叉）图标 + 高亮，有声时用 🔊——一眼能看出静音态
+			volIcon := icVol
+			if a.muted || a.volume <= 0 {
+				volIcon = icVolMute
+			}
+			if iconButton2(c, volIcon, a.resp(24, 20), accent(a.muted || a.volume <= 0)).Clicked() {
 				a.toggleMute()
 			}
 			a.volumeBar(c, a.resp(120, 84))
@@ -514,16 +519,28 @@ func main() {
 	})
 
 	mygo.App.WhenReady(func() {
+		// 恢复上次的窗口位置/大小（settings 表 mygo_windowstate）；无记录用默认
+		ws := a.restoreWindowState()
+		wx, wy, ww, wh := 0, 0, 980, 680
+		if ws != nil {
+			wx, wy, ww, wh = ws.X, ws.Y, ws.W, ws.H
+		}
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:     "MyMusic",
-			Width:     980,
-			Height:    680,
+			X:         wx,
+			Y:         wy,
+			Width:     ww,
+			Height:    wh,
 			MinWidth:  500,
 			MinHeight: 480,
 			Content:   ui.View(a.view),
 		})
 		// 🎵 应用图标：Linux/Windows 标题栏 + 任务栏（不给就是裸 X11 默认图标）
 		applyAppIcon(a.win)
+		// 恢复最大化状态（WindowOptions 没有该字段，只能就绪后调 Maximize）
+		if ws != nil && ws.Max {
+			a.win.Maximize()
+		}
 		// 分辨率适配：窗口尺寸变化时更新宽度感知（断点切换 compact），仅重绘不重建
 		b := a.win.Bounds()
 		a.winW, a.winH = b.Width, b.Height
@@ -533,7 +550,11 @@ func main() {
 				log.Printf("[resize] %dx%d tier=%d(%s)", a.winW, a.winH, a.tier(), map[int]string{0: "narrow", 1: "compact", 2: "normal"}[a.tier()])
 				a.win.Invalidate()
 			}
+			a.saveWindowStateThrottled(a.win) // 记住窗口大小（节流）
 		})
+		// 窗口移动 + 关闭：记住位置（节流）/ 退出时无条件落盘
+		a.win.OnMove(func() { a.saveWindowStateThrottled(a.win) })
+		a.win.OnClose(func(e *mygo.CloseEvent) { a.saveWindowState(a.win) })
 		// 恢复队列（window 就绪后再恢复，自动播放的进度上报不会撞未创建窗口）
 		a.pb.Restore(a.db)
 		// restore 只写后端 p.cur 不广播（主线 GUI 页面载人时自行拉状态，不依赖 push）；

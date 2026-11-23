@@ -53,9 +53,21 @@ func (a *app) seek(frac float64) {
 	a.pb.Seek(frac * dur)
 }
 
-// setVolume 设置音量 0..1。音箱模式（source=speaker）走主线 playback.SetVolume
+// setVolume 设置音量 0..1 并持久化偏好（音量条拖动用）。
+// 音箱模式（source=speaker）走主线 playback.SetVolume
 // （out=SpeakerOutput 真调音箱 Control，复用主线不造轮子）；web 模式走 MyGo 本地 audio。
 func (a *app) setVolume(v float64) {
+	a.applyVolume(v)
+	now := time.Now()
+	if now.Sub(a.lastVolSave) > 500*time.Millisecond {
+		a.savePrefFloat("mygo_volume", v)
+		a.lastVolSave = now
+	}
+}
+
+// applyVolume 只改当前音量+输出端，不写偏好。静音/取消静音用——
+// 静音是临时状态，持久化会导致下次启动音量条归 0（踩过：mygo_volume=0）。
+func (a *app) applyVolume(v float64) {
 	if v < 0 {
 		v = 0
 	}
@@ -68,11 +80,6 @@ func (a *app) setVolume(v float64) {
 		a.pb.SetVolume(int(v * 100))
 	} else if a.mygoOut != nil {
 		a.mygoOut.SetVolume(int(v * 100))
-	}
-	now := time.Now()
-	if now.Sub(a.lastVolSave) > 500*time.Millisecond {
-		a.savePrefFloat("mygo_volume", v)
-		a.lastVolSave = now
 	}
 	a.win.Invalidate()
 }
