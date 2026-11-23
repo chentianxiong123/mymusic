@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"homecast/bilibili"
@@ -44,50 +45,33 @@ func (a *app) searchBar(c *ui.Context) {
 	})
 }
 
-// historyPerPage 搜索历史每页显示条数（响应式：宽 6 / 紧凑 4 / 窄 3）。
-func (a *app) historyPerPage() int {
-	switch a.tier() {
-	case 0:
-		return 3
-	case 1:
-		return 4
-	default:
-		return 6
-	}
-}
-
-// searchChips 搜索历史：一页固定几条，超出用 ‹ › 翻页；清空按钮特殊样式（红色描边）。
-// 之前全部平铺 8 条 chip + 灰色"清空"，词一多就占 2-3 行挤掉风格卡片，且"清空"
-// 和历史词长得一样容易误点——现在单行 + 翻页 + 清空醒目区分。
-func (a *app) searchChips(c *ui.Context) {
-	n := len(a.searchHistory)
-	if n == 0 {
-		return
-	}
-	per := a.historyPerPage()
-	pages := (n + per - 1) / per
-	if a.historyPage >= pages {
-		a.historyPage = pages - 1
-	}
-	if a.historyPage < 0 {
-		a.historyPage = 0
-	}
-	start := a.historyPage * per
-	end := start + per
-	if end > n {
-		end = n
-	}
-	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(6 * uiScale).Children(func() {
-		ui.Text(c, "最近:").FontSize(12 * uiScale).TextColor(clrMuted)
-		// 上一页
-		if pages > 1 && a.historyPage > 0 {
-			if iconButton2(c, icChevL, 26, clrMuted).Clicked() {
-				a.historyPage--
-				a.win.Invalidate()
+// historyContentWidth 估算所有 chip 排一行的总宽（用于让横滑容器贴合内容宽度）。
+func (a *app) historyContentWidth() float32 {
+	total := float32(0)
+	all := append(append([]string{}, a.searchHistory...), "清空")
+	for _, h := range all {
+		w := float32(0)
+		for _, r := range h {
+			if r < 128 {
+				w += 7
+			} else {
+				w += 13
 			}
 		}
-		// 当前页的历史词 chip
-		for _, h := range a.searchHistory[start:end] {
+		total += w + 24*uiScale + 8*uiScale // chip padding + gap
+	}
+	return total
+}
+
+// searchChips 搜索历史：横滑容器宽度贴合内容（内容少时跟着收缩），外层居中 →
+// 内容少时整体居中，内容超出窗口时容器撑满、hover 浮现 < > 箭头横滑。
+// （之前 Fill() 撑满 + Justify(Center) 无效：scroll 容器按内容宽布局，Justify 被忽略 → 偏左。）
+func (a *app) searchChips(c *ui.Context) {
+	if len(a.searchHistory) == 0 {
+		return
+	}
+	renderChips := func() {
+		for _, h := range a.searchHistory {
 			h := h
 			if chip(c, h).Clicked() {
 				a.query = h
@@ -95,32 +79,49 @@ func (a *app) searchChips(c *ui.Context) {
 				go a.search()
 			}
 		}
-		// 下一页 + 页码提示
-		if pages > 1 {
-			if a.historyPage < pages-1 {
-				if iconButton2(c, icChevR, 26, clrMuted).Clicked() {
-					a.historyPage++
-					a.win.Invalidate()
-				}
-			}
-			ui.Text(c, fmt.Sprintf("%d/%d", a.historyPage+1, pages)).FontSize(10 * uiScale).TextColor(clrMuted)
-		}
-		ui.Spacer(c).Grow(1)
-		// 清空：红色描边+红字，跟历史词明显区分（防误点）
-		clearBtn := ui.Box(c).Height(28 * uiScale).Radius(8 * uiScale).PaddingX(10 * uiScale).
-			AlignItems(ui.Center).Justify(ui.Center).Border(1, ui.RGB(0xd9, 0x5a, 0x6a))
-		if clearBtn.Hovered() {
-			clearBtn.Background(ui.RGBA(0xd9, 0x5a, 0x6a, 40))
-		}
-		clearBtn.Children(func() {
-			ui.Text(c, "清空").FontSize(12 * uiScale).TextColor(ui.RGB(0xe0, 0x6b, 0x7b))
-		})
-		if clearBtn.Clicked() {
+		if chip(c, "清空").Clicked() {
 			a.searchHistory = nil
-			a.historyPage = 0
 			a.saveHistory()
 			a.win.Invalidate()
 		}
+	}
+	step := 240 * uiScale
+	rowH := 34 * uiScale
+	// 容器宽度 = min(内容宽, 可用宽)（可用宽 = 窗口 - 边距 - 箭头余量）
+	contentW := a.historyContentWidth()
+	availW := float32(a.winW) - a.resp(48, 24) - 60*uiScale
+	if availW < 120 {
+		availW = 120
+	}
+	boxW := contentW
+	if boxW > availW {
+		boxW = availW
+	}
+	// 外层居中：内容少时整行居中，内容多时容器撑满可用宽
+	ui.Row(c).AlignSelf(ui.Stretch).Justify(ui.Center).Children(func() {
+		hoverBox := ui.Box(c).Width(boxW).Height(rowH)
+		hoverBox.Children(func() {
+			ui.ScrollHorizontal(c).TrackScroll(&a.historyScroll).Fill().Height(rowH).
+				Scrollbars(false).Gap(8 * uiScale).Children(renderChips)
+			if hoverBox.Hovered() {
+				if a.historyScroll.X > 0 {
+					lbtn := ui.Box(c).Absolute().Left(-18*uiScale).Top(-1*uiScale).Width(28*uiScale).Height(36*uiScale).
+						Radius(14*uiScale).Background(ui.RGBA(0, 0, 0, 0.7)).AlignItems(ui.Center).Justify(ui.Center)
+					if lbtn.Clicked() {
+						a.historyScroll.ScrollTo(a.historyScroll.X-step, 0, ui.Animation{Duration: 180 * time.Millisecond})
+					}
+					lbtn.Children(func() { icon(c, icChevL, 16, clrText) })
+				}
+				if a.historyScroll.X < a.historyScroll.MaxX {
+					rbtn := ui.Box(c).Absolute().Right(-18*uiScale).Top(-1*uiScale).Width(28*uiScale).Height(36*uiScale).
+						Radius(14*uiScale).Background(ui.RGBA(0, 0, 0, 0.7)).AlignItems(ui.Center).Justify(ui.Center)
+					if rbtn.Clicked() {
+						a.historyScroll.ScrollTo(a.historyScroll.X+step, 0, ui.Animation{Duration: 180 * time.Millisecond})
+					}
+					rbtn.Children(func() { icon(c, icChevR, 16, clrText) })
+				}
+			}
+		})
 	})
 }
 
@@ -265,7 +266,7 @@ func (a *app) sourceSelector(c *ui.Context) {
 	sel := ui.SelectBase(c, &a.activeSource)
 	// trigger：撑满搜索框高度（44px）+ 宽点击热区 + hover 反馈——
 	// 之前只有文字高度 ~16px，点不准；现在整个源名块都可点。
-	sel.Trigger.Height(44 * uiScale).Padding(0, 14*uiScale, 0, 8*uiScale).Draw(func(p *ui.Painter, r ui.Rect) {
+	sel.Trigger.Height(44*uiScale).Padding(0, 14*uiScale, 0, 8*uiScale).Draw(func(p *ui.Painter, r ui.Rect) {
 		if sel.Trigger.Hovered() {
 			p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCardHov)
 		}
@@ -279,20 +280,20 @@ func (a *app) sourceSelector(c *ui.Context) {
 	sel.Popup(func(panel ui.Element) {
 		panel.Padding(6 * uiScale).Background(clrCard).Radius(12 * uiScale).MaxHeight(400 * uiScale)
 		ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
-		for _, name := range names {
-			name := name
-			item := sel.Item(name).Height(44 * uiScale).Padding(0, 16*uiScale, 0, 12*uiScale)
-			if item.Highlighted() {
-				item.Background(clrCardHov)
-			}
-			item.Children(func() {
-				col := clrMuted
-				if name == cur {
-					col = clrPink // 当前项高亮
+			for _, name := range names {
+				name := name
+				item := sel.Item(name).Height(44*uiScale).Padding(0, 16*uiScale, 0, 12*uiScale)
+				if item.Highlighted() {
+					item.Background(clrCardHov)
 				}
-				ui.Text(c, sourceShortName(name)).FontSize(14 * uiScale).TextColor(col)
-			})
-		}
+				item.Children(func() {
+					col := clrMuted
+					if name == cur {
+						col = clrPink // 当前项高亮
+					}
+					ui.Text(c, sourceShortName(name)).FontSize(14 * uiScale).TextColor(col)
+				})
+			}
 		})
 	})
 }
@@ -444,4 +445,3 @@ func sourceShortName(name string) string {
 		return name
 	}
 }
-

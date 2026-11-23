@@ -58,10 +58,7 @@ func (a *app) favPage(c *ui.Context) {
 					a.win.Invalidate()
 				}
 			})
-			if a.songlistNewOpen {
-				a.songlistNewRow(c)
-			}
-			if len(a.songlists) == 0 && !a.songlistNewOpen {
+			if len(a.songlists) == 0 {
 				ui.Column(c).Fill().Center().Gap(12 * uiScale).PaddingY(20 * uiScale).Children(func() {
 					icon(c, icList, 44, ui.RGBA(0xff, 0xff, 0xff, 0.08))
 					ui.Text(c, "还没有歌单").FontSize(17 * uiScale).Bold().TextColor(clrText)

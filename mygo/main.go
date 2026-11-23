@@ -12,8 +12,8 @@ import (
 
 	"github.com/egoist/mygo"
 	_ "github.com/egoist/mygo/audio/aac" // mp4a (AAC) 解码器
-	_ "github.com/egoist/mygo/audio/mp4" // m4a / fMP4 解码
 	_ "github.com/egoist/mygo/audio/mp3" // mp3 解码（网易云等音源返回 MP3，缺它则无声）
+	_ "github.com/egoist/mygo/audio/mp4" // m4a / fMP4 解码
 	"github.com/egoist/mygo/ui"
 
 	"homecast/service/cast"
@@ -77,7 +77,7 @@ type app struct {
 	loading         atomic.Bool
 	status          string
 	// 渠道选择：搜索栏下拉框选一个源——一次只搜一个、只显示一个源的结果
-	activeSource string // 当前选中的源名（空=默认 bilibili）
+	activeSource     string // 当前选中的源名（空=默认 bilibili）
 	lastSearchSource string // 上次搜索用的源（切换源时清空旧结果）
 	// 插件拖拽排序：官方 ui.List + ListState.Reorder（三类各一个状态，跨帧保持）
 	pluginLists map[string]*ui.ListState // key=kind(source/lyric/target)
@@ -110,7 +110,7 @@ type app struct {
 	// 封面缓存（主线程；异步加载经 win.Update 写）
 	covers       map[string]ui.ImageSource
 	coverLoading map[string]bool
-	coverOrder   []string // LRU 顺序：封面缓存超过上限时驱逐最旧的
+	coverOrder   []string                  // LRU 顺序：封面缓存超过上限时驱逐最旧的
 	blurCovers   map[string]ui.ImageSource // 模糊版封面（降采样 12px 放大铺满=背景模糊）
 
 	// 播放控制面板 / 队列 / 收藏
@@ -118,7 +118,6 @@ type app struct {
 	activeTab    string // search|queue|fav|cast|settings
 	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件
 	pluginTab    int    // 插件页子 tab：0=音源 1=歌词 2=输出
-	historyPage  int    // 搜索历史翻页（每页固定条数，超出的用 < > 翻）
 	pluginDetail string // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
 	playlist     []bilibili.SearchItem
 	playIndex    int
@@ -139,13 +138,17 @@ type app struct {
 	addToPick           bool                // 「添加到歌单」浮层是否显示（ctxItem 为目标歌）
 	ctxPosSet           bool                // 右键菜单位置是否已记录（打开那刻记一次，之后固定不跟鼠标）
 
-	quality       int      // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
-	lyricSize     int      // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
-	themeMode     int      // 0 自动 1 明亮 2 暗黑（对齐主线 THEMES 三态）
-	lyricBg       int      // 0 封面模糊 1 纯色（对齐主线 set-lybg）
-	lyricTime     bool     // 歌词行显示时间戳（对齐主线 set-lytime）
-	cacheLimit    int      // 0 关闭 1 200MB 2 500MB 3 1GB 4 2GB（对齐主线缓存上限）
-	searchHistory []string // 搜索历史（对齐主线 清空历史）
+	quality       int            // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
+	lyricSize     int            // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
+	themeMode     int            // 0 自动 1 明亮 2 暗黑（对齐主线 THEMES 三态）
+	lyricBg       int            // 0 封面模糊 1 纯色（对齐主线 set-lybg）
+	lyricTime     bool           // 歌词行显示时间戳（对齐主线 set-lytime）
+	cacheLimit    int            // 歌曲缓存上限 MB（0=关闭，默认 500）
+	lyricLimit    int            // 歌词缓存上限 首（0=关闭，默认 500）
+	limitInputBuf string         // 缓存上限文本框输入缓冲（设置页共用）
+	historyScroll ui.ScrollState // 搜索历史横滑状态（超出一行时 < > 按钮控制）
+	recentScroll  ui.ScrollState // 最近播放横滑状态（< > 按钮控制）
+	searchHistory []string       // 搜索历史（对齐主线 清空历史）
 	// 歌词（复用主线 lyric 域包；对齐 lyric-panel）
 	lyricLines    []lyric.LyricLine
 	lyricCands    []lyric.LyricResult
@@ -270,6 +273,10 @@ func (a *app) view(c *ui.Context) {
 	// 「添加到歌单」浮层（ctxItem 为目标歌）
 	if a.addToPick && a.ctxItem != nil {
 		a.addToSonglistSheet(c)
+	}
+	// 新建歌单弹窗（不占布局空间）
+	if a.songlistNewOpen {
+		a.songlistNewDialog(c)
 	}
 }
 
@@ -475,7 +482,7 @@ func main() {
 	}
 	// 一切皆插件：本机声卡也注册为 target 插件（默认播放路径）
 	plugin.RegisterSystemTarget(target.NewLocal(a.mygoOut))
-	a.mygoOut.cache = a.svc.cache                      // 缓存域包注入（命中秒开）
+	a.mygoOut.cache = a.svc.cache // 缓存域包注入（命中秒开）
 	// B站音质设置（插件设置）：64k/128k/192k → 音质档 0/1/2（默认 192k）。
 	switch plugin.GetSetting("source", "bilibili", "quality", "192k") {
 	case "64k":
@@ -486,10 +493,10 @@ func main() {
 		a.quality = 2
 	}
 	a.mygoOut.qualFn = func() int { return a.quality } // 音质档实时读取（60k/128k/192k）
-	a.mygoOut.onErr = func(msg string) { // 取流失败 UI 提示（付费/VIP/需登录）
+	a.mygoOut.onErr = func(msg string) {               // 取流失败 UI 提示（付费/VIP/需登录）
 		a.win.Update(func() { a.status = msg })
 	}
-	a.mygoOut.SetVolume(int(a.volume * 100))           // 恢复音量（restorePrefs 后 mygoOut 才存在）
+	a.mygoOut.SetVolume(int(a.volume * 100)) // 恢复音量（restorePrefs 后 mygoOut 才存在）
 	a.pb.SetOutput(a.mygoOut)
 	a.pb.SetDB(a.db)
 	// 音箱输出工厂：SwitchSpeaker(did) 时创建绑定该 did 的 SpeakerOutput（对齐主线

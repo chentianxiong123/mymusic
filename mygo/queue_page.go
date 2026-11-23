@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"homecast/bilibili"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -34,44 +35,68 @@ func (a *app) queuePage(c *ui.Context) {
 				cardW := 96 * uiScale
 				coverH := 88 * uiScale
 				rowH := coverH + 20*uiScale + 16*uiScale + 8*uiScale
-				ui.ScrollHorizontal(c).Height(rowH).Scrollbars(false).Gap(10 * uiScale).Children(func() {
-					n := len(a.recent)
-					if n > 10 {
-						n = 10
-					}
-					for _, r := range a.recent[:n] {
-						r := r
-						// 卡片：方形封面为主 + 标题/歌手文字次之（对齐主线 recent.js 卡片结构）
-						ui.Column(c).Width(cardW).Gap(4 * uiScale).Children(func() {
-							// 封面卡片（对齐主线 recent.js：hover 缩放 1.02 + 阴影 + 标题变粉，非描边）
-							box := ui.Box(c).Width(cardW).Height(coverH).Radius(12 * uiScale)
-							// hover 高亮：阴影（对齐主线 group-hover:shadow-md）——
-							// 不用 Scale（mygo Scale 对图片渲染有副作用，图片会变白）也不描边，
-							// 图片保持原样，只加阴影 + 标题变粉（对齐主线 text-pink-400）。
-							if box.Hovered() {
-								box = box.Shadow(0, 4*uiScale, 16*uiScale, 0, ui.RGBA(0, 0, 0, 0.30))
-							}
-							box.Draw(func(p *ui.Painter, b ui.Rect) {
-								p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
-								if img, ok := a.covers[r.BVID]; ok {
-									p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
+				// < > 悬浮箭头：hover 时才浮现在上层，不占布局位置
+				step := (cardW + 10*uiScale) * 2
+				hoverBox := ui.Box(c).AlignSelf(ui.Stretch).Height(rowH)
+				hoverBox.Children(func() {
+					ui.ScrollHorizontal(c).TrackScroll(&a.recentScroll).Fill().Height(rowH).Scrollbars(false).Gap(10 * uiScale).Children(func() {
+						n := len(a.recent)
+						if n > 10 {
+							n = 10
+						}
+						for _, r := range a.recent[:n] {
+							r := r
+							// 卡片：方形封面为主 + 标题/歌手文字次之（对齐主线 recent.js 卡片结构）
+							ui.Column(c).Width(cardW).Gap(4 * uiScale).Children(func() {
+								// 封面卡片（对齐主线 recent.js：hover 缩放 1.02 + 阴影 + 标题变粉，非描边）
+								box := ui.Box(c).Width(cardW).Height(coverH).Radius(12 * uiScale)
+								// hover 高亮：阴影（对齐主线 group-hover:shadow-md）——
+								// 不用 Scale（mygo Scale 对图片渲染有副作用，图片会变白）也不描边，
+								// 图片保持原样，只加阴影 + 标题变粉（对齐主线 text-pink-400）。
+								if box.Hovered() {
+									box = box.Shadow(0, 4*uiScale, 16*uiScale, 0, ui.RGBA(0, 0, 0, 0.30))
 								}
+								box.Draw(func(p *ui.Painter, b ui.Rect) {
+									p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrCard)
+									if img, ok := a.covers[r.BVID]; ok {
+										p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
+									}
+								})
+								if box.InView() {
+									a.loadCover(r.BVID, r.Pic) // 懒加载：进可视区才下载
+								}
+								// 单击播放（最近播放建议单击就放）：封面卡片单击即播
+								if box.Clicked() {
+									go a.play(r)
+								}
+								// 标题（主）：hover 变粉（对齐主线 group-hover:text-pink-400）
+								titleCol := clrText
+								if box.Hovered() {
+									titleCol = clrPink
+								}
+								ui.Text(c, bilibili.CleanHTML(r.Title)).FontSize(12 * uiScale).TextColor(titleCol).MaxLines(1)
+								ui.Text(c, r.Author).FontSize(10 * uiScale).TextColor(clrMuted).MaxLines(1)
 							})
-							if box.InView() {
-								a.loadCover(r.BVID, r.Pic) // 懒加载：进可视区才下载
+						}
+					})
+					// 悬浮箭头：hover 显示，绝对定位浮在上层
+					if hoverBox.Hovered() {
+						if a.recentScroll.X > 0 {
+							lbtn := ui.Box(c).Absolute().Left(0).Top(rowH/2 - 18*uiScale).Width(36 * uiScale).Height(36 * uiScale).
+								Radius(18 * uiScale).Background(ui.RGBA(0, 0, 0, 0.65)).AlignItems(ui.Center).Justify(ui.Center)
+							if lbtn.Clicked() {
+								a.recentScroll.ScrollTo(a.recentScroll.X-step, 0, ui.Animation{Duration: 180 * time.Millisecond})
 							}
-							// 单击播放（最近播放建议单击就放）：封面卡片单击即播
-							if box.Clicked() {
-								go a.play(r)
+							lbtn.Children(func() { icon(c, icChevL, 18, clrText) })
+						}
+						if a.recentScroll.X < a.recentScroll.MaxX {
+							rbtn := ui.Box(c).Absolute().Right(0).Top(rowH/2 - 18*uiScale).Width(36 * uiScale).Height(36 * uiScale).
+								Radius(18 * uiScale).Background(ui.RGBA(0, 0, 0, 0.65)).AlignItems(ui.Center).Justify(ui.Center)
+							if rbtn.Clicked() {
+								a.recentScroll.ScrollTo(a.recentScroll.X+step, 0, ui.Animation{Duration: 180 * time.Millisecond})
 							}
-							// 标题（主）：hover 变粉（对齐主线 group-hover:text-pink-400）
-							titleCol := clrText
-							if box.Hovered() {
-								titleCol = clrPink
-							}
-							ui.Text(c, bilibili.CleanHTML(r.Title)).FontSize(12 * uiScale).TextColor(titleCol).MaxLines(1)
-							ui.Text(c, r.Author).FontSize(10 * uiScale).TextColor(clrMuted).MaxLines(1)
-						})
+							rbtn.Children(func() { icon(c, icChevR, 18, clrText) })
+						}
 					}
 				})
 			}

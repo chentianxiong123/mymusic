@@ -4,6 +4,8 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"homecast/service/fav"
 
 	"github.com/egoist/mygo/ui"
@@ -40,9 +42,8 @@ func (a *app) systemSettings(c *ui.Context) {
 				a.savePref("mygo_theme", i)
 				a.win.Invalidate()
 			})
-			// 4 播放模式（主线 MODES 四态 + 当前模式名）
+			// 4 播放模式
 			a.setRow(c, "播放模式")
-			a.setRowText(c, "当前："+a.loopLabel()+"（点按钮切换）")
 			a.setRowSeg(c, []string{"顺序播放", "列表循环", "单曲循环", "随机播放"}, a.loopMode, func(i int) {
 				a.loopMode = i
 				a.pb.SetMode(intToMode(i))
@@ -58,30 +59,28 @@ func (a *app) systemSettings(c *ui.Context) {
 				}
 			})
 			a.setRow(c, "缓存上限")
-			a.setRowSeg(c, []string{"关闭", "200MB", "500MB", "1GB", "2GB"}, a.cacheLimit, func(i int) {
-				a.cacheLimit = i
-				a.savePref("mygo_cachelimit", i)
+			a.limitInputBuf = strconv.Itoa(a.cacheLimit)
+			a.setRowLimit(c, "歌曲缓存", "MB，0=关闭", &a.cacheLimit, func(v int) {
+				a.savePref("mygo_cachelimit_mb", v)
 				if a.svc != nil && a.svc.cache != nil {
-					a.svc.cache.SetLimitMB([]int{0, 200, 500, 1000, 2000}[i])
+					a.svc.cache.SetLimitMB(v)
 				}
-				a.win.Invalidate()
 			})
 			// 10 歌词缓存（主线 lyc：记忆歌词源，LRU 50 首）
 			a.setRow(c, "歌词缓存")
 			a.setRowText(c, "已缓存："+a.lyricCacheCount()+" 首 · "+a.lyricCacheSize())
+			a.limitInputBuf = strconv.Itoa(a.lyricLimit)
+			a.setRowLimit(c, "歌词上限", "首，0=关闭", &a.lyricLimit, func(v int) {
+				a.savePref("mygo_lyriclimit", v)
+				if a.svc != nil && a.svc.lyricCache != nil {
+					a.svc.lyricCache.SetLimit(v)
+				}
+			})
 			a.setRowBtns(c, []string{"清空歌词缓存"}, func(i int) {
 				if a.svc != nil && a.svc.lyricCache != nil {
 					a.svc.lyricCache.ClearAll()
 					a.win.Invalidate()
 				}
-			})
-			// 11 数据（主线：搜索历史 + 清空）
-			a.setRow(c, "数据")
-			a.setRowText(c, "搜索历史（"+a.historyCount()+" 条）")
-			a.setRowBtns(c, []string{"清空历史"}, func(i int) {
-				a.searchHistory = nil
-				a.saveHistory()
-				a.win.Invalidate()
 			})
 			// 12 更新（运行期自填源：GitHub / 自建 URL + 代理；校验公钥构建期烙进二进制）
 			a.updateSettings(c)
@@ -282,3 +281,29 @@ func segBtn(c *ui.Context, label string, on bool) ui.Element {
 }
 
 // castPage 投屏/音箱页：DLNA 设备发现 + 投当前歌 + 小米音箱（SSOT：cast/speaker 域包）。
+
+// setRowLimit 数字上限设置行：文本框填数字 + 应用按钮（避免每敲一字符就淘汰缓存）。
+func (a *app) setRowLimit(c *ui.Context, label, unit string, cur *int, apply func(int)) {
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
+		ui.Text(c, label).FontSize(14 * uiScale).Bold().TextColor(clrText).Width(64 * uiScale)
+		ui.TextInput(c, &a.limitInputBuf).Grow(1).Placeholder(unit).TextColor(clrText)
+		if chip(c, "应用").Clicked() {
+			v := parseIntDefault(a.limitInputBuf, *cur)
+			if v < 0 {
+				v = 0
+			}
+			*cur = v
+			apply(v)
+			a.win.Invalidate()
+		}
+	})
+}
+
+// parseIntDefault 解析失败回退默认值。
+func parseIntDefault(s string, def int) int {
+	v, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return def
+	}
+	return v
+}

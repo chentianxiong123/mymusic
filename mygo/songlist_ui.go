@@ -52,20 +52,46 @@ func songlistToSearchItems(list []songlist.Item) []bilibili.SearchItem {
 	return out
 }
 
-// songlistNewRow 新建歌单输入行（TextInput + 确定/取消）
-func (a *app) songlistNewRow(c *ui.Context) {
-	box := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(10 * uiScale).Background(clrCard)
-	box.Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
-			ui.TextInput(c, &a.songlistNameInput).Grow(1).Height(40 * uiScale).
-				Placeholder("歌单名称").TextColor(clrText)
-			if gradButton(c, "确定").Clicked() {
-				a.createSonglist()
-			}
-			if chip(c, "取消").Clicked() {
-				a.songlistNewOpen = false
-				a.win.Invalidate()
-			}
+// songlistNewDialog 新建歌单弹窗（Overlay 置顶浮层，不占布局空间）。
+// 之前用内联输入行会把歌单卡片往下挤——用户要求改成弹窗，不影响空间。
+func (a *app) songlistNewDialog(c *ui.Context) {
+	ui.Overlay(c, func() {
+		// 半透明遮罩：点外部关闭
+		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+		bg.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.45), 0)
+		})
+		if bg.Clicked() {
+			a.songlistNewOpen = false
+			return
+		}
+		// 居中卡片
+		pw := float32(360) * uiScale
+		ph := float32(150) * uiScale
+		lx, ly := float32(a.winW)/2-pw/2, float32(a.winH)/2-ph/2
+		if a.winW <= 0 {
+			lx, ly = 100, 100
+		}
+		panel := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(16 * uiScale).Background(clrCard)
+		panel.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Shadow(r, 20, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.5))
+			p.FillRadii(r, [4]float32{16, 16, 16, 16}, clrCard)
+		})
+		panel.Children(func() {
+			ui.Column(c).Fill().Padding(18*uiScale, 18*uiScale, 18*uiScale, 18*uiScale).Gap(12*uiScale).Children(func() {
+				ui.Text(c, "新建歌单").FontSize(16 * uiScale).Bold().TextColor(clrText)
+				ui.TextInput(c, &a.songlistNameInput).Grow(1).Height(38 * uiScale).
+					Placeholder("歌单名称").TextColor(clrText)
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10*uiScale).Children(func() {
+					ui.Spacer(c).Grow(1)
+					if chip(c, "取消").Clicked() {
+						a.songlistNewOpen = false
+					}
+					if gradButton(c, "确定").Clicked() {
+						a.createSonglist()
+					}
+				})
+			})
 		})
 	})
 }

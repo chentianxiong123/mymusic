@@ -220,7 +220,13 @@ func (a *app) loadPrefFloat(key string, def float64) float64 {
 func (a *app) restorePrefs() {
 	a.themeMode = a.loadPref("mygo_theme", 0)
 	a.quality = a.loadPref("mygo_quality", 2)
-	a.cacheLimit = a.loadPref("mygo_cachelimit", 2) // 档位索引 2=500MB（对齐主线 hc:cachelimit 默认 500）
+	// 缓存上限：新键直接存 MB（0=关）；旧档位索引键迁移（2=500MB）
+	if v := a.loadPref("mygo_cachelimit_mb", -1); v >= 0 {
+		a.cacheLimit = v
+	} else {
+		a.cacheLimit = []int{0, 200, 500, 1000, 2000}[clampInt(a.loadPref("mygo_cachelimit", 2), 0, 4)]
+	}
+	a.lyricLimit = a.loadPref("mygo_lyriclimit", 500)
 	a.loopMode = a.loadPref("mygo_loopmode", 0)
 	a.lyricSize = a.loadPref("mygo_lyricsize", 2)
 	a.volume = a.loadPrefFloat("mygo_volume", 0.8)
@@ -228,7 +234,8 @@ func (a *app) restorePrefs() {
 		a.pb.SetMode(intToMode(a.loopMode))
 	}
 	if a.svc != nil && a.svc.cache != nil {
-		a.svc.cache.SetLimitMB([]int{0, 200, 500, 1000, 2000}[a.cacheLimit])
+		a.svc.cache.SetLimitMB(a.cacheLimit)
+		a.svc.lyricCache.SetLimit(a.lyricLimit)
 	}
 }
 
@@ -331,4 +338,15 @@ func toSong(it bilibili.SearchItem) playback.Song {
 		Artist: it.Author,
 		Cover:  it.Pic,
 	}
+}
+
+// clampInt 把 v 限制在 [lo, hi]（缓存上限迁移用）。
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
