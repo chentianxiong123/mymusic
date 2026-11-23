@@ -39,6 +39,8 @@ jobs:
           zip -qr ../../mymusic-ios-simulator.app.zip hcexp.app
           ls -lh ../..
       - name: 发布（create || upload）
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ github.event.inputs.version }}"
           gh release create "$TAG" mymusic-ios-simulator.app.zip --generate-notes \

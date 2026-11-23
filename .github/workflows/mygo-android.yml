@@ -60,6 +60,8 @@ jobs:
           mv /tmp/mymusic-release.apk mygo/build/android/mymusic.apk
           ls -lh mygo/build/android/mymusic.apk
       - name: 发布（create || upload）
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VER="$(jq -r .version mygo/mygo.json)"
           TAG="v${VER}"

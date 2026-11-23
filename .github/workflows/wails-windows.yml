@@ -36,6 +36,8 @@ jobs:
           export PATH="$PATH:$(go env GOPATH)/bin"
           cd wails3 && wails3 build GOOS=windows && cp bin/hcexp.exe ../mymusic-windows.exe && chmod +x ../mymusic-windows.exe && ls -lh ../mymusic-windows.exe
       - name: 发布（create || upload）
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ github.event.inputs.version }}"
           gh release create "$TAG" mymusic-windows.exe --generate-notes \

@@ -38,6 +38,8 @@ jobs:
           if [ -d hcexp.app ]; then zip -qr ../../mymusic-macos.app.zip hcexp.app; else cp hcexp ../../mymusic-macos; fi
           ls -lh ../..
       - name: 发布（create || upload）
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ github.event.inputs.version }}"
           gh release create "$TAG" mymusic-macos* --generate-notes \

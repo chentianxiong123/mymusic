@@ -55,6 +55,8 @@ jobs:
           "$BT" verify mymusic-android-arm64.apk
           ls -lh mymusic-android-arm64.apk
       - name: 发布（create || upload）
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ github.event.inputs.version }}"
           gh release create "$TAG" mymusic-android-arm64.apk --generate-notes \

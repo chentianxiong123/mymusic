@@ -37,6 +37,8 @@ jobs:
       - name: 发布（create || upload）
         if: inputs.version != ''
         working-directory: mygo
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VER="${{ github.event.inputs.version }}"
           TAG="v${VER}"

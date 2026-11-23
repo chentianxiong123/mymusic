@@ -38,6 +38,8 @@ jobs:
           export PATH="$PATH:$(go env GOPATH)/bin"
           cd wails3 && wails3 build && cp bin/hcexp ../mymusic-linux && chmod +x ../mymusic-linux && ls -lh ../mymusic-linux
       - name: 发布（create || upload）
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ github.event.inputs.version }}"
           gh release create "$TAG" mymusic-linux --generate-notes \

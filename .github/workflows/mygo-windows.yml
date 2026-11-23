@@ -22,6 +22,8 @@ jobs:
         run: mygo build -platform windows/amd64
       - name: 发布（create || upload）
         working-directory: mygo
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VER="$(jq -r .version mygo.json)"
           TAG="v${VER}"
