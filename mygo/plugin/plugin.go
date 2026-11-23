@@ -11,6 +11,7 @@ package plugin
 
 import (
 	"log"
+	"sort"
 
 	"mymusic-mygo/lyric"
 	"mymusic-mygo/source"
@@ -76,7 +77,8 @@ func Sources() map[string]source.MusicSource { return sources }
 // Targets 已注册目标（投送目标列表）。
 func Targets() map[string]target.Target { return targets }
 
-// SourceNames 已注册音源名（按注册顺序）。
+// SourceNames 已注册音源名（按用户顺序 → meta.Order → 注册顺序）。
+// 用户在插件页调整顺序后，搜索下拉框等表征同步按此顺序。
 func SourceNames() []string {
 	var out []string
 	for _, k := range order {
@@ -84,6 +86,20 @@ func SourceNames() []string {
 			out = append(out, k[7:])
 		}
 	}
+	// 按 Info 的用户顺序排序（用 InfoNames 的排序结果做索引）
+	infos := InfoNames("source")
+	rank := map[string]int{}
+	for i, in := range infos {
+		rank[in.Name] = i
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		ri, oki := rank[out[i]]
+		rj, okj := rank[out[j]]
+		if oki && okj {
+			return ri < rj
+		}
+		return oki // 有 Info 的排前
+	})
 	return out
 }
 

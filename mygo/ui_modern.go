@@ -192,8 +192,8 @@ func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLy
 			}
 		}
 	})
-	if url != "" {
-		a.loadCover(bvid, url)
+	if url != "" && box.InView() {
+		a.loadCover(bvid, url) // 懒加载：进可视区才下载封面
 	}
 	return box
 }
@@ -372,8 +372,8 @@ func (a *app) coverWide(c *ui.Context, bvid, url string, w, h float32) ui.Elemen
 			})
 		}
 	})
-	if url != "" {
-		a.loadCover(bvid, url)
+	if url != "" && box.InView() {
+		a.loadCover(bvid, url) // 懒加载：进可视区才下载封面
 	}
 	return box
 }

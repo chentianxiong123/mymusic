@@ -57,7 +57,9 @@ func (a *app) queuePage(c *ui.Context) {
 									p.Clip(b, 12, func() { p.Image(img, b, ui.Cover) })
 								}
 							})
-							a.loadCover(r.BVID, r.Pic)
+							if box.InView() {
+								a.loadCover(r.BVID, r.Pic) // 懒加载：进可视区才下载
+							}
 							// 单击播放（最近播放建议单击就放）：封面卡片单击即播
 							if box.Clicked() {
 								go a.play(r)

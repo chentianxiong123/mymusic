@@ -30,7 +30,40 @@ func AllInfos() []Info {
 	return out
 }
 
-// InfoNames 指定类型的插件名列表（插件页分组）。
+// orderOverride 用户自定义顺序（key=Type/Name → 顺序号，小在前）。
+// 用户在插件页调整顺序后写入，影响插件列表/搜索下拉框/所有表征顺序。
+var orderOverride = map[string]int{}
+
+// SetOrderOverride 设置用户自定义顺序（从 settings 读回 / 用户调整后写回）。
+func SetOrderOverride(m map[string]int) {
+	orderOverride = m
+}
+
+// OrderOverride 返回当前顺序覆盖表（供 UI 持久化）。
+func OrderOverride() map[string]int { return orderOverride }
+
+// sortInfos 排序：先按用户覆盖顺序（有值的优先），再按插件 meta.Order。
+// 稳定排序保证未覆盖的插件保持原相对顺序。
+func sortInfos(list []Info) {
+	rank := func(i Info) (int, int) {
+		if v, ok := orderOverride[i.Type+"/"+i.Name]; ok {
+			return 0, v // 用户排序优先
+		}
+		return 1, i.Order // 未覆盖：按 meta.Order
+	}
+	less := func(a, b Info) bool {
+		ag, as := rank(a)
+		bg, bs := rank(b)
+		return ag < bg || (ag == bg && as < bs)
+	}
+	for i := 1; i < len(list); i++ {
+		for j := i; j > 0 && less(list[j], list[j-1]); j-- {
+			list[j], list[j-1] = list[j-1], list[j]
+		}
+	}
+}
+
+// InfoNames 指定类型的插件名列表（插件页分组，按用户顺序/meta.Order）。
 func InfoNames(typeName string) []Info {
 	var out []Info
 	for _, v := range infos {
@@ -38,12 +71,7 @@ func InfoNames(typeName string) []Info {
 			out = append(out, v)
 		}
 	}
-	// 按 Order 固定排序（map 遍历顺序随机，必须显式排序防条目跳动）
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0 && out[j].Order < out[j-1].Order; j-- {
-			out[j], out[j-1] = out[j-1], out[j]
-		}
-	}
+	sortInfos(out)
 	return out
 }
 

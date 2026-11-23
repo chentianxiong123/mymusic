@@ -76,6 +76,11 @@ type app struct {
 	resultsBySource []srcResult
 	loading         atomic.Bool
 	status          string
+	// 渠道选择：搜索栏下拉框选一个源——一次只搜一个、只显示一个源的结果
+	activeSource string // 当前选中的源名（空=默认 bilibili）
+	lastSearchSource string // 上次搜索用的源（切换源时清空旧结果）
+	// 插件拖拽排序：官方 ui.List + ListState.Reorder（三类各一个状态，跨帧保持）
+	pluginLists map[string]*ui.ListState // key=kind(source/lyric/target)
 	// 推荐页（内容靠插件实现）：每插件缓存推荐歌曲 + 加载态 + 详情页开关
 	recommendData       map[string][]source.Song
 	recommendLoaded     map[string]bool
@@ -107,7 +112,6 @@ type app struct {
 	coverLoading map[string]bool
 	coverOrder   []string // LRU 顺序：封面缓存超过上限时驱逐最旧的
 	blurCovers   map[string]ui.ImageSource // 模糊版封面（降采样 12px 放大铺满=背景模糊）
-	coverDir     string   // 封面磁盘缓存目录（cache/cover；重启动命中不重下载）
 
 	// 播放控制面板 / 队列 / 收藏
 	showPlayer   bool
@@ -394,14 +398,11 @@ func main() {
 	// 插件设置统一存储（系统统一管理）：注入 SettingStore，JS/Go 插件设置落 settings 表。
 	plugin.SetSettingStore(newSettingStore(a.db))
 	audioDir := ""
-	coverDir := ""
 	if dir, err := os.UserConfigDir(); err == nil {
 		audioDir = filepath.Join(dir, "mymusic-mygo", "cache", "audio")
 		os.MkdirAll(audioDir, 0o755)
-		coverDir = filepath.Join(dir, "mymusic-mygo", "cache", "cover")
-		os.MkdirAll(coverDir, 0o755)
 	}
-	a.coverDir = coverDir
+	// 封面不落盘（只在内存 LRU 缓存 + InView 懒加载）——旧 coverDir 已移除。
 	// ★必须先设 HC_PORT 再构造 svc：NewSpeakerService 构造时读 HC_PORT 拼音箱拉流 URL。
 	// 之前 startStreamServer（下一行）才 set，导致 speaker 读到默认 28976，而供给端点监听
 	// 28977 → 音箱拉 28976 无服务 → 无声。这里提前 set，使音箱拉流端口=供给端点端口。
@@ -447,7 +448,10 @@ func main() {
 			log.Printf("js plugin load: %v", e)
 		}
 	}
-	// 当前源 = 注册表首个（B站）；未来网易云/本地/插件源都注册进表，UI 可选
+	// 恢复用户自定义插件顺序（影响 SourceNames/插件页/搜索下拉框）——必须在
+	// SourceNames() 首次调用前，否则默认源取的还是未排序的第一个。
+	a.restorePluginOrder()
+	// 当前源 = 排序后首个（默认 B站）；未来网易云/本地/插件源都注册进表，UI 可选
 	if names := plugin.SourceNames(); len(names) > 0 {
 		a.src = plugin.Sources()[names[0]]
 	}

@@ -28,48 +28,47 @@ func (a *app) pluginPage(c *ui.Context) {
 	})
 }
 
-// pluginGroup 一个分区区块：背景 + 色条标题 + 数量 + 插件列表行。
-// 每个分区一个独立区块，与其它分区视觉隔离（不堆叠、不混淆）。
+// pluginGroup 一个分区区块：背景 + 色条标题 + 数量 + 官方 ui.List（拖拽排序）。
+// 用框架原生 ListState.Reorder：拖拽感应/插入位置提示/边缘滚动/控件点击不冲突全由框架处理，
+// 比通用 Draggable 硬凑的偏移换算靠谱得多（用户明确要官方组件）。
 func (a *app) pluginGroup(c *ui.Context, title, kind string) {
 	infos := plugin.InfoNames(kind)
-	// 分区区块容器（背景 clrField，圆角，内边距）
 	section := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
 	section.Children(func() {
 		ui.Column(c).Fill().Gap(10 * uiScale).Children(func() {
-			// 标题行：左侧细色条 + 标题 + 右侧数量（分区标识，非颜色高亮）
+			// 标题行：色条 + 标题 + 数量 + 拖拽提示
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(pluginColor(kind)) // 色条（细，克制）
+				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(pluginColor(kind))
 				ui.Text(c, title).FontSize(13 * uiScale).Bold().TextColor(clrText)
 				ui.Spacer(c).Grow(1)
+				ui.Text(c, "拖动排序").FontSize(10 * uiScale).TextColor(clrMuted)
 				ui.Text(c, fmt.Sprintf("%d 个", len(infos))).FontSize(11 * uiScale).TextColor(clrMuted)
 			})
-			// 插件列表（区块内每插件一行，hover 高亮）
 			if len(infos) == 0 {
 				ui.Text(c, "无").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 				return
 			}
-			for _, in := range infos {
-				in := in
-				// 插件行（默认透明，hover 高亮；区块内分隔）
+			// 官方 ui.List + ListState.Reorder（每类一个 state，跨帧保持）
+			st := a.pluginListState(kind, len(infos))
+			ui.List(c, st, len(infos), func(idx int) {
+				in := infos[idx]
 				row := ui.Box(c).Fill().Radius(8 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale)
-				if row.Hovered() {
-					row.Background(clrCardHov)
-				}
 				row.Children(func() {
 					ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
-						// 头部：图标 + 名称/版本/描述 + 编辑 + 启用开关
 						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+							// 顺序号（拖拽后自动更新）
+							ui.Text(c, fmt.Sprintf("%d", idx+1)).FontSize(11 * uiScale).TextColor(clrMuted).Width(16)
+							// 拖拽手柄（视觉提示；ui.List 整行可拖，手柄只是图标）
+							ui.Text(c, "⠿").FontSize(14 * uiScale).TextColor(clrMuted)
 							icon(c, pluginIcon(in.Icon), 18, pluginColor(kind))
 							ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-								ui.Text(c, in.Name+" · v"+in.Version).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+								ui.Text(c, sourceShortName(in.Name)+" · v"+in.Version).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
 								ui.Text(c, in.Desc).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(2)
 							})
-							// 编辑按钮：进入该插件的配置子页（复页显示配置）
 							if chip(c, "编辑").Clicked() {
 								a.pluginDetail = in.Type + "/" + in.Name
 								a.win.Invalidate()
 							}
-							// 启用开关（插件设置核心：禁用=不生效）
 							on := plugin.IsEnabled(in.Type, in.Name)
 							if switchToggle(c, on).Clicked() {
 								plugin.SetEnabled(in.Type, in.Name, !on)
@@ -77,17 +76,37 @@ func (a *app) pluginGroup(c *ui.Context, title, kind string) {
 								a.win.Invalidate()
 							}
 						})
-						// 小爱音箱插件卡片：登录状态直接显示（用户要求登录在插件页）
 						if in.Type == "target" && in.Name == "speaker" {
 							a.pluginSpeakerLoginRow(c)
 						}
 					})
 				})
-			}
+			}).Height(float32(len(infos)) * 72 * uiScale) // List 需要高度（虚拟列表按行算）
 		})
 	})
 }
 
+// pluginListState 取/建某类型的 ListState（跨帧保持，Key 跟插件走，Reorder 回调重排）。
+func (a *app) pluginListState(kind string, n int) *ui.ListState {
+	if a.pluginLists == nil {
+		a.pluginLists = map[string]*ui.ListState{}
+	}
+	if st := a.pluginLists[kind]; st != nil {
+		return st
+	}
+	st := &ui.ListState{
+		Key: func(row int) any {
+			cur := plugin.InfoNames(kind) // 每次读当前顺序（重排后更新）
+			if row >= 0 && row < len(cur) {
+				return cur[row].Type + "/" + cur[row].Name
+			}
+			return row
+		},
+		Reorder: func(rows []int, to int) { a.reorderPlugins(kind, rows, to) },
+	}
+	a.pluginLists[kind] = st
+	return st
+}
 
 // pluginIcon 插件图标标识 → SVG。
 func pluginIcon(name string) *ui.SVG {

@@ -23,7 +23,8 @@ func (a *app) gridCard(c *ui.Context, coverKey, coverURL, title, subtitle string
 				p.FillRadii(b, [4]float32{12, 12, 12, 12}, clrTrack)
 			}
 		})
-		if coverURL != "" {
+		// 懒加载：只有滚进可视区才下载封面（搜索结果几十首不再一次性全下）
+		if coverURL != "" && box.InView() {
 			a.loadCover(coverKey, coverURL)
 		}
 		// hover 不改封面（不加遮罩、不加描边），只让下方标题变粉

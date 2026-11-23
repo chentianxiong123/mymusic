@@ -13,8 +13,6 @@ import (
 	"io"
 	"mymusic-mygo/plugin"
 	"mymusic-mygo/source"
-	"os"
-	"path/filepath"
 	"net/http"
 	"time"
 
@@ -39,25 +37,21 @@ func (a *app) search() {
 	a.loading.Store(true)
 	var kw string
 	mygo.RunOnMain(func() { kw = a.query; a.status = "搜索中…" })
-	// 分开搜索（解耦）：遍历 plugin.Sources() 每源独立搜，各自请求/分页，不合并。
-	// 加源（网易云/插件）= 注册后自动多一个独立搜索区，UI 零改动。
-	// 每源独立分页（用户要求：网易云/bilibili 各自分页显示）：sourcePage(源名) + 各自 searchSize。
-	ch := make(chan srcResult, len(plugin.Sources()))
-	for name, s := range plugin.Sources() {
-		go func(srcName string, src source.MusicSource) {
-			page := a.sourcePage(srcName)
-			size := srcSearchSize(srcName)
-			songs, total, err := src.Search(kw, page, size)
-			if err != nil {
-				ch <- srcResult{name: srcName}
-				return
-			}
-			ch <- srcResult{name: srcName, songs: songs, total: total}
-		}(name, s)
-	}
+	// 一次只搜一个源（搜索栏下拉框选中的）：不再并发搜 10 个源拉一堆结果+封面卡死。
+	// 每次搜索只发 1 个请求、只显示 1 个源的结果；分页仍是该源独立分页。
+	name := a.currentSource()
+	mygo.RunOnMain(func() { a.lastSearchSource = name })
+	src := plugin.Sources()[name]
 	var perSrc []srcResult
-	for range plugin.Sources() {
-		perSrc = append(perSrc, <-ch)
+	if src != nil {
+		page := a.sourcePage(name)
+		size := srcSearchSize(name)
+		songs, total, err := src.Search(kw, page, size)
+		if err == nil {
+			perSrc = append(perSrc, srcResult{name: name, songs: songs, total: total})
+		} else {
+			perSrc = append(perSrc, srcResult{name: name})
+		}
 	}
 	a.loading.Store(false)
 	// 搜索历史（对齐主线 search-history.js MAX=8：去重置顶，最多 8 条）
@@ -195,13 +189,9 @@ func (a *app) loadCover(bvid, url string) {
 	if a.coverLoading[bvid] {
 		return
 	}
-	// 磁盘缓存命中（重启不重下载）：读 + 解码（原图字节 .img）。
-	if a.coverDir != "" {
-		if data, err := os.ReadFile(filepath.Join(a.coverDir, bvid+".img")); err == nil {
-			a.decodeCover(bvid, data)
-			return
-		}
-	}
+	// 封面不落盘：只在内存缓存（LRU 60 张）。搜索结果封面懒加载——
+	// 列表项滚到可见区才调 loadCover（见 search_view.go 的 cover 懒加载）。
+	// 旧版落盘 228 张/75MB 且同步解码原图 → 搜索卡死（pprof 77% JPEG 解码），已废除。
 	a.coverLoading[bvid] = true
 	go func() {
 		defer func() { a.win.Update(func() { a.coverLoading[bvid] = false }) }()
@@ -217,10 +207,7 @@ func (a *app) loadCover(bvid, url string) {
 		if err != nil {
 			return
 		}
-		// 写磁盘（原图字节；重启命中不重下载）。
-		if a.coverDir != "" {
-			_ = os.WriteFile(filepath.Join(a.coverDir, bvid+".img"), data, 0o644)
-		}
+		// 不落盘：解码后只在内存缓存（LRU evictCovers 管理）。
 		a.decodeCover(bvid, data)
 	}()
 }

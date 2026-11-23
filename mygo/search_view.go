@@ -22,6 +22,15 @@ func (a *app) searchBar(c *ui.Context) {
 		sb.Width(672) // 宽窗限宽 672（对齐主线 max-w-2xl）居中
 	}
 	sb.Children(func() {
+		// 音源下拉框：一次只选一个源，搜索只请求它（不再是全渠道并发拉爆）
+		a.sourceSelector(c)
+		// 切换源 → 清掉上个源的残留结果（避免显示错误渠道的旧数据）
+		if a.lastSearchSource != "" && a.lastSearchSource != a.currentSource() {
+			a.results = nil
+			a.resultsBySource = nil
+			a.searched = false
+			a.lastSearchSource = ""
+		}
 		icon(c, icSearch, 20, clrMuted)
 		// 输入框：透明背景 + 去边框（对齐主线 outline-none bg-transparent；
 		// 之前 TextInput 默认边框 → 图1 输入框有浅色描边，主线无）
@@ -181,6 +190,58 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 	})
 }
 
+// currentSource 返回下拉框选中的源名（默认 bilibili）。
+func (a *app) currentSource() string {
+	if a.activeSource == "" {
+		return "bilibili"
+	}
+	return a.activeSource
+}
+
+// sourceSelector 搜索栏里的音源下拉框——一次只选一个源，搜索只请求它、只显示它。
+// 用 SelectBase 自定义外观：trigger 融进胶囊搜索框（无边框/透明背景/中文名+▾），
+// 不用框架默认 Select（有边框背景，塞进胶囊里风格冲突）。
+func (a *app) sourceSelector(c *ui.Context) {
+	names := plugin.SourceNames()
+	if len(names) == 0 {
+		return
+	}
+	cur := a.currentSource()
+	sel := ui.SelectBase(c, &a.activeSource)
+	// trigger：撑满搜索框高度（44px）+ 宽点击热区 + hover 反馈——
+	// 之前只有文字高度 ~16px，点不准；现在整个源名块都可点。
+	sel.Trigger.Height(44 * uiScale).Padding(0, 14*uiScale, 0, 8*uiScale).Draw(func(p *ui.Painter, r ui.Rect) {
+		if sel.Trigger.Hovered() {
+			p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCardHov)
+		}
+	}).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(6 * uiScale).Children(func() {
+			ui.Text(c, sourceShortName(cur)).FontSize(14 * uiScale).Bold().TextColor(clrText)
+			ui.Text(c, "▾").FontSize(12 * uiScale).TextColor(clrMuted)
+		})
+	})
+	// 下拉弹层：深色卡片圆角 + 限高可滚动（插件多时不会超出屏幕看不到）
+	sel.Popup(func(panel ui.Element) {
+		panel.Padding(6 * uiScale).Background(clrCard).Radius(12 * uiScale).MaxHeight(400 * uiScale)
+		ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
+		for _, name := range names {
+			name := name
+			item := sel.Item(name).Height(44 * uiScale).Padding(0, 16*uiScale, 0, 12*uiScale)
+			if item.Highlighted() {
+				item.Background(clrCardHov)
+			}
+			item.Children(func() {
+				col := clrMuted
+				if name == cur {
+					col = clrPink // 当前项高亮
+				}
+				ui.Text(c, sourceShortName(name)).FontSize(14 * uiScale).TextColor(col)
+			})
+		}
+		})
+	})
+}
+
 // srcSearchSize 某音源每次搜索请求条数（插件自控：读 source/<name>/searchSize 设置，默认 fetchSize）。
 // 校验范围（下限 20 保证分页有意义，上限 100 防误配拉爆）。
 func srcSearchSize(name string) int {
@@ -294,6 +355,39 @@ func pageList(page, total int) []int {
 		}
 	}
 	return out
+}
+
+// sourceShortName 音源短名（下拉框用）：优先插件 meta.name（中文，如"网易云"），
+// 否则几个内置源固定映射，最后回退 key。Desc 是长描述，不适合下拉框。
+func sourceShortName(name string) string {
+	// JS 插件注册时 Info.Name=英文key、Info.Desc=meta.name（中文，如"网易云"）——
+	// 取 Desc 才是中文。内置 bilibili 的 Desc 是长描述，特判短名。
+	if info := plugin.InfoOf("source", name); info.Desc != "" {
+		if name == "bilibili" {
+			return "B站"
+		}
+		return info.Desc
+	}
+	switch name {
+	case "bilibili":
+		return "B站"
+	case "local":
+		return "本地"
+	case "netease":
+		return "网易云"
+	case "kugou":
+		return "酷狗"
+	case "kuwo":
+		return "酷我"
+	case "migu":
+		return "咪咕"
+	case "qianqian":
+		return "千千"
+	case "qqmusic":
+		return "QQ音乐"
+	default:
+		return name
+	}
 }
 
 // sourceDisplayName 音源显示名：JS 插件显示 meta.name（如"网易云"），否则回退注册 key（bilibili）。
