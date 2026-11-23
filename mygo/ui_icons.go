@@ -30,15 +30,13 @@ var (
 	icVolMute   = svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>`)
 	icMsg       = svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>`)
 	icClose     = svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>`)
-	// icLyric 歌词图标（歌词行 + 音符；替代原字幕开关 icMsg，控制外部歌词/桌面挂件）
-	icLyric = svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h9"/><path d="M19 6v9"/><circle cx="16" cy="15" r="3"/></svg>`)
 )
 
 func svg(s string) *ui.SVG { return ui.MustParseSVG([]byte(s)) }
 
 // icon 一个用 SVG 画的图标，尺寸 size、颜色 c。
 func icon(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Element {
-	box := ui.Box(c).Size(size, size)
+	box := ui.Box(c).Size(size*uiScale, size*uiScale) // 统一在此乘 uiScale，所有调用点自动缩放
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Icon(s, r, col)
 	})
@@ -47,7 +45,7 @@ func icon(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Element {
 
 // iconButton2 圆形图标按钮（hover 提亮）。
 func iconButton2(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Element {
-	box := ui.Box(c).Size(size, size).Radius(8)
+	box := ui.Box(c).Size(size*uiScale, size*uiScale).Radius(8 * uiScale) // 统一乘 uiScale
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if box.Pressed() {
 			p.Fill(r, clrTrackBar, 8) // 按下：底色反馈（"已按"）
@@ -55,6 +53,25 @@ func iconButton2(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Elemen
 			p.Fill(r, clrCardHov, 8)
 		}
 		p.Icon(s, r, col)
+	})
+	return box
+}
+
+// lyricToggleButton 歌词挂件开关："词"字方块按钮（国内音乐软件通用语义，
+// 比抽象 SVG 更直观）。颜色区分状态：开=粉，关=灰。
+func lyricToggleButton(c *ui.Context, size float32, on bool) ui.Element {
+	box := ui.Box(c).Size(size, size).Radius(8 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
+	col := clrMuted
+	if on {
+		col = clrPink
+	}
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		if box.Hovered() {
+			p.Fill(r, clrCardHov, 8*uiScale)
+		}
+	})
+	box.Children(func() {
+		ui.Text(c, "词").FontSize(size * 0.62).Bold().TextColor(col)
 	})
 	return box
 }

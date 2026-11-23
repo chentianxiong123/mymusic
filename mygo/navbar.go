@@ -80,7 +80,8 @@ func (a *app) navPanel(c *ui.Context) {
 		if panelH < 200*uiScale { // winH 未就绪/窗口过矮 → 兜底，避免 MaxHeight 为 0/负值
 			panelH = 300 * uiScale
 		}
-		panel := ui.Box(c).Absolute().Right(12*uiScale).Top(panelTop).Width(panelW).MaxHeight(panelH).Radius(16 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale).Background(clrCard)
+		// 不设 Width → 框架按内容自适应（fitWidth），面板贴合文字宽度，右侧不留空
+		panel := ui.Box(c).Absolute().Right(12*uiScale).Top(panelTop).MaxWidth(panelW).MaxHeight(panelH).Radius(16 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale).Background(clrCard)
 		panel.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.Shadow(r, 16, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.45))
 		})

@@ -47,7 +47,21 @@ func (a *app) startStreamServer() {
 		Music:      a.svc.music,
 		LyricCache: a.svc.lyricCache,
 	}
+	// 挂件状态机（安卓悬浮歌词 Service 走 SSE 拿 line；与桌面挂件同源）
+	a.widgetState = a.initWidgetState(lh)
+	// offset 变更 → 清缓存 + 广播新 line（浮窗按钮 ±0.5s 后即时重定位）
+	lh.OnOffsetChange = func() {
+		a.widgetState.InvalidateLines()
+		a.widgetState.BroadcastLyricState()
+	}
+	wh := &api.WidgetHandler{State: a.widgetState}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/widget/state", wh.Get)
+	mux.HandleFunc("POST /api/v1/widget/state", wh.Set)
+	mux.HandleFunc("GET /api/v1/widget/events", wh.Events)
+	mux.HandleFunc("POST /api/v1/widget/toggle", wh.Toggle)
+	mux.HandleFunc("POST /api/v1/widget/prev", wh.Prev)
+	mux.HandleFunc("POST /api/v1/widget/next", wh.Next)
 	// 对齐主线 router.go 的歌词路由（五端点全部挂上）
 	mux.HandleFunc("GET /api/v1/music/lyric", lh.Get)
 	mux.HandleFunc("POST /api/v1/lyric/select", lh.Select)

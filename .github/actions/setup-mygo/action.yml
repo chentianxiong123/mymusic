@@ -8,6 +8,10 @@ inputs:
     description: '安装 mygo CLI（桌面构建需要；安卓 job 用 build-android.sh 自建 CLI，可关）'
     required: false
     default: 'true'
+  go-cache:
+    description: 'setup-go 自带缓存（安卓多 ABI 并发时关掉，改用各 workflow 带 ABI 后缀的 actions/cache，避免抢同一 key）'
+    required: false
+    default: 'true'
 
 runs:
   using: composite
@@ -18,7 +22,7 @@ runs:
     - uses: actions/setup-go@v5
       with:
         go-version-file: mygo/go.mod
-        cache: true
+        cache: ${{ inputs.go-cache == 'true' }}
         cache-dependency-path: mygo/go.sum
 
     # mygo CLI：v0.10.0 起支持 iOS/Android 移动平台（ios.go/mobilePlatform）

@@ -115,6 +115,7 @@ func (a *app) progressReporter() {
 		if info.Dur > 0 {
 			a.pb.SetProgress(info.Pos, info.Dur, info.Playing)
 			a.posSec = info.Pos
+			a.pushWidgetState() // 挂件 SSE 歌词行随进度更新（安卓浮窗 + 桌面挂件）
 		}
 		// dock 封面 EQ 频谱相位（播放中跳动；对齐主线 d-eq CSS 动画）
 		if info.Playing {
@@ -226,6 +227,8 @@ func (a *app) restorePrefs() {
 	a.lyricCustom = a.loadPref("mygo_lyriclimit_custom", 800)
 	a.loopMode = a.loadPref("mygo_loopmode", 0)
 	a.lyricSize = a.loadPref("mygo_lyricsize", 2)
+	a.lyricCtrlBottom = a.loadPref("mygo_lyricctrlpos", 1) == 1 // 默认下方
+	a.androidLyricOn = a.loadPref("mygo_androlyric", 0) == 1    // 安卓悬浮歌词持久化
 	a.volume = a.loadPrefFloat("mygo_volume", 0.8)
 	if a.svc != nil && a.svc.speaker != nil && a.loopMode != 0 {
 		a.pb.SetMode(intToMode(a.loopMode))

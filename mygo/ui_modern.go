@@ -311,7 +311,7 @@ func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
 
 // iconButton 方形图标按钮（歌词挂件开关等）。
 func iconButton(c *ui.Context, glyph string) ui.Element {
-	box := ui.Box(c).Size(34, 34).Radius(8).AlignItems(ui.Center).Justify(ui.Center)
+	box := ui.Box(c).Size(34*uiScale, 34*uiScale).Radius(8 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		bg := clrCard
 		if box.Hovered() {

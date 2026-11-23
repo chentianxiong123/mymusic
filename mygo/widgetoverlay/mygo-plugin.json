@@ -1,0 +1,13 @@
+{
+  "mobile": {
+    "id": "lyricoverlay",
+    "android": {
+      "sources": ["android/*.kt"],
+      "class": "LyricOverlayPlugin",
+      "permissions": ["SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE", "POST_NOTIFICATIONS", "WAKE_LOCK"],
+      "application": [
+        "        <service android:name=\"dev.mygo.LyricOverlayService\" android:exported=\"false\" android:foregroundServiceType=\"dataSync\" />"
+      ]
+    }
+  }
+}

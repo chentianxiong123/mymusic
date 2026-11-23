@@ -20,7 +20,7 @@ func (a *app) searchBar(c *ui.Context) {
 	if a.narrow() {
 		sb.WidthPercent(100) // 窄窗撑满内容区（对齐主线窄屏）
 	} else {
-		sb.Width(672) // 宽窗限宽 672（对齐主线 max-w-2xl）居中
+		sb.Width(672 * uiScale) // 宽窗限宽 672（随文字缩放，对齐主线 max-w-2xl）居中
 	}
 	sb.Children(func() {
 		// 音源下拉框：一次只选一个源，搜索只请求它（不再是全渠道并发拉爆）
@@ -105,16 +105,16 @@ func (a *app) searchChips(c *ui.Context) {
 				Scrollbars(false).Gap(8 * uiScale).Children(renderChips)
 			if hoverBox.Hovered() {
 				if a.historyScroll.X > 0 {
-					lbtn := ui.Box(c).Absolute().Left(-18*uiScale).Top(-1*uiScale).Width(28*uiScale).Height(36*uiScale).
-						Radius(14*uiScale).Background(ui.RGBA(0, 0, 0, 0.7)).AlignItems(ui.Center).Justify(ui.Center)
+					lbtn := ui.Box(c).Absolute().Left(-18 * uiScale).Top(-1 * uiScale).Width(28 * uiScale).Height(36 * uiScale).
+						Radius(14 * uiScale).Background(ui.RGBA(0, 0, 0, 0.7)).AlignItems(ui.Center).Justify(ui.Center)
 					if lbtn.Clicked() {
 						a.historyScroll.ScrollTo(a.historyScroll.X-step, 0, ui.Animation{Duration: 180 * time.Millisecond})
 					}
 					lbtn.Children(func() { icon(c, icChevL, 16, clrText) })
 				}
 				if a.historyScroll.X < a.historyScroll.MaxX {
-					rbtn := ui.Box(c).Absolute().Right(-18*uiScale).Top(-1*uiScale).Width(28*uiScale).Height(36*uiScale).
-						Radius(14*uiScale).Background(ui.RGBA(0, 0, 0, 0.7)).AlignItems(ui.Center).Justify(ui.Center)
+					rbtn := ui.Box(c).Absolute().Right(-18 * uiScale).Top(-1 * uiScale).Width(28 * uiScale).Height(36 * uiScale).
+						Radius(14 * uiScale).Background(ui.RGBA(0, 0, 0, 0.7)).AlignItems(ui.Center).Justify(ui.Center)
 					if rbtn.Clicked() {
 						a.historyScroll.ScrollTo(a.historyScroll.X+step, 0, ui.Animation{Duration: 180 * time.Millisecond})
 					}

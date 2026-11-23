@@ -5,10 +5,12 @@ package main
 import (
 	"fmt"
 	"homecast/service/fav"
+	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"mymusic-mygo/widgetoverlay"
 )
 
 func (a *app) settingsPage(c *ui.Context) {
@@ -87,6 +89,30 @@ func (a *app) systemSettings(c *ui.Context) {
 						a.svc.lyricCache.SetLimit(a.lyricCap())
 					}
 				})
+			// 11 歌词挂件控制条位置
+			a.setRow(c, "歌词挂件控制条")
+			a.setRowSeg(c, []string{"上方", "下方"}, boolIdx(a.lyricCtrlBottom), func(i int) {
+				a.lyricCtrlBottom = i == 1
+				a.savePref("mygo_lyricctrlpos", i)
+				a.win.Invalidate()
+			})
+			// 11.5 安卓悬浮歌词（仅 Android 有 Kotlin 实现；桌面不显示）
+			if runtime.GOOS == "android" {
+				a.setRow(c, "悬浮歌词")
+				a.setRowSeg(c, []string{"关闭", "开启"}, boolIdx(a.androidLyricOn), func(i int) {
+					on := i == 1
+					if on {
+						if !widgetoverlay.TryStart() {
+							on = false // 未授权：已拉起设置页，用户授权后再开
+						}
+					} else {
+						widgetoverlay.Stop()
+					}
+					a.androidLyricOn = on
+					a.savePref("mygo_androlyric", i)
+					a.win.Invalidate()
+				})
+			}
 			// 12 更新（运行期自填源：GitHub / 自建 URL + 代理；校验公钥构建期烙进二进制）
 			a.updateSettings(c)
 		})
@@ -146,7 +172,7 @@ func (a *app) setRowBtns(c *ui.Context, labels []string, cb func(int)) {
 
 // lyricFontSize 歌词字号当前档（对齐主线 LY_SIZES 14/16/18/22/26）。
 func (a *app) lyricFontSize() float32 {
-	return float32([]int{14, 16, 18, 22, 26}[a.lyricSize])
+	return float32([]int{14, 16, 18, 22, 26}[a.lyricSize]) * uiScale
 }
 
 // cacheUsedLabel 缓存占用（SSOT：cache 域包 Size）。
@@ -341,4 +367,12 @@ func parseIntDefault(s string, def int) int {
 		return def
 	}
 	return v
+}
+
+// boolIdx bool → 0/1 索引（设置页 seg 用）。
+func boolIdx(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

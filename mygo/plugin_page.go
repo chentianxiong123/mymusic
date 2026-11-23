@@ -35,11 +35,7 @@ func (a *app) pluginPage(c *ui.Context) {
 		default:
 			kind, title = "source", "音源插件"
 		}
-		ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
-			ui.Column(c).AlignSelf(ui.Center).WidthPercent(100).MaxWidth(672 * uiScale).Children(func() {
-				a.pluginGroup(c, title, kind)
-			})
-		})
+		a.pluginGroup(c, title, kind)
 	})
 }
 
@@ -48,7 +44,7 @@ func (a *app) pluginPage(c *ui.Context) {
 // 比通用 Draggable 硬凑的偏移换算靠谱得多（用户明确要官方组件）。
 func (a *app) pluginGroup(c *ui.Context, title, kind string) {
 	infos := plugin.InfoNames(kind)
-	section := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
+	section := ui.Box(c).Fill().Grow(1).Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
 	section.Children(func() {
 		ui.Column(c).Fill().Gap(10 * uiScale).Children(func() {
 			// 标题行：色条 + 标题 + 数量 + 拖拽提示
@@ -77,8 +73,8 @@ func (a *app) pluginGroup(c *ui.Context, title, kind string) {
 							ui.Text(c, "⠿").FontSize(14 * uiScale).TextColor(clrMuted)
 							icon(c, pluginIcon(in.Icon), 18, pluginColor(kind))
 							ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
-								ui.Text(c, sourceShortName(in.Name)+" · v"+in.Version).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
-								ui.Text(c, in.Desc).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(2)
+								ui.Text(c, sourceShortName(in.Name)).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+								ui.Text(c, in.Desc+" · v"+in.Version).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(2)
 							})
 							if chip(c, "详情").Clicked() {
 								a.pluginDetail = in.Type + "/" + in.Name
@@ -93,7 +89,7 @@ func (a *app) pluginGroup(c *ui.Context, title, kind string) {
 						})
 					})
 				})
-			}).Height(float32(len(infos)) * 60 * uiScale) // List 需要高度（虚拟列表按行算）
+			}).Grow(1) // List 自带滚动 + 自动测量行高；不硬设 Height（猜大留白/猜小裁行）
 		})
 	})
 }
@@ -312,7 +308,7 @@ func (a *app) speakerConfig(c *ui.Context) {
 	if a.qrImage != "" {
 		ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
-				ui.Box(c).Size(120, 120).Draw(func(p *ui.Painter, r ui.Rect) {
+				ui.Box(c).Size(120*uiScale, 120*uiScale).Draw(func(p *ui.Painter, r ui.Rect) {
 					p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
 					if img, ok := a.covers["__qr__"]; ok {
 						p.Clip(r, 8, func() { p.Image(img, r, ui.Cover) })

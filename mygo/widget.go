@@ -98,20 +98,26 @@ func (a *app) lyricView(c *ui.Context) {
 		// 聚焦后浮现控制按钮面板（学主线 subtitle-bar group-hover 浮现控制；
 		// 复用 dock 控件：上一首/播放/下一首/收藏/关闭）
 		if a.lyricHot {
-			ui.Row(c).Absolute().Top(2).Left(0).Right(0).Justify(ui.Center).Gap(8 * uiScale).Children(func() {
-				if iconButton2(c, icPrev, 26*uiScale, clrMuted).Clicked() {
+			ctrlRow := ui.Row(c).Absolute().Left(0).Right(0).Justify(ui.Center).Gap(8 * uiScale)
+			if a.lyricCtrlBottom {
+				ctrlRow.Bottom(2)
+			} else {
+				ctrlRow.Top(2)
+			}
+			ctrlRow.Children(func() {
+				if iconButton2(c, icPrev, 26, clrMuted).Clicked() {
 					go a.prev()
 				}
 				if playCircle(c, a.playing, 32*uiScale).Clicked() {
 					a.togglePlay()
 				}
-				if iconButton2(c, icNext, 26*uiScale, clrMuted).Clicked() {
+				if iconButton2(c, icNext, 26, clrMuted).Clicked() {
 					go a.next()
 				}
 				if heartButton(c, a.isFav(), 26*uiScale, func() {}).Clicked() {
 					a.toggleFav()
 				}
-				if iconButton2(c, icClose, 26*uiScale, clrMuted).Clicked() {
+				if iconButton2(c, icClose, 26, clrMuted).Clicked() {
 					a.lyricWin.Close()
 					a.lyricWin = nil
 					a.lyricShown = false

@@ -4,9 +4,11 @@ package main
 
 import (
 	"database/sql"
+	"homecast/service/widget"
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -29,6 +31,7 @@ import (
 	"mymusic-mygo/plugin"
 	"mymusic-mygo/source"
 	"mymusic-mygo/target"
+	"mymusic-mygo/widgetoverlay"
 )
 
 // track 当前曲目。
@@ -93,14 +96,16 @@ type app struct {
 	searchPages map[string]int // 每源独立分页（网易云/bilibili 各自，源名→page）
 
 	// 播放（主线程访问；播放器由 mygoOut 持有，audio.Player 自身安全）
-	current    *track
-	playing    bool
-	progress   float64 // 0..1
-	scrubbing  bool    // 进度条拖动中（暂停 pbLoop 覆盖 a.progress，避免 thumb 跳回）
-	posText    string
-	durText    string
-	lyricText  string
-	lyricShown bool
+	current        *track
+	playing        bool
+	progress       float64 // 0..1
+	scrubbing      bool    // 进度条拖动中（暂停 pbLoop 覆盖 a.progress，避免 thumb 跳回）
+	posText        string
+	durText        string
+	lyricText      string
+	lyricShown     bool
+	widgetState    *widget.WidgetState // 挂件状态机（安卓浮窗 SSE 数据源）
+	androidLyricOn bool                // 安卓悬浮歌词开关状态
 	// 桌面挂件聚焦（事件驱动，无轮询）：默认窗口只有左边缘把手区接收鼠标
 	// （其余穿透），鼠标进把手 1 秒（AfterFunc）→ 全窗口可交互，移出恢复穿透
 	lyricHot        bool
@@ -138,18 +143,19 @@ type app struct {
 	addToPick           bool                // 「添加到歌单」浮层是否显示（ctxItem 为目标歌）
 	ctxPosSet           bool                // 右键菜单位置是否已记录（打开那刻记一次，之后固定不跟鼠标）
 
-	quality       int            // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
-	lyricSize     int            // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
-	themeMode     int            // 0 自动 1 明亮 2 暗黑（对齐主线 THEMES 三态）
-	lyricBg       int            // 0 封面模糊 1 纯色（对齐主线 set-lybg）
-	lyricTime     bool           // 歌词行显示时间戳（对齐主线 set-lytime）
-	cacheLimit    int            // 歌曲缓存档位：0关 1=200MB 2=500MB 3=1GB 4=自定义
-	cacheCustom   int            // 自定义歌曲缓存上限 MB
-	lyricLimit    int            // 歌词缓存档位：0关 1=100 2=300 3=500 4=自定义
-	lyricCustom   int            // 自定义歌词缓存上限 首
-	historyScroll ui.ScrollState // 搜索历史横滑状态（超出一行时 < > 按钮控制）
-	recentScroll  ui.ScrollState // 最近播放横滑状态（< > 按钮控制）
-	searchHistory []string       // 搜索历史（对齐主线 清空历史）
+	quality         int            // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
+	lyricSize       int            // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
+	themeMode       int            // 0 自动 1 明亮 2 暗黑（对齐主线 THEMES 三态）
+	lyricBg         int            // 0 封面模糊 1 纯色（对齐主线 set-lybg）
+	lyricTime       bool           // 歌词行显示时间戳（对齐主线 set-lytime）
+	lyricCtrlBottom bool           // 歌词挂件控制条位置：true=下方 false=上方
+	cacheLimit      int            // 歌曲缓存档位：0关 1=200MB 2=500MB 3=1GB 4=自定义
+	cacheCustom     int            // 自定义歌曲缓存上限 MB
+	lyricLimit      int            // 歌词缓存档位：0关 1=100 2=300 3=500 4=自定义
+	lyricCustom     int            // 自定义歌词缓存上限 首
+	historyScroll   ui.ScrollState // 搜索历史横滑状态（超出一行时 < > 按钮控制）
+	recentScroll    ui.ScrollState // 最近播放横滑状态（< > 按钮控制）
+	searchHistory   []string       // 搜索历史（对齐主线 清空历史）
 	// 歌词（复用主线 lyric 域包；对齐 lyric-panel）
 	lyricLines    []lyric.LyricLine
 	lyricCands    []lyric.LyricResult
@@ -322,7 +328,7 @@ func (a *app) playerBar(c *ui.Context) {
 				a.toggleFav()
 			}
 			// 外部歌词开关（歌词图标，控制桌面挂件外部歌词）
-			if iconButton2(c, icLyric, a.resp(24, 20), accent(a.lyricShown)).Clicked() {
+			if lyricToggleButton(c, a.resp(24, 20), a.lyricShown).Clicked() {
 				a.toggleLyric()
 			}
 			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {
@@ -469,13 +475,18 @@ func main() {
 	if names := plugin.SourceNames(); len(names) > 0 {
 		a.src = plugin.Sources()[names[0]]
 	}
-	a.startStreamServer() // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
+	a.startStreamServer()    // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
+	a.listenWidgetCommands() // 浮窗控制命令（toggle/prev/next）→ mygo 播放器
 	a.favSet = map[string]bool{}
 	a.refreshFavs()      // 收藏恢复自 fav 域包（SQLite 持久化）
 	a.refreshSonglists() // 歌单列表恢复自 songlist 域包（SQLite 持久化）
 	a.restorePrefs()     // 恢复主题/音质/缓存上限（settings 表）
-	a.restoreRecent()    // 恢复最近播放
-	a.restoreHistory()   // 恢复搜索历史
+	// 安卓悬浮歌词：恢复上次开启状态（进程重启后 Service 不自动恢复）
+	if runtime.GOOS == "android" && a.androidLyricOn {
+		widgetoverlay.Start()
+	}
+	a.restoreRecent()  // 恢复最近播放
+	a.restoreHistory() // 恢复搜索历史
 	a.pb = playback.NewPlaybackState()
 	a.link = NewLink(a.pb) // 稳定链路 API 实现（播放核心注入）
 	a.mygoOut = newMyGoOutput(a.bili)
@@ -549,8 +560,8 @@ func main() {
 			Y:         wy,
 			Width:     ww,
 			Height:    wh,
-			MinWidth:  500,
-			MinHeight: 480,
+			MinWidth:  int(500 * uiScale),
+			MinHeight: int(480 * uiScale),
 			Content:   ui.View(a.view),
 		})
 		// 🎵 应用图标：Linux/Windows 标题栏 + 任务栏（不给就是裸 X11 默认图标）
