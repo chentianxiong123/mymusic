@@ -66,23 +66,18 @@ func (a *app) songlistNewDialog(c *ui.Context) {
 			return
 		}
 		// 居中卡片
-		pw := float32(360) * uiScale
-		ph := float32(150) * uiScale
-		lx, ly := float32(a.winW)/2-pw/2, float32(a.winH)/2-ph/2
-		if a.winW <= 0 {
-			lx, ly = 100, 100
-		}
+		lx, ly, pw, ph := a.dialogRect(360*uiScale, 150*uiScale)
 		panel := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(16 * uiScale).Background(clrCard)
 		panel.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.Shadow(r, 20, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.5))
 			p.FillRadii(r, [4]float32{16, 16, 16, 16}, clrCard)
 		})
 		panel.Children(func() {
-			ui.Column(c).Fill().Padding(18*uiScale, 18*uiScale, 18*uiScale, 18*uiScale).Gap(12*uiScale).Children(func() {
+			ui.Column(c).Fill().Padding(18*uiScale, 18*uiScale, 18*uiScale, 18*uiScale).Gap(12 * uiScale).Children(func() {
 				ui.Text(c, "新建歌单").FontSize(16 * uiScale).Bold().TextColor(clrText)
 				ui.TextInput(c, &a.songlistNameInput).Grow(1).Height(38 * uiScale).
 					Placeholder("歌单名称").TextColor(clrText)
-				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10*uiScale).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
 					ui.Spacer(c).Grow(1)
 					if chip(c, "取消").Clicked() {
 						a.songlistNewOpen = false
@@ -260,19 +255,7 @@ func (a *app) addToSonglistSheet(c *ui.Context) {
 			return
 		}
 		// 面板：居中卡片，列表可滚动
-		pw := float32(340)
-		ph := float32(420)
-		if a.winH > 0 && ph > float32(a.winH)-80 {
-			ph = float32(a.winH) - 80
-		}
-		lx := float32(a.winW)/2 - pw/2
-		ly := float32(a.winH)/2 - ph/2
-		if a.winW <= 0 {
-			lx = 100
-		}
-		if a.winH <= 0 {
-			ly = 100
-		}
+		lx, ly, pw, ph := a.dialogRect(340, 420)
 		panel := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(16 * uiScale).Background(clrCard)
 		panel.Draw(func(p *ui.Painter, r ui.Rect) {
 			p.Shadow(r, 20, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.5))

@@ -143,9 +143,10 @@ type app struct {
 	themeMode     int            // 0 自动 1 明亮 2 暗黑（对齐主线 THEMES 三态）
 	lyricBg       int            // 0 封面模糊 1 纯色（对齐主线 set-lybg）
 	lyricTime     bool           // 歌词行显示时间戳（对齐主线 set-lytime）
-	cacheLimit    int            // 歌曲缓存上限 MB（0=关闭，默认 500）
-	lyricLimit    int            // 歌词缓存上限 首（0=关闭，默认 500）
-	limitInputBuf string         // 缓存上限文本框输入缓冲（设置页共用）
+	cacheLimit    int            // 歌曲缓存档位：0关 1=200MB 2=500MB 3=1GB 4=自定义
+	cacheCustom   int            // 自定义歌曲缓存上限 MB
+	lyricLimit    int            // 歌词缓存档位：0关 1=100 2=300 3=500 4=自定义
+	lyricCustom   int            // 自定义歌词缓存上限 首
 	historyScroll ui.ScrollState // 搜索历史横滑状态（超出一行时 < > 按钮控制）
 	recentScroll  ui.ScrollState // 最近播放横滑状态（< > 按钮控制）
 	searchHistory []string       // 搜索历史（对齐主线 清空历史）
@@ -277,6 +278,10 @@ func (a *app) view(c *ui.Context) {
 	// 新建歌单弹窗（不占布局空间）
 	if a.songlistNewOpen {
 		a.songlistNewDialog(c)
+	}
+	// 更新设置弹窗
+	if updateDetail {
+		a.updateDetailDialog(c)
 	}
 }
 
@@ -592,3 +597,33 @@ func main() {
 }
 
 // searchNotFound 搜索无结果空态（对齐主线 results.html 空态：未找到相关音乐 + 换关键词）。
+
+// dialogRect 居中弹窗的响应式矩形：窄屏左右留 16px、高度不超屏幕 90%（手机不溢出），
+// 宽屏用设计尺寸。返回 lx, ly, w, h。所有居中 Overlay 弹窗统一用它。
+func (a *app) dialogRect(dw, dh float32) (float32, float32, float32, float32) {
+	pw, ph := dw, dh
+	if a.winW > 0 {
+		if maxW := float32(a.winW) - 32*uiScale; pw > maxW {
+			pw = maxW
+		}
+	}
+	if a.winH > 0 {
+		if maxH := float32(a.winH) * 0.9; ph > maxH {
+			ph = maxH
+		}
+	}
+	lx, ly := float32(a.winW)/2-pw/2, float32(a.winH)/2-ph/2
+	if a.winW <= 0 {
+		lx = 100
+	}
+	if a.winH <= 0 {
+		ly = 100
+	}
+	if lx < 16*uiScale {
+		lx = 16 * uiScale
+	}
+	if ly < 16*uiScale {
+		ly = 16 * uiScale
+	}
+	return lx, ly, pw, ph
+}

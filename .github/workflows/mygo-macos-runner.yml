@@ -17,6 +17,7 @@ jobs:
     name: 构建 macOS（macos runner + Xcode）
     runs-on: macos-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-mygo
       - name: 构建 darwin arm64 + amd64（含 .app + manifest）
         working-directory: mygo

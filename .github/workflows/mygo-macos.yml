@@ -14,6 +14,7 @@ jobs:
     name: 构建 .app（Linux 交叉，纯 Go）
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-mygo
       - name: 构建 darwin arm64 + amd64（.app + manifest，未签名）
         working-directory: mygo

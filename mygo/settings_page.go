@@ -4,9 +4,9 @@ package main
 
 import (
 	"fmt"
+	"homecast/service/fav"
 	"strconv"
 	"strings"
-	"homecast/service/fav"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -48,9 +48,9 @@ func (a *app) systemSettings(c *ui.Context) {
 				a.loopMode = i
 				a.pb.SetMode(intToMode(i))
 			})
-			// 9 歌曲缓存（主线 cache.js：已用/清空未收藏/清空缓存/上限）
+			// 9 歌曲缓存：主标题 + 已用/首数 + 清空；上限作为次级行（不另起白字主标题）
 			a.setRow(c, "歌曲缓存")
-			a.setRowText(c, "已用："+a.cacheUsedLabel())
+			a.setRowText(c, "已用 "+a.cacheUsedLabel()+" · "+a.cacheCountLabel()+" 首")
 			a.setRowBtns(c, []string{"清空未收藏", "清空缓存"}, func(i int) {
 				if i == 0 {
 					a.clearCache(false)
@@ -58,30 +58,35 @@ func (a *app) systemSettings(c *ui.Context) {
 					a.clearCache(true)
 				}
 			})
-			a.setRow(c, "缓存上限")
-			a.limitInputBuf = strconv.Itoa(a.cacheLimit)
-			a.setRowLimit(c, "歌曲缓存", "MB，0=关闭", &a.cacheLimit, func(v int) {
-				a.savePref("mygo_cachelimit_mb", v)
-				if a.svc != nil && a.svc.cache != nil {
-					a.svc.cache.SetLimitMB(v)
-				}
-			})
-			// 10 歌词缓存（主线 lyc：记忆歌词源，LRU 50 首）
+			a.limitSubRow(c, "上限", []string{"关闭", "200MB", "500MB", "1GB", "自定义"},
+				a.cacheLimit, &a.cacheCustom, "MB", func(idx int, custom int) {
+					a.cacheLimit = idx
+					a.cacheCustom = custom
+					a.savePref("mygo_cachelimit", idx)
+					a.savePref("mygo_cachelimit_custom", custom)
+					if a.svc != nil && a.svc.cache != nil {
+						a.svc.cache.SetLimitMB(a.cacheMB())
+					}
+				})
+			// 10 歌词缓存：同样结构，数值档位低一档
 			a.setRow(c, "歌词缓存")
-			a.setRowText(c, "已缓存："+a.lyricCacheCount()+" 首 · "+a.lyricCacheSize())
-			a.limitInputBuf = strconv.Itoa(a.lyricLimit)
-			a.setRowLimit(c, "歌词上限", "首，0=关闭", &a.lyricLimit, func(v int) {
-				a.savePref("mygo_lyriclimit", v)
-				if a.svc != nil && a.svc.lyricCache != nil {
-					a.svc.lyricCache.SetLimit(v)
-				}
-			})
-			a.setRowBtns(c, []string{"清空歌词缓存"}, func(i int) {
+			a.setRowText(c, "已用 "+a.lyricCacheSize()+" · "+a.lyricCacheCount()+" 首")
+			a.setRowBtns(c, []string{"清空"}, func(int) {
 				if a.svc != nil && a.svc.lyricCache != nil {
 					a.svc.lyricCache.ClearAll()
 					a.win.Invalidate()
 				}
 			})
+			a.limitSubRow(c, "上限", []string{"关闭", "100 首", "300 首", "500 首", "自定义"},
+				a.lyricLimit, &a.lyricCustom, "首", func(idx int, custom int) {
+					a.lyricLimit = idx
+					a.lyricCustom = custom
+					a.savePref("mygo_lyriclimit", idx)
+					a.savePref("mygo_lyriclimit_custom", custom)
+					if a.svc != nil && a.svc.lyricCache != nil {
+						a.svc.lyricCache.SetLimit(a.lyricCap())
+					}
+				})
 			// 12 更新（运行期自填源：GitHub / 自建 URL + 代理；校验公钥构建期烙进二进制）
 			a.updateSettings(c)
 		})
@@ -282,22 +287,52 @@ func segBtn(c *ui.Context, label string, on bool) ui.Element {
 
 // castPage 投屏/音箱页：DLNA 设备发现 + 投当前歌 + 小米音箱（SSOT：cast/speaker 域包）。
 
-// setRowLimit 数字上限设置行：文本框填数字 + 应用按钮（避免每敲一字符就淘汰缓存）。
-func (a *app) setRowLimit(c *ui.Context, label, unit string, cur *int, apply func(int)) {
-	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
-		ui.Text(c, label).FontSize(14 * uiScale).Bold().TextColor(clrText).Width(64 * uiScale)
-		ui.TextInput(c, &a.limitInputBuf).Grow(1).Placeholder(unit).TextColor(clrText)
-		if chip(c, "应用").Clicked() {
-			v := parseIntDefault(a.limitInputBuf, *cur)
-			if v < 0 {
-				v = 0
+// cacheCountLabel 歌曲缓存条目数。
+func (a *app) cacheCountLabel() string {
+	if a.svc == nil || a.svc.cache == nil {
+		return "0"
+	}
+	return fmt.Sprintf("%d", a.svc.cache.Count())
+}
+
+// limitSubRow 上限次级行：灰字小标签单独一行，档位 seg 在下一行（与上方区块左对齐）。
+// 不选 setRow 白字主标题——上限从属于上面的缓存区块，是次级设置。
+func (a *app) limitSubRow(c *ui.Context, label string, opts []string, cur int, custom *int, unit string, apply func(int, int)) {
+	ui.Column(c).AlignSelf(ui.Stretch).Gap(6 * uiScale).Children(func() {
+		// 标签单独一行（跟"已用""清空"行左对齐，不缩进）
+		ui.Row(c).AlignSelf(ui.Stretch).PaddingX(4 * uiScale).Children(func() {
+			ui.Text(c, label).FontSize(12 * uiScale).TextColor(clrMuted)
+		})
+		// 档位 seg 下一行（不坏规矩：选项按钮独占一行）
+		a.setRowSeg(c, opts, cur, func(i int) {
+			v := *custom
+			if i == 4 {
+				v = a.customInputBuf(cur, custom)
 			}
-			*cur = v
-			apply(v)
+			apply(i, v)
 			a.win.Invalidate()
+		})
+		// 自定义输入框也独占一行
+		if cur == 4 {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
+				buf := strconv.Itoa(*custom)
+				ui.TextInput(c, &buf).Width(72 * uiScale).Height(30 * uiScale).TextColor(clrText)
+				ui.Text(c, unit).FontSize(11 * uiScale).TextColor(clrMuted)
+				if chip(c, "应用").Clicked() {
+					v := parseIntDefault(buf, *custom)
+					if v < 0 {
+						v = 0
+					}
+					apply(4, v)
+					a.win.Invalidate()
+				}
+			})
 		}
 	})
 }
+
+// customInputBuf 自定义档位首次选中时的初始值（不从输入读，直接给当前值）。
+func (a *app) customInputBuf(_ int, custom *int) int { return *custom }
 
 // parseIntDefault 解析失败回退默认值。
 func parseIntDefault(s string, def int) int {

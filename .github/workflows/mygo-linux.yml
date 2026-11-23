@@ -14,6 +14,7 @@ jobs:
     name: 构建 linux/amd64
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-mygo
       - name: 构建 + 签名 manifest
         working-directory: mygo

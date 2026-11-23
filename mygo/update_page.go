@@ -3,11 +3,12 @@
 // update_page 设置 → 更新区块。
 //
 // 设计原则（用户拍板）：移动端"发现新版本"而非自动更新；提供"禁止检查更新"开关。
-//   · 桌面：检查 → 发现 → 安装并重启（mygo.Updater，静默落地）
-//   · 移动端：检查 → 发现 → 跳浏览器到 GitHub Release 页手动下载（零权限，OS 升级语义保数据）
-//   · 禁止检查更新：开关关闭后整个更新区块收敛为一条提示（不再联网、不再展示输入）
-//   · 源与代理全部运行期自填（持久化 settings 表）；校验公钥构建期烙进二进制，用户不可改
-//   · 状态/输入放包级 var 而非 app 结构体：避免改 main.go（app 定义在 main.go）
+//
+//	· 桌面：检查 → 发现 → 安装并重启（mygo.Updater，静默落地）
+//	· 移动端：检查 → 发现 → 跳浏览器到 GitHub Release 页手动下载（零权限，OS 升级语义保数据）
+//	· 禁止检查更新：开关关闭后整个更新区块收敛为一条提示（不再联网、不再展示输入）
+//	· 源与代理全部运行期自填（持久化 settings 表）；校验公钥构建期烙进二进制，用户不可改
+//	· 状态/输入放包级 var 而非 app 结构体：避免改 main.go（app 定义在 main.go）
 package main
 
 import (
@@ -135,16 +136,12 @@ func (a *app) releasePageURL(version string) string {
 // 源/代理/禁止开关等配置全部收进次级页 updateDetailPage，不浮在主页。
 func (a *app) updateSettings(c *ui.Context) {
 	a.ensureUpdatePrefs()
-	if updateDetail {
-		a.updateDetailPage(c)
-		return
-	}
 	a.setRow(c, "更新")
 	a.setRowText(c, "当前版本 "+a.appVersionLabel())
 	if updateUI.disabled {
 		a.setRowText(c, "更新检查已关闭（设置中可开启）")
 	}
-	// 主操作：检查更新（有更新则 安装/前往下载）；旁边"设置"进次级页
+	// 主操作：检查更新（有更新则 安装/前往下载）；旁边"设置"弹窗配置
 	a.setRowBtns(c, append(a.updateBtnLabels(), "设置 ›"), func(i int) {
 		if i == len(a.updateBtnLabels()) {
 			updateDetail = true
@@ -158,45 +155,66 @@ func (a *app) updateSettings(c *ui.Context) {
 	}
 }
 
-// updateDetailPage 更新设置次级页：禁止开关 / 更新源 / 代理 / 检查更新。
-func (a *app) updateDetailPage(c *ui.Context) {
-	// 返回
-	if chip(c, "‹ 返回").Clicked() {
-		updateDetail = false
-		a.win.Invalidate()
-	}
-	a.setRow(c, "更新设置")
-	a.setRowSwitch(c, "禁止检查更新", "关闭后不再联网检查、不提示新版本", updateUI.disabled, func(on bool) {
-		updateUI.disabled = on
-		a.savePref("mygo_upddisable", map[bool]int{true: 1, false: 0}[on])
-		if on {
-			updateUI.latest = nil
-			updateUI.status = "已禁止检查更新"
-		} else {
-			updateUI.status = "尚未检查"
+// updateDetailDialog 更新设置弹窗（覆盖层，不占设置页空间）。
+// 用户明确要求：更新配置藏进弹窗，不在设置页内切页面。
+func (a *app) updateDetailDialog(c *ui.Context) {
+	ui.Overlay(c, func() {
+		// 半透明遮罩：点外部关闭
+		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+		bg.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Fill(r, ui.RGBA(0, 0, 0, 0.45), 0)
+		})
+		if bg.Clicked() {
+			updateDetail = false
 		}
-		a.win.Invalidate()
+		// 居中卡片
+		lx, ly, pw, ph := a.dialogRect(420*uiScale, 360*uiScale)
+		panel := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(16 * uiScale).Background(clrCard)
+		panel.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Shadow(r, 20, 0, 12, 40, 0, ui.RGBA(0, 0, 0, 0.5))
+			p.FillRadii(r, [4]float32{16, 16, 16, 16}, clrCard)
+		})
+		panel.Children(func() {
+			ui.Column(c).Fill().Padding(18 * uiScale).Gap(10 * uiScale).Children(func() {
+				// 标题行 + 关闭
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, "更新设置").FontSize(16 * uiScale).Bold().TextColor(clrText)
+					ui.Spacer(c).Grow(1)
+					if chip(c, "关闭").Clicked() {
+						updateDetail = false
+					}
+				})
+				a.setRowSwitch(c, "禁止检查更新", "关闭后不再联网检查、不提示新版本", updateUI.disabled, func(on bool) {
+					updateUI.disabled = on
+					a.savePref("mygo_upddisable", map[bool]int{true: 1, false: 0}[on])
+					if on {
+						updateUI.latest = nil
+						updateUI.status = "已禁止检查更新"
+					} else {
+						updateUI.status = "尚未检查"
+					}
+				})
+				if !updateUI.disabled {
+					a.setRowSeg(c, []string{"GitHub", "自建 URL"}, a.updateKindIdx(), func(i int) {
+						updateUI.kind = []string{kindGitHub, kindURL}[i]
+						a.saveUpdateInput()
+					})
+					ui.Row(c).AlignSelf(ui.Stretch).PaddingX(4 * uiScale).Children(func() {
+						if updateUI.kind == kindURL {
+							ui.TextInput(c, &updateUI.url).Grow(1).Placeholder("https://your-server.com/mygo").TextColor(clrText)
+						} else {
+							ui.TextInput(c, &updateUI.repo).Grow(1).Placeholder("owner/name").TextColor(clrText)
+						}
+					})
+					ui.Row(c).AlignSelf(ui.Stretch).PaddingX(4 * uiScale).Children(func() {
+						ui.TextInput(c, &updateUI.proxy).Grow(1).Placeholder("代理（空=跟随系统）").TextColor(clrText)
+					})
+					a.setRowBtns(c, a.updateBtnLabels(), func(int) { a.updateAction(c) })
+					a.setRowText(c, updateUI.status)
+				}
+			})
+		})
 	})
-	if updateUI.disabled {
-		a.setRowText(c, "更新检查已关闭（可在上方重新打开）")
-		return
-	}
-	a.setRowSeg(c, []string{"GitHub", "自建 URL"}, a.updateKindIdx(), func(i int) {
-		updateUI.kind = []string{kindGitHub, kindURL}[i]
-		a.saveUpdateInput()
-	})
-	ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
-		if updateUI.kind == kindURL {
-			ui.TextInput(c, &updateUI.url).Grow(1).Placeholder("https://your-server.com/mygo").TextColor(clrText)
-		} else {
-			ui.TextInput(c, &updateUI.repo).Grow(1).Placeholder("owner/name（如 chentianxiong123/mymusic）").TextColor(clrText)
-		}
-	})
-	ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
-		ui.TextInput(c, &updateUI.proxy).Grow(1).Placeholder("代理（空=跟随系统代理）").TextColor(clrText)
-	})
-	a.setRowBtns(c, a.updateBtnLabels(), func(i int) { a.updateAction(c) })
-	a.setRowText(c, updateUI.status)
 }
 
 // updateAction 更新主操作：有更新则安装/跳转下载，否则检查。

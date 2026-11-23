@@ -16,6 +16,7 @@ jobs:
     name: 构建安卓 APK
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-mygo # v0.10.0 CLI（含 android 构建）
       - uses: actions/setup-java@v4
         with:
