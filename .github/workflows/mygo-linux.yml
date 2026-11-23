@@ -1,5 +1,5 @@
 # mygo Linux 桌面构建 + 发布（实现方法：linux/amd64）—— 永远手动触发。
-# 版本自动从 mygo.json 读（tag = mygo-<version>，与 manifest URL 一致）。
+# 版本自动从 mygo.json 读（tag = v<version>，与 manifest URL 一致）。
 # 发布：首次 gh release create（建 tag+release），已存在则 upload —— 任意触发顺序都行。
 name: mygo Linux 构建
 
@@ -24,7 +24,7 @@ jobs:
         working-directory: mygo
         run: |
           VER="$(jq -r .version mygo.json)"
-          TAG="mygo-${VER}"
+          TAG="v${VER}"
           gh release create "$TAG" build/linux-amd64/* --generate-notes \
             --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" build/linux-amd64/* --clobber

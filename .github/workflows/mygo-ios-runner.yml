@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号（release tag = mygo-<version>）'
+        description: '版本号（release tag = v<version>）'
         required: false
 
 permissions:
@@ -38,7 +38,7 @@ jobs:
         working-directory: mygo
         run: |
           VER="${{ github.event.inputs.version }}"
-          TAG="mygo-${VER}"
+          TAG="v${VER}"
           gh release create "$TAG" build/ios/* \
             --generate-notes --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" build/ios/* --clobber

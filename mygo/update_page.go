@@ -37,6 +37,10 @@ var updateUI = struct {
 // updatePrefsLoaded 首次进入更新区块时惰性恢复设置（避免改 main.go 的启动序列）。
 var updatePrefsLoaded bool
 
+// updateDetail 更新设置次级页开关：关于区块只留"检查更新"主操作，
+// 源/代理/禁止开关等配置藏进次级页（用户要求：详情内容别浮在主页）。
+var updateDetail bool
+
 // isMobile 移动端：更新只能"发现→跳转"，不能"安装"。
 func isMobile() bool { return runtime.GOOS == "android" || runtime.GOOS == "ios" }
 
@@ -126,12 +130,42 @@ func (a *app) releasePageURL(version string) string {
 	return ""
 }
 
-// updateSettings 更新区块（挂在设置 → 关于下）。
+// updateSettings 更新区块（系统设置页末项）。
+// 默认只显示主操作：当前版本 + 检查更新按钮 + 设置入口；
+// 源/代理/禁止开关等配置全部收进次级页 updateDetailPage，不浮在主页。
 func (a *app) updateSettings(c *ui.Context) {
 	a.ensureUpdatePrefs()
+	if updateDetail {
+		a.updateDetailPage(c)
+		return
+	}
 	a.setRow(c, "更新")
 	a.setRowText(c, "当前版本 "+a.appVersionLabel())
-	// 禁止检查更新开关（用户拍板：发现而非自动更新，但要能整个关掉）
+	if updateUI.disabled {
+		a.setRowText(c, "更新检查已关闭（设置中可开启）")
+	}
+	// 主操作：检查更新（有更新则 安装/前往下载）；旁边"设置"进次级页
+	a.setRowBtns(c, append(a.updateBtnLabels(), "设置 ›"), func(i int) {
+		if i == len(a.updateBtnLabels()) {
+			updateDetail = true
+			a.win.Invalidate()
+			return
+		}
+		a.updateAction(c)
+	})
+	if updateUI.status != "" && updateUI.status != "尚未检查" {
+		a.setRowText(c, updateUI.status)
+	}
+}
+
+// updateDetailPage 更新设置次级页：禁止开关 / 更新源 / 代理 / 检查更新。
+func (a *app) updateDetailPage(c *ui.Context) {
+	// 返回
+	if chip(c, "‹ 返回").Clicked() {
+		updateDetail = false
+		a.win.Invalidate()
+	}
+	a.setRow(c, "更新设置")
 	a.setRowSwitch(c, "禁止检查更新", "关闭后不再联网检查、不提示新版本", updateUI.disabled, func(on bool) {
 		updateUI.disabled = on
 		a.savePref("mygo_upddisable", map[bool]int{true: 1, false: 0}[on])
@@ -147,7 +181,6 @@ func (a *app) updateSettings(c *ui.Context) {
 		a.setRowText(c, "更新检查已关闭（可在上方重新打开）")
 		return
 	}
-	// 更新源（用户自填）
 	a.setRowSeg(c, []string{"GitHub", "自建 URL"}, a.updateKindIdx(), func(i int) {
 		updateUI.kind = []string{kindGitHub, kindURL}[i]
 		a.saveUpdateInput()
@@ -159,33 +192,35 @@ func (a *app) updateSettings(c *ui.Context) {
 			ui.TextInput(c, &updateUI.repo).Grow(1).Placeholder("owner/name（如 chentianxiong123/mymusic）").TextColor(clrText)
 		}
 	})
-	// 代理（可选；默认跟随系统代理）
 	ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
 		ui.TextInput(c, &updateUI.proxy).Grow(1).Placeholder("代理（空=跟随系统代理）").TextColor(clrText)
 	})
-	a.setRowBtns(c, a.updateBtnLabels(), func(i int) {
-		if updateUI.checking {
-			return
-		}
-		a.saveUpdateInput()
-		if updateUI.latest != nil {
-			if isMobile() {
-				// 移动端：发现 → 跳浏览器手动下载（零权限，OS 升级语义保数据）
-				if u := a.releasePageURL(updateUI.latest.Version); u != "" {
-					_ = mygo.Shell.OpenExternal(u)
-					updateUI.status = "已打开下载页，请下载后覆盖安装（勿卸载）"
-				} else {
-					updateUI.status = "请先填更新源地址"
-				}
-				a.win.Invalidate()
-			} else {
-				go a.installUpdate()
-			}
-		} else {
-			go a.checkUpdate()
-		}
-	})
+	a.setRowBtns(c, a.updateBtnLabels(), func(i int) { a.updateAction(c) })
 	a.setRowText(c, updateUI.status)
+}
+
+// updateAction 更新主操作：有更新则安装/跳转下载，否则检查。
+func (a *app) updateAction(c *ui.Context) {
+	if updateUI.checking {
+		return
+	}
+	a.saveUpdateInput()
+	if updateUI.latest != nil {
+		if isMobile() {
+			// 移动端：发现 → 跳浏览器手动下载（零权限，OS 升级语义保数据）
+			if u := a.releasePageURL(updateUI.latest.Version); u != "" {
+				_ = mygo.Shell.OpenExternal(u)
+				updateUI.status = "已打开下载页，请下载后覆盖安装（勿卸载）"
+			} else {
+				updateUI.status = "请先填更新源地址"
+			}
+			a.win.Invalidate()
+		} else {
+			go a.installUpdate()
+		}
+	} else {
+		go a.checkUpdate()
+	}
 }
 
 // updateBtnLabels 更新按钮文案：有更新则提示安装/下载。

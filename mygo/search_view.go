@@ -44,29 +44,84 @@ func (a *app) searchBar(c *ui.Context) {
 	})
 }
 
-// searchChips 搜索历史 / 默认热词（对齐主线 search-history）。
+// historyPerPage 搜索历史每页显示条数（响应式：宽 6 / 紧凑 4 / 窄 3）。
+func (a *app) historyPerPage() int {
+	switch a.tier() {
+	case 0:
+		return 3
+	case 1:
+		return 4
+	default:
+		return 6
+	}
+}
+
+// searchChips 搜索历史：一页固定几条，超出用 ‹ › 翻页；清空按钮特殊样式（红色描边）。
+// 之前全部平铺 8 条 chip + 灰色"清空"，词一多就占 2-3 行挤掉风格卡片，且"清空"
+// 和历史词长得一样容易误点——现在单行 + 翻页 + 清空醒目区分。
 func (a *app) searchChips(c *ui.Context) {
-	if len(a.searchHistory) > 0 {
-		ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Wrap().Justify(ui.Center).Children(func() {
-			for _, h := range a.searchHistory {
-				h := h
-				if chip(c, h).Clicked() {
-					a.query = h
-					a.resetSearch() // 新搜索回第 1 页（每源独立分页）
-					go a.search()
-				}
+	n := len(a.searchHistory)
+	if n == 0 {
+		return
+	}
+	per := a.historyPerPage()
+	pages := (n + per - 1) / per
+	if a.historyPage >= pages {
+		a.historyPage = pages - 1
+	}
+	if a.historyPage < 0 {
+		a.historyPage = 0
+	}
+	start := a.historyPage * per
+	end := start + per
+	if end > n {
+		end = n
+	}
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(6 * uiScale).Children(func() {
+		ui.Text(c, "最近:").FontSize(12 * uiScale).TextColor(clrMuted)
+		// 上一页
+		if pages > 1 && a.historyPage > 0 {
+			if iconButton2(c, icChevL, 26, clrMuted).Clicked() {
+				a.historyPage--
+				a.win.Invalidate()
 			}
-			ui.Column(c).Center().Children(func() {
-				if chip(c, "清空").Clicked() {
-					a.searchHistory = nil
-					a.saveHistory()
+		}
+		// 当前页的历史词 chip
+		for _, h := range a.searchHistory[start:end] {
+			h := h
+			if chip(c, h).Clicked() {
+				a.query = h
+				a.resetSearch()
+				go a.search()
+			}
+		}
+		// 下一页 + 页码提示
+		if pages > 1 {
+			if a.historyPage < pages-1 {
+				if iconButton2(c, icChevR, 26, clrMuted).Clicked() {
+					a.historyPage++
 					a.win.Invalidate()
 				}
-			})
+			}
+			ui.Text(c, fmt.Sprintf("%d/%d", a.historyPage+1, pages)).FontSize(10 * uiScale).TextColor(clrMuted)
+		}
+		ui.Spacer(c).Grow(1)
+		// 清空：红色描边+红字，跟历史词明显区分（防误点）
+		clearBtn := ui.Box(c).Height(28 * uiScale).Radius(8 * uiScale).PaddingX(10 * uiScale).
+			AlignItems(ui.Center).Justify(ui.Center).Border(1, ui.RGB(0xd9, 0x5a, 0x6a))
+		if clearBtn.Hovered() {
+			clearBtn.Background(ui.RGBA(0xd9, 0x5a, 0x6a, 40))
+		}
+		clearBtn.Children(func() {
+			ui.Text(c, "清空").FontSize(12 * uiScale).TextColor(ui.RGB(0xe0, 0x6b, 0x7b))
 		})
-	} else {
-		// 无历史 → 空（对齐主线 search-history.js：!list.length → box.innerHTML=''，无默认热词）
-	}
+		if clearBtn.Clicked() {
+			a.searchHistory = nil
+			a.historyPage = 0
+			a.saveHistory()
+			a.win.Invalidate()
+		}
+	})
 }
 
 func (a *app) searchEmpty(c *ui.Context) {

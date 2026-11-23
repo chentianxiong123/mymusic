@@ -61,7 +61,7 @@ jobs:
       - name: 发布（create || upload）
         run: |
           VER="$(jq -r .version mygo/mygo.json)"
-          TAG="mygo-${VER}"
+          TAG="v${VER}"
           gh release create "$TAG" mygo/build/android/mymusic.apk --generate-notes \
             --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" mygo/build/android/mymusic.apk --clobber

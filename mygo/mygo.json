@@ -2,7 +2,7 @@
   "name": "MyMusic",
   "slug": "mymusic",
   "identifier": "com.chentianxiong.mymusic",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "Chen Tianxiong",
   "copyright": "Copyright © 2026 Chen Tianxiong",
   "license": "MIT",
@@ -11,6 +11,6 @@
   "updates": {
     "publicKey": "qpr3lYQA+ChMQCJvxJfXgK7vMQV5iJ1ZGqJLNZRpe/I=",
     "github": "chentianxiong123/mymusic",
-    "tagPrefix": "mygo-"
+    "tagPrefix": "v"
   }
 }

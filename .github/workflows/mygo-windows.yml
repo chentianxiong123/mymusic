@@ -1,5 +1,5 @@
 # mygo Windows 桌面构建 + 发布（实现方法：windows/amd64）—— 永远手动触发。
-# 从 Linux 交叉编译（纯 Go 无 cgo）；tag = mygo-<version>。
+# 从 Linux 交叉编译（纯 Go 无 cgo）；tag = v<version>。
 name: mygo Windows 构建
 
 on:
@@ -23,7 +23,7 @@ jobs:
         working-directory: mygo
         run: |
           VER="$(jq -r .version mygo.json)"
-          TAG="mygo-${VER}"
+          TAG="v${VER}"
           gh release create "$TAG" build/windows-amd64/* --generate-notes \
             --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" build/windows-amd64/* --clobber

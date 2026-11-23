@@ -118,6 +118,7 @@ type app struct {
 	activeTab    string // search|queue|fav|cast|settings
 	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件
 	pluginTab    int    // 插件页子 tab：0=音源 1=歌词 2=输出
+	historyPage  int    // 搜索历史翻页（每页固定条数，超出的用 < > 翻）
 	pluginDetail string // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
 	playlist     []bilibili.SearchItem
 	playIndex    int
