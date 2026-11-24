@@ -76,7 +76,7 @@ jobs:
           BT_DIR="$(dirname "$BT")"
           "$BT_DIR/zipalign" -p -f 4 "$APK" /tmp/aligned.apk
           "$BT" sign --ks mygo/android/release.keystore --ks-key-alias mygo \
-            --ks-pass "pass:${{KEYSTORE_PASS}}" --key-pass "pass:${{KEYSTORE_PASS}}" \
+            --ks-pass "pass:$KEYSTORE_PASS" --key-pass "pass:$KEYSTORE_PASS" \
             --out /tmp/mymusic-release.apk /tmp/aligned.apk
           "$BT" verify /tmp/mymusic-release.apk
           mv /tmp/mymusic-release.apk mygo/build/android/mymusic-amd64.apk
@@ -86,7 +86,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER="$(jq -r .version mygo/mygo.json)"
-          TAG="v${{VER}}"
+          TAG="v$VER"
           gh release create "$TAG" mygo/build/android/mymusic-amd64.apk --generate-notes \
             --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" mygo/build/android/mymusic-amd64.apk --clobber
