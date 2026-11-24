@@ -141,6 +141,18 @@ var timedLineRe = regexp.MustCompile(`^\[(\d+),(\d+)(?:,\d+)?\]\s*(.*)$`)
 // timedWordRe 字级时间戳 `(ms,ms,dur)` / `<ms,ms>`（逐字卡拉OK），解析时剥离
 var timedWordRe = regexp.MustCompile(`(?:\(-?\d+,-?\d+(?:,-?\d+)?\)|<-?\d+,-?\d+(?:,-?\d+)?>)`)
 
+// timedWordNumRe 从单个字级戳里取数字：(startMs, durMs, flag) 或 <startMs, durMs>。
+// 网易云 YRC/qrc 字级戳第 2 个数是「时长」（durMs），不是结束时间——实测
+// (1000,500,0) 表示 1.0s 起持续 0.5s。渲染用 start+dur 得结束。
+var timedWordNumRe = regexp.MustCompile(`-?\d+`)
+
+// WordSpan 逐字时间片（秒，绝对时间轴，与 LyricLine[0] 同基准）。
+// Start 是该字开始，End 是结束；web 端用它做 background-clip:text 的逐字渐变。
+type WordSpan struct {
+	S float64 `json:"s"` // start 秒
+	E float64 `json:"e"` // end 秒
+}
+
 // LyricLine [秒, 行, 行时长秒]（前端 LyricPanel 用 l[0]/l[1]，l[2] 行时长：0=未知，前端用下一行差估算进度）
 type LyricLine [3]any
 
@@ -152,7 +164,10 @@ type LyricResult struct {
 	Album    string      `json:"album"`
 	Duration int         `json:"duration"` // 秒（候选行展示 mm:ss）
 	Lines    []LyricLine `json:"lines"`
-	Offset   float64     `json:"offset,omitempty"` // 本歌已存档的对齐偏移（秒，bvid 模式返回）
+	// Words 与 Lines 一一对应：YRC 逐字歌词才有值（每行的时间片），LRC 为 nil。
+	// 独立字段而非塞进 LyricLine：widget/mygo 的 [3]any 消费者零改动，web 端按需读。
+	Words  [][]WordSpan `json:"words,omitempty"`
+	Offset float64      `json:"offset,omitempty"` // 本歌已存档的对齐偏移（秒，bvid 模式返回）
 }
 
 // parseLRC LRC 文本 → [][秒,行,时长]，时间升序；过滤元信息行；识别 [offset:] 标签折入行时间；无词返回 nil
@@ -221,6 +236,56 @@ func parseYRC(text string) []LyricLine {
 		return nil
 	}
 	return lines
+}
+
+// parseYRCWords 从增强歌词原文提取逐字时间片，返回与有效歌词行一一对应的 word 列表。
+// 只在行有词（与 parseYRC 的过滤条件一致）时 append，保证 Words[i] 对应 Lines[i]。
+// LRC 没有字级戳 → 返回 nil，web 端据此回退到行级进度。
+func parseYRCWords(text string) [][]WordSpan {
+	var out [][]WordSpan
+	offsetMs := 0
+	for _, raw := range strings.Split(text, "\n") {
+		ln := strings.TrimSpace(raw)
+		if m := offsetTagRe.FindStringSubmatch(ln); m != nil {
+			offsetMs, _ = strconv.Atoi(m[1])
+			continue
+		}
+		m := timedLineRe.FindStringSubmatch(ln)
+		if m == nil {
+			continue
+		}
+		txt := strings.TrimSpace(timedWordRe.ReplaceAllString(m[3], ""))
+		if txt == "" || hasPrefixAny(txt, lyricSkipPrefixes) {
+			continue
+		}
+		stamps := timedWordRe.FindAllString(m[3], -1)
+		if len(stamps) == 0 {
+			out = append(out, nil) // 行有效但无字级戳（qrc 变体）→ 该行回退行级进度
+			continue
+		}
+		spans := make([]WordSpan, 0, len(stamps))
+		for _, st := range stamps {
+			nums := timedWordNumRe.FindAllString(st, -1)
+			if len(nums) < 2 {
+				continue
+			}
+			startMs, _ := strconv.ParseFloat(nums[0], 64)
+			durMs, _ := strconv.ParseFloat(nums[1], 64)
+			// 第 3 个数若存在且 >0，用它作时长（krc 变体 (start,end,dur)）
+			if len(nums) >= 3 {
+				if d, _ := strconv.ParseFloat(nums[2], 64); d > 0 {
+					durMs = d
+				}
+			}
+			startMs += float64(offsetMs)
+			spans = append(spans, WordSpan{S: startMs / 1000, E: (startMs + durMs) / 1000})
+		}
+		out = append(out, spans)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // parseLyrics 自动检测：行首 `[数字,数字]`（增强格式 yrc/qrc/krc）→ 逐字解析；否则 LRC
@@ -298,18 +363,19 @@ func fetchLyricRaw(sid int) (lrcText, yrcText string) {
 	return
 }
 
-// fetchLyricLines sid → 歌词行（优先 yrc 逐字版，其次 lrc；[offset:] 标签已折入行时间）
-func fetchLyricLines(sid int) []LyricLine {
+// fetchLyricLines sid → 歌词行 + 逐字时间片（优先 yrc 逐字版，其次 lrc；[offset:] 标签已折入）。
+// yrc 同时解析字级戳填 words；lrc 无字级戳 → words=nil（web 端回退行级进度）。
+func fetchLyricLines(sid int) ([]LyricLine, [][]WordSpan) {
 	lrcT, yrcT := fetchLyricRaw(sid)
 	if yrcT != "" {
 		if l := parseLyrics(yrcT); l != nil {
-			return l
+			return l, parseYRCWords(yrcT)
 		}
 	}
 	if lrcT != "" {
-		return parseLyrics(lrcT)
+		return parseLyrics(lrcT), nil
 	}
-	return nil
+	return nil, nil
 }
 
 // SearchLyricCandidates 搜歌名 → 候选。惰性取词（musicxx 两段式 API 同思路）：
@@ -372,8 +438,9 @@ func SearchLyricCandidates(keyword string, limit, expectDur int) []LyricResult {
 	res := out[:0]
 	for _, r := range out {
 		if !gotLines {
-			if lines := fetchLyricLines(r.ID); len(lines) >= 3 {
+			if lines, words := fetchLyricLines(r.ID); len(lines) >= 3 {
 				r.Lines = lines
+				r.Words = words
 				gotLines = true
 			} else {
 				continue // 无词/拉词失败：不展示（保持“候选只含有词≥3行”体验）
@@ -478,9 +545,9 @@ func GetLyricLines(keywords []string, sid, expectDur int) *LyricResult {
 		return nil // 空关键词不发网易云（挂件 bvid 模式无已选源时）
 	}
 	if sid > 0 {
-		lines := fetchLyricLines(sid)
+		lines, words := fetchLyricLines(sid)
 		if lines != nil {
-			return &LyricResult{ID: sid, Lines: lines}
+			return &LyricResult{ID: sid, Lines: lines, Words: words}
 		}
 		return nil
 	}

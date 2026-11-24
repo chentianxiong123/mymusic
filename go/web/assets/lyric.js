@@ -11,7 +11,8 @@
   const audio = document.getElementById('audio');
   if (!linesEl || !audio) return;
 
-  let lines = []; // [[sec, text], ...]
+  let lines = []; // [[sec, text, dur], ...]
+  let words = []; // 与 lines 一一对应：[[{s,e}, ...], ...]，YRC 逐字才有；LRC 为空走行级进度
   let lastIdx = -1;
   let offset = 0; // 歌词对齐偏移（秒，±0.5 手动调，SQLite 持久化；music.py _lyric_offset 同款）
   let selMeta = null; // 后端已存选择（meta 端点：选的是哪个候选 + 对齐偏移）
@@ -84,7 +85,7 @@
   function hide() { // 先过渡收起，300ms 后再隐藏（不遮挡 dock）
     panel.classList.remove('ly-show');
     setTimeout(() => { if (!panel.classList.contains('ly-show')) panel.classList.add('ly-hidden'); }, 300);
-    lines = []; lastIdx = -1; linesEl.innerHTML = '';
+    lines = []; words = []; lastIdx = -1; linesEl.innerHTML = '';
     lockBodyScroll(false); // 解锁 body 滚动
   }
 
@@ -108,7 +109,20 @@
         d.appendChild(t);
       }
       const txt = document.createElement('span');
-      txt.textContent = l[1];
+      // 逐字变色：YRC 有 word 时间片且字数匹配 → 每字一个 span，CSS background-clip:text 渐变
+      const w = words[i];
+      const chars = Array.from(l[1]);
+      if (w && w.length === chars.length) {
+        txt.className = 'ly-wordline';
+        chars.forEach((ch) => {
+          const s = document.createElement('span');
+          s.className = 'ly-word';
+          s.textContent = ch;
+          txt.appendChild(s);
+        });
+      } else {
+        txt.textContent = l[1];
+      }
       d.appendChild(txt);
       // 点击行 → 跳到该句时间（YesPlayMusic 同款；跳转位置减去对齐偏移保持所见即所听）
       d.addEventListener('click', () => {
@@ -152,6 +166,7 @@
   }
   hcBus.on('lyric-line', highlightLine);
   // 逐行进度（当前行唱到百分之几，本地 timeupdate 显示细节；当前行文本走后端 SSE）
+  // 有逐字时间片时逐字设置 --wp（字内渐变），否则回退行级 --prog。
   function sync(sec) {
     if (!lines.length) return;
     const t = sec + offset;
@@ -163,7 +178,21 @@
         : (lines[idx + 1] ? lines[idx + 1][0] - start : 0);
       const p = dur > 0 ? Math.min(1, Math.max(0, (t - start) / dur)) : 1;
       const d = linesEl.children[idx];
-      if (d) d.style.setProperty('--prog', p.toFixed(3));
+      if (d) {
+        d.style.setProperty('--prog', p.toFixed(3));
+        const w = words[idx];
+        if (w) {
+          // 逐字渐变：每个字按自身时间片算进度（绝对秒），写入 --wp
+          const spans = d.querySelectorAll('.ly-word');
+          if (spans.length === w.length) {
+            spans.forEach((s, k) => {
+              const wd = w[k].e - w[k].s;
+              const wp = wd > 0 ? Math.min(1, Math.max(0, (t - w[k].s) / wd)) : (t >= w[k].e ? 1 : 0);
+              s.style.setProperty('--wp', wp.toFixed(3));
+            });
+          }
+        }
+      }
     }
   }
 
@@ -265,8 +294,9 @@
       : '未找到歌词 — 点侧栏 🔍 搜索歌词来源';
   }
   function renderFromCand(cand) {
-    if (!cand || !cand.lines || !cand.lines.length) { lines = []; renderLines(); setSource(null); return; }
+    if (!cand || !cand.lines || !cand.lines.length) { lines = []; words = []; renderLines(); setSource(null); return; }
     lines = cand.lines;
+    words = cand.words || [];
     renderLines();
     lastIdx = -1;
     sync(audio.currentTime);
@@ -320,6 +350,7 @@
       const d = j && j.data;
       if (!d || !d.lines || !d.lines.length) { if (!lines.length) { linesEl.innerHTML = '<div class="h-full flex items-center justify-center"><p class="text-gray-400">未找到歌词</p></div>'; } return; }
       lines = d.lines; // [[sec,text,dur]]
+      words = d.words || []; // YRC 逐字时间片（LRC 为空 → 行级进度）
       if (typeof d.offset === 'number') setOffset(d.offset);
       renderLines(); lastIdx = -1; sync(audio.currentTime);
       setSource({ name: currentSong.title, artist: currentSong.artist });

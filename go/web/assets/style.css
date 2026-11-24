@@ -42,6 +42,20 @@ html, body, button, input, select, textarea, div, span, p, a, li, h1, h2, h3, h4
    yrc 逐字歌词行自带时长（l[2]），LRC 用下一行时间差估算 */
 .ly-line.ly-active { background: linear-gradient(90deg, rgba(236, 72, 153, 0.22) calc(var(--prog, 0) * 100%), transparent 0); border-radius: 8px; }
 
+/* 逐字变色（YRC 逐字歌词）：每字一个 span，渐变裁进字形（等价于 CSS background-clip:text / Flutter BlendMode.srcIn）。
+   只在 active 行启用字内渐变；非 active 行用继承色（灰），避免未唱行被 --wp=0 染成全灰白。
+   --wp 由 lyric.js sync 按该字自身时间片算（0~1）：已唱段粉色、未唱段灰白，边界在字内平滑推进。
+   LRC 无逐字时间 → 不生成 .ly-word，走上面的行级背景渐变。 */
+.ly-wordline { display: inline; }
+.ly-line.ly-active .ly-word {
+  --wp: 0;
+  background: linear-gradient(90deg, #ff6fb5 calc(var(--wp) * 100%), rgba(255,255,255,0.55) calc(var(--wp) * 100%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
 /* 播放频谱（dock 封面叠加，播放中跳动） */
 @keyframes eq-bounce { 0%,100% { height: 25%; } 50% { height: 100%; } }
 .eq-bar { height: 100%; animation: eq-bounce 0.9s ease-in-out infinite; }

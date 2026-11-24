@@ -84,3 +84,34 @@ func TestParseLyricsAutoDetect(t *testing.T) {
 		t.Fatalf("带元信息头的 LRC 解析错: %+v", lines)
 	}
 }
+
+// parseYRCWords 逐字时间片：与有效行一一对应，秒制，offset 折入；LRC 无字级戳 → nil。
+func TestParseYRCWords(t *testing.T) {
+	input := `[0,1000](0,1000,0) 作曲 : 周杰伦
+[1000,2000](1000,500,0)(1500,500,0) 第一句
+[3000,2000](3000,1000,0)(4000,1000,0) 第二句歌词`
+	words := parseYRCWords(input)
+	lines := parseLyrics(input)
+	if len(words) != len(lines) {
+		t.Fatalf("words 应与 lines 一一对应: words=%d lines=%d", len(words), len(lines))
+	}
+	// 第一行元信息被过滤 → words[0] 对应 "第一句"，2 个字
+	if len(words[0]) != 2 {
+		t.Fatalf("第一句应有 2 个字级戳: %+v", words[0])
+	}
+	if words[0][0].S != 1.0 || words[0][0].E != 1.5 || words[0][1].S != 1.5 || words[0][1].E != 2.0 {
+		t.Fatalf("第一句字级时间错: %+v", words[0])
+	}
+	if words[1][0].S != 3.0 || words[1][1].S != 4.0 {
+		t.Fatalf("第二句字级时间错: %+v", words[1])
+	}
+	// offset 折入
+	w2 := parseYRCWords("[offset,-1000]\n[2000,1000](2000,500,0)(2500,500,0) 第一句")
+	if len(w2) != 1 || w2[0][0].S != 1.0 {
+		t.Fatalf("offset 折入错: %+v", w2)
+	}
+	// LRC 无逐字数据
+	if w := parseYRCWords("[00:05.00]第一句\n[00:10.00]第二句"); w != nil {
+		t.Fatalf("LRC 不应有逐字数据: %+v", w)
+	}
+}
