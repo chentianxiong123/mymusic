@@ -139,8 +139,14 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 				// 标题 text-lg(18px) 白 / 歌手 text-sm(14px) gray / 来源 text-xs(12px) gray（对齐主线）
 				ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(a.resp(18, 15)).Bold().TextColor(clrText).MaxLines(1)
 				ui.Text(c, a.current.author).FontSize(14 * uiScale).TextColor(clrMuted).MaxLines(1)
-				// 来源行（对齐主线 ly-source：网易云 候选名《歌名》/ 未找到引导）
-				ui.Text(c, a.lyricSourceText()).FontSize(12 * uiScale).TextColor(clrPink).MaxLines(1)
+				// 来源行（显示实际出词插件名；点击跳插件页歌词分页配置源顺序/开关）
+				srcRow := ui.Text(c, a.lyricSourceText()).FontSize(12 * uiScale).TextColor(clrPink).MaxLines(1)
+				if srcRow.Clicked() {
+					a.activeTab = "settings"
+					a.settingsTab = 1
+					a.pluginTab = 1
+					a.win.Invalidate()
+				}
 			})
 		})
 		// KTV 歌词列表（对齐主线 ly-lines：居中 + 当前行粉色渐底逐行进度 + 点击行跳句）
@@ -156,7 +162,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 					if len(a.lyricLines) == 0 {
 						ui.Column(c).AlignSelf(ui.Stretch).Children(func() {
 							ui.Text(c, "歌词加载中…").FontSize(15 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center).PaddingY(40 * uiScale)
-							ui.Text(c, "网易云词源（搜索："+lyric.CleanSearchKeyword(bilibili.CleanHTML(a.current.title))+"）").FontSize(11 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center)
+							ui.Text(c, "搜索："+lyric.CleanSearchKeyword(bilibili.CleanHTML(a.current.title))+" — 去「插件 → 歌词」启用更多歌词源").FontSize(11 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center)
 						})
 						return
 					}

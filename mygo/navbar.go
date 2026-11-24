@@ -112,7 +112,7 @@ func (a *app) navPanel(c *ui.Context) {
 
 // navPanelRow 侧滑面板里的一个导航项。
 func (a *app) navPanelRow(c *ui.Context, s *ui.SVG, label string, active bool, onPick func()) {
-	box := ui.Box(c).Fill().Height(42 * uiScale).Radius(10 * uiScale).PaddingX(12 * uiScale)
+	box := ui.Box(c).Fill().Height(42 * uiScale).Radius(10 * uiScale).PaddingX(12 * uiScale).Justify(ui.Center)
 	if active {
 		box.Background(clrField)
 	} else if box.Hovered() {

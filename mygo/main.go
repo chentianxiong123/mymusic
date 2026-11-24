@@ -120,9 +120,17 @@ type app struct {
 	// 播放控制面板 / 队列 / 收藏
 	showPlayer   bool
 	activeTab    string // search|queue|fav|cast|settings
-	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件
+	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件 2=日志
 	pluginTab    int    // 插件页子 tab：0=音源 1=歌词 2=输出
 	pluginDetail string // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
+	// 日志页筛选/交互状态
+	logLevelFilter int    // 0=全部 1=DEBUG 2=INFO 3=WARN 4=ERROR
+	logCatFilter   string // 分类筛选（""=全部）
+	logSearch      string // 关键词搜索
+	logAutoScroll  bool   // 自动刷新（默认开；仅日志页可见时生效）
+	logConfirmClear bool  // 清空确认弹窗
+	logWatching    bool   // 日志页当前是否可见（控制刷新 goroutine 启停）
+	logWatchStop   chan struct{} // 停止刷新信号
 	playlist     []bilibili.SearchItem
 	playIndex    int
 	posSec       float64 // 当前播放秒（歌词定位用）
@@ -157,8 +165,10 @@ type app struct {
 	searchHistory   []string       // 搜索历史（对齐主线 清空历史）
 	// 歌词（复用主线 lyric 域包；对齐 lyric-panel）
 	lyricLines    []lyric.LyricLine
+	lyricWords    [][]lyric.WordSpan // 逐字时间片（YRC 才有；与 lyricLines 一一对应）
 	lyricCands    []lyric.LyricResult
 	lyricSID      int
+	lyricSrcName  string             // 实际出词的歌词插件名（来源行显示）
 	lyricOffset   float64
 	lyricLoading  bool
 	expandedTitle string // 搜索结果标题展开态 bvid（对齐主线 hx-title）
@@ -394,6 +404,12 @@ func (a *app) playerBar(c *ui.Context) {
 }
 
 func main() {
+	// 日志系统最先初始化：捕获全部 log.Printf（含 db 打开失败）到内存环形缓冲+文件
+	if dir, err := os.UserConfigDir(); err == nil {
+		appLogDir := filepath.Join(dir, "mymusic-mygo")
+		os.MkdirAll(appLogDir, 0o755)
+		initAppLog(filepath.Join(appLogDir, "data.db"), logConfig{Capacity: 1000, MinLevel: logInfo, WriteFile: true})
+	}
 	a := &app{
 		bili: bilibili.NewClient(
 			"https://api.bilibili.com",
@@ -470,6 +486,8 @@ func main() {
 	// 恢复用户自定义插件顺序（影响 SourceNames/插件页/搜索下拉框）——必须在
 	// SourceNames() 首次调用前，否则默认源取的还是未排序的第一个。
 	a.restorePluginOrder()
+	a.restorePluginEnabled()
+	a.restoreLogConfig()
 	// 当前源 = 排序后首个（默认 B站）；未来网易云/本地/插件源都注册进表，UI 可选
 	if names := plugin.SourceNames(); len(names) > 0 {
 		a.src = plugin.Sources()[names[0]]

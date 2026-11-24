@@ -12,6 +12,7 @@ import (
 
 func (a *app) setTab(t string) {
 	a.activeTab = t
+	a.syncLogWatch()
 	a.win.Invalidate()
 }
 

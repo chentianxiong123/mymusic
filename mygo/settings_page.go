@@ -19,14 +19,18 @@ func (a *app) settingsPage(c *ui.Context) {
 			ui.Text(c, "设置").FontSize(20 * uiScale).Bold().TextColor(clrText)
 			ui.Spacer(c).Grow(1)
 			// 子 tab：系统设置 / 插件（同一导航项分页显示）
-			a.setRowSeg(c, []string{"系统设置", "插件"}, a.settingsTab, func(i int) {
+			a.setRowSeg(c, []string{"系统设置", "插件", "日志"}, a.settingsTab, func(i int) {
 				a.settingsTab = i
+				a.syncLogWatch()
 				a.win.Invalidate()
 			})
 		})
-		if a.settingsTab == 1 {
+		switch a.settingsTab {
+		case 1:
 			a.pluginPage(c)
-		} else {
+		case 2:
+			a.logPage(c)
+		default:
 			a.systemSettings(c)
 		}
 	})

@@ -34,6 +34,21 @@ func (a *app) restorePluginOrder() {
 	plugin.SetOrderOverride(m)
 }
 
+// restorePluginEnabled 启动恢复插件启用状态：遍历所有已注册插件，读 settings 键
+// plugin_<type>_<name>（0=关，其它/缺省=开）。歌词源开关是核心配置，重启必须生效。
+func (a *app) restorePluginEnabled() {
+	if a.db == nil {
+		return
+	}
+	for _, in := range plugin.AllInfos() {
+		key := "plugin_" + in.Type + "_" + in.Name
+		v, ok := conv.LoadSetting(a.db, key)
+		if ok && v == "0" {
+			plugin.SetEnabled(in.Type, in.Name, false)
+		}
+	}
+}
+
 // savePluginOrder 把当前顺序覆盖表写回 settings（用户调整顺序后调）。
 func (a *app) savePluginOrder() {
 	if a.db == nil {

@@ -15,10 +15,10 @@ import (
 	"mymusic-mygo/plugin"
 )
 
-// loadLyricAsync 后台加载歌词：走主线 LyricHandler 端点（/api/v1/music/lyric），
-// 与主线 web 端 loadBackendLyric 完全同源——服务端 keywordsFor（Music.LyricKeywords
-// 分P标题优先）→ LyricCache 透明缓存 → SelectedSID/GetLyricLines 自动最优。
-// bvid 变化/重放时重新拉取；结果经 win.Update 回填渲染。
+// loadLyricAsync 后台加载歌词：按「歌词插件页的配置」顺序+启用状态挨个试，
+// 第一个出词的插件就用——所有歌词源完全平等（网易云无特权，只是默认排第一）。
+// 没有「音源绑定」「兜底」概念；全关/全失败就没词。
+// 网易云走 HTTP 端点（拿完整 Words/Offset/候选），JS 词源插件走 Fetch。
 func (a *app) loadLyricAsync(bvid string) {
 	if a.lyricLoading {
 		return
@@ -30,60 +30,84 @@ func (a *app) loadLyricAsync(bvid string) {
 		if a.current == nil {
 			return
 		}
-		// 关键词对齐主线 lyric.js load()：CleanSearchKeyword(标题) + ' ' + 歌手
-		// （服务端 bvid 非空会用分P标题覆盖，这边只是 fallback）
 		kwRaw := lyric.CleanSearchKeyword(a.current.title) + " " + lyric.CleanSearchKeyword(a.current.author)
 		kw := urlQE(kwRaw)
-		// 歌词按源：歌来源有 JS lyric 插件（咪咕/QQ/酷我等）→ 用该源歌词；无 → 主线端点（网易云兜底）。
-		if prov := plugin.Lyric(a.current.src); prov != nil {
-			// sid 传歌 id 字符串（咪咕 contentId 18 位超 JS 安全整数，必须字符串保精度）。
-			lines, lerr := prov.Fetch([]string{lyric.CleanSearchKeyword(a.current.title), lyric.CleanSearchKeyword(a.current.author)}, a.current.bvid)
-			if lerr == nil && len(lines) > 0 {
-				// source.LyricLine{Time,Text} → 主线 lyric.LyricLine [3]any{time,text,0}。
-				srcLines := make([]lyric.LyricLine, len(lines))
-				for i, ln := range lines {
-					srcLines[i] = lyric.LyricLine{ln.Time, ln.Text, 0}
-				}
-				a.win.Update(func() {
-					if a.current == nil || a.current.bvid != bvid {
-						return
-					}
-					a.lyricLines = srcLines
-					a.lyricSID = 0
-					a.lyricOffset = 0
-					log.Printf("[lyric] %s → 源歌词 %s (%d 行)", bvid, a.current.src, len(srcLines))
-					a.win.Invalidate()
-				})
-				return
+		keywords := []string{lyric.CleanSearchKeyword(a.current.title), lyric.CleanSearchKeyword(a.current.author)}
+
+		// 按用户排序的启用歌词插件挨个试。InfoNames("lyric") 已按 orderOverride 排好。
+		infos := plugin.InfoNames("lyric")
+		for _, in := range infos {
+			if !plugin.IsEnabled(in.Type, in.Name) {
+				continue
 			}
-			log.Printf("[lyric] %s 源歌词 %s 失败: %v", bvid, a.current.src, lerr)
+			prov := plugin.Lyric(in.Name)
+			if prov == nil {
+				continue
+			}
+
+			var lines []lyric.LyricLine
+			var words [][]lyric.WordSpan
+			var offset float64
+			var sid int
+			var cands []lyric.LyricResult
+
+			if in.Name == "netease" {
+				// 网易云：走 HTTP 端点拿完整数据（selected lines + words + offset + 候选）
+				res, err := a.lyricGetBVID(bvid, kw)
+				if err != nil || res == nil || len(res.Lines) == 0 {
+					if err != nil {
+						log.Printf("[lyric] %s netease 取词失败: %v", bvid, err)
+					}
+					continue
+				}
+				lines, words, offset, sid = res.Lines, res.Words, res.Offset, res.ID
+				if cr, cerr := a.lyricCandsViaHTTP(kw, bvid, 8); cerr == nil {
+					cands = cr
+				}
+			} else {
+				// 其它歌词插件：Fetch 返回 model.LyricLine{Time,Text}
+				src, ferr := prov.Fetch(keywords, a.current.bvid)
+				if ferr != nil || len(src) == 0 {
+					if ferr != nil {
+						log.Printf("[lyric] %s %s 取词失败: %v", bvid, in.Name, ferr)
+					}
+					continue
+				}
+				lines = make([]lyric.LyricLine, len(src))
+				for i, ln := range src {
+					lines[i] = lyric.LyricLine{ln.Time, ln.Text, 0.0}
+				}
+			}
+
+			// 命中：回填 UI
+			name := in.Name
+			a.win.Update(func() {
+				if a.current == nil || a.current.bvid != bvid {
+					return
+				}
+				a.lyricLines = lines
+				a.lyricWords = words
+				a.lyricSID = sid
+				a.lyricSrcName = name
+				a.lyricOffset = offset
+				if len(cands) > 0 {
+					a.lyricCands = cands
+				}
+				log.Printf("[lyric] %s → %s (%d 行)", bvid, name, len(lines))
+				a.win.Invalidate()
+			})
+			return
 		}
-		// 1) 选定源行列表（同挂件/歌词页：服务端选源+透明缓存权威）
-		res, err := a.lyricGetBVID(bvid, kw)
-		if err != nil {
-			log.Printf("[lyric] %s 取词失败: %v", bvid, err)
-		}
-		// 2) 候选栏元数据（交互数据；行显示权威走后端选定源）
-		cands, cerr := a.lyricCandsViaHTTP(kw, bvid, 8)
-		if cerr != nil {
-			log.Printf("[lyric] %s 候选失败: %v", bvid, cerr)
-		}
+
+		// 全部插件没出词 → 清空
 		a.win.Update(func() {
 			if a.current == nil || a.current.bvid != bvid {
 				return
 			}
-			if len(cands) > 0 {
-				a.lyricCands = cands
-			}
-			if res != nil && len(res.Lines) > 0 {
-				a.lyricLines = res.Lines
-				a.lyricSID = res.ID
-				a.lyricOffset = res.Offset
-				log.Printf("[lyric] %s → sid=%d (%d 行)", bvid, res.ID, len(res.Lines))
-			} else {
-				a.lyricLines = nil
-				a.lyricSID = 0
-			}
+			a.lyricLines = nil
+			a.lyricWords = nil
+			a.lyricSID = 0
+			a.lyricSrcName = ""
 			a.win.Invalidate()
 		})
 	}()
@@ -186,16 +210,19 @@ func (a *app) setLyricOffset(v float64) {
 	a.win.Invalidate()
 }
 
-// lyricSourceText 中栏来源行（对齐主线 lyric.js setSource：
-// 「来源：网易云 · 歌手《歌名》」，无歌词给引导文案）。
+// lyricSourceText 中栏来源行：显示实际出词的歌词插件名（插件页可配置顺序/开关）。
 func (a *app) lyricSourceText() string {
 	if len(a.lyricLines) == 0 {
-		return "未找到歌词 — 点候选栏换源"
+		return "未找到歌词 — 去「插件 → 歌词」启用更多歌词源"
+	}
+	name := a.lyricSrcName
+	if name == "" {
+		name = "自动匹配"
 	}
 	if a.lyricSID > 0 {
 		for _, c := range a.lyricCands {
 			if c.ID == a.lyricSID {
-				s := "来源：网易云 · " + c.Artist
+				s := "来源：" + name + " · " + c.Artist
 				if c.Artist != "" && c.Name != "" {
 					s += "《" + c.Name + "》"
 				} else if c.Name != "" {
@@ -205,7 +232,7 @@ func (a *app) lyricSourceText() string {
 			}
 		}
 	}
-	return "来源：网易云 · 自动匹配"
+	return "来源：" + name + " · 自动匹配"
 }
 
 // lyricProg 当前行卡拉OK进度（对齐主线 lyric.js sync：当前行唱到百分之几，
