@@ -63,6 +63,117 @@ func (a *app) PlayToSpeaker(did, name string) { a.playToSpeaker(did, name) }
 func (a *app) StopSpeaker(did string)         { a.stopSpeaker(did) }
 func (a *app) QueryCastStatus(udn string)     { a.queryCastStatus(udn) }
 
+// ── 蓝牙设备操作（走 target.Target 插件表，不硬编码后端）──
+
+func (a *app) findBtTarget(id string) target.Target {
+	for _, t := range plugin.Targets() {
+		if t.Name() == "bluetooth" && t.DeviceID() == id {
+			return t
+		}
+	}
+	return nil
+}
+
+func (a *app) ConnectBluetooth(id string) {
+	t := a.findBtTarget(id)
+	if t == nil {
+		return
+	}
+	if b, ok := t.(*target.Bluetooth); ok {
+		err := b.Connect()
+		if err != nil {
+			a.status = "连接失败：" + err.Error()
+		} else {
+			a.status = "已连接 " + b.DeviceName()
+		}
+	}
+	a.discoverBluetooth()
+	a.win.Invalidate()
+}
+
+func (a *app) DisconnectBluetooth(id string) {
+	t := a.findBtTarget(id)
+	if t == nil {
+		return
+	}
+	if b, ok := t.(*target.Bluetooth); ok {
+		_ = b.Disconnect()
+		a.status = "已断开 " + b.DeviceName()
+	}
+	a.discoverBluetooth()
+	a.win.Invalidate()
+}
+
+func (a *app) PlayBluetooth(id, name string) {
+	t := a.findBtTarget(id)
+	if t == nil {
+		return
+	}
+	if err := t.Play("", target.PlayOpts{Title: a.CurrentTitle()}); err != nil {
+		a.status = "蓝牙投送失败：" + err.Error()
+	} else {
+		a.pauseLocalForCast()
+		a.btOn = name
+		a.status = "音频已路由到 " + name
+	}
+	a.win.Invalidate()
+}
+
+func (a *app) StopBluetooth() {
+	for _, t := range plugin.Targets() {
+		if t.Name() == "bluetooth" {
+			_ = t.Stop()
+		}
+	}
+	a.btOn = ""
+	a.status = "已恢复本机输出"
+	a.win.Invalidate()
+}
+
+func (a *app) BtBackendName() string {
+	b := target.Bt()
+	if b == nil {
+		return "当前平台不支持蓝牙输出"
+	}
+	return "蓝牙后端：" + b.Name()
+}
+
+func (a *app) Status() string { return a.status }
+
+func (a *app) ToggleLocal() { a.togglePlay() }
+
+// SwitchToLocal 停止所有远程目标（DLNA/蓝牙/音箱），恢复本机播放。
+func (a *app) SwitchToLocal() {
+	if a.castOn != "" {
+		a.StopCast()
+	}
+	if a.btOn != "" {
+		a.StopBluetooth()
+	}
+	for _, d := range a.speakers {
+		if a.spkDid == d.DID {
+			a.StopSpeaker(d.DID)
+		}
+	}
+	if a.localPausedByCast && a.pb != nil {
+		a.localPausedByCast = false
+		a.pb.Resume()
+	}
+	a.status = "已切回本机输出"
+	a.win.Invalidate()
+}
+
+// pauseLocalForCast 投送到远程前暂停本机，避免两边同时出声。
+func (a *app) pauseLocalForCast() {
+	if a.pb == nil || a.localPausedByCast {
+		return
+	}
+	if a.pb.Snapshot().Playing {
+		a.localPausedByCast = true
+		a.pb.Pause()
+	}
+}
+
 func (a *app) Invalidate()         { a.win.Invalidate() }
 func (a *app) Resp(a_, b float32) float32 { return a.resp(a_, b) }
 

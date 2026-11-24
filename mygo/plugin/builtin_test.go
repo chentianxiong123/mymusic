@@ -103,10 +103,10 @@ func TestCheckPluginKeyAllowsNonBuiltin(t *testing.T) {
 	}
 }
 
-// TestSystemCapabilityKeys 清单内容与 main.go 的实际系统注册一致（7 个能力）。
+// TestSystemCapabilityKeys 清单内容与 main.go 的实际系统注册一致（8 个能力）。
 func TestSystemCapabilityKeys(t *testing.T) {
 	want := map[string][]string{
-		"source": {"bilibili", "local"},
+		"source": {"bilibili", "local", "netease"},
 		"lyric":  {"netease"},
 		"target": {"bluetooth", "cast", "local", "speaker"},
 	}

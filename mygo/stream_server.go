@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -76,6 +77,37 @@ func (a *app) startStreamServer() {
 			log.Printf("[stream] 供给端点退出: %v", err)
 		}
 	}()
+}
+
+// lanAddr 取本机局域网 IPv4（给 DLNA 设备直连本机供给端点用）。
+// 无网卡/仅回环时回退 127.0.0.1（同机可用，跨机自然失败）。
+func lanAddr() string {
+	ifs, err := net.Interfaces()
+	if err == nil {
+		for _, i := range ifs {
+			if i.Flags&net.FlagUp == 0 || i.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			addrs, _ := i.Addrs()
+			for _, ad := range addrs {
+				if ipnet, ok := ad.(*net.IPNet); ok {
+					if v4 := ipnet.IP.To4(); v4 != nil {
+						return v4.String()
+					}
+				}
+			}
+		}
+	}
+	return "127.0.0.1"
+}
+
+// castStreamURL 本机 mp3 供给地址（局域网 DLNA 设备可直接拉）。
+func castStreamURL(bvid string) string {
+	port := os.Getenv("HC_PORT")
+	if port == "" {
+		port = "28977"
+	}
+	return fmt.Sprintf("http://%s:%s/api/v1/music/stream/%s?mp3=1", lanAddr(), port, bvid)
 }
 
 func (a *app) lyricBaseURL() string {

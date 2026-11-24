@@ -32,6 +32,19 @@ func (a *app) castPage(c *ui.Context) {
 					})
 				})
 			}
+			// 蓝牙音频路由状态（恢复本机）
+			if a.btOn != "" {
+				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
+						icon(c, icBluetooth, 18, clrBlue)
+						ui.Text(c, "音频输出到："+a.btOn).FontSize(14 * uiScale).TextColor(clrText).Bold()
+						ui.Spacer(c).Grow(1)
+						if chip(c, "恢复本机").Clicked() {
+							a.StopBluetooth()
+						}
+					})
+				})
+			}
 			// 插件派生：每个目标面板渲染自己的区块
 			for _, p := range plugin.TargetPanels() {
 				p.Render(c, a)
@@ -170,7 +183,11 @@ func (a *app) discoverBluetooth() {
 		for _, d := range list {
 			plugin.RegisterSystemTarget(target.NewBluetooth(d.MAC, d.Name))
 		}
-		a.status = fmt.Sprintf("发现 %d 个蓝牙设备", len(list))
+		if len(list) == 0 && !target.BtAvailable() {
+			a.status = "当前平台不支持蓝牙输出"
+		} else {
+			a.status = fmt.Sprintf("发现 %d 个蓝牙设备", len(list))
+		}
 		a.win.Invalidate()
 	})
 }
@@ -236,9 +253,13 @@ func (a *app) castTo(udn, name string) {
 		a.win.Invalidate()
 		return
 	}
-	if err := t.Play(a.current.bvid, target.PlayOpts{Title: a.current.title}); err != nil {
+	if err := t.Play(a.current.bvid, target.PlayOpts{
+		Title: a.current.title,
+		URL:   castStreamURL(a.current.bvid), // 本机 mp3 供给，局域网设备直连（不走主线代理）
+	}); err != nil {
 		a.status = "投屏失败：" + err.Error()
 	} else {
+		a.pauseLocalForCast()
 		a.castOn = name
 		a.status = "已投屏到 " + name
 	}

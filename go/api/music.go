@@ -128,9 +128,10 @@ func (h *MusicHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ★ 音箱秒开分支：喂转码 mp3（fMP4 容器是三四秒出声根因，mp3 流式帧拿到即出声）。
-	// 仅音箱（did 非空）走此路径；web 播放器（did 空）保持原 m4s 路径（浏览器原生解 fMP4，
-	// 不需转码且保留 fMP4 容器级 seek）。Xcoder 不可用（ffmpeg 缺失/未注入）→ 回退原 m4s 路径。
-	if did != "" && h.Xcoder != nil && h.Xcoder.Available() && h.Cache != nil {
+	// 仅音箱（did 非空）或显式 mp3=1（DLNA/外部播放器）走此路径；web 播放器保持原 m4s 路径。
+	// Xcoder 不可用（ffmpeg 缺失/未注入）→ 回退原 m4s 路径。
+	forceMP3 := r.URL.Query().Get("mp3") == "1"
+	if (did != "" || forceMP3) && h.Xcoder != nil && h.Xcoder.Available() && h.Cache != nil {
 		h.streamSpeakerMP3(w, r, bvid, quality, startSec)
 		return
 	}

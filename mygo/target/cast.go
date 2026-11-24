@@ -22,13 +22,18 @@ func (t *CastDevice) Name() string       { return "cast" }
 func (t *CastDevice) DeviceID() string   { return t.udn }
 func (t *CastDevice) DeviceName() string { return t.name }
 
-// Play 投屏当前播放（opts.URL=完整地址；缺省用 opts.SongID 拼 B站页面 URL）。
+// Play 投屏当前播放（opts.URL=已解析可播流，如 mygo 本地 mp3 供给端点；
+// 缺省用 songID 拼 B站页面 URL 走主线 resolveStream）。
 func (t *CastDevice) Play(songID string, opts PlayOpts) error {
-	url := opts.URL
-	if url == "" {
-		url = "https://www.bilibili.com/video/" + songID
+	var res map[string]any
+	var err error
+	if opts.URL != "" {
+		// 自带流地址：直接用 AVTransport 设置（跳过主线代理，局域网设备可直连本机供给端点）
+		res, err = t.svc.SetURL(t.udn, opts.URL, opts.Title, "audio/mpeg")
+	} else {
+		url := "https://www.bilibili.com/video/" + songID
+		res, err = t.svc.Cast(url, t.udn, opts.Title)
 	}
-	res, err := t.svc.Cast(url, t.udn, opts.Title)
 	if err != nil {
 		return err
 	}

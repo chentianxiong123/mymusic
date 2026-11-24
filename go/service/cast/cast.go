@@ -278,17 +278,26 @@ func (c *CastService) controller(udn string) (*deviceController, error) {
 
 // Cast 投屏：设置播放地址 + 开始播放
 func (c *CastService) Cast(episodeURL, udn, title string) (map[string]any, error) {
-	dc, err := c.controller(udn)
-	if err != nil {
-		return map[string]any{"code": 404, "message": err.Error()}, err
-	}
 	res, streamURL := c.PlayURL(episodeURL, title)
 	if code, _ := res["code"].(int); code != 0 {
 		return res, nil
 	}
 	data := res["data"].(map[string]any)
 	ctype, _ := data["type"].(string)
-	if err := dc.av.SetAVTransportURI(0, streamURL, buildDIDLLite(streamURL, title, ctype)); err != nil {
+	return c.SetURL(udn, streamURL, title, ctype)
+}
+
+// SetURL 直接投一个已经解析好的可播 URL（调用方自带源，如 mygo 本地 mp3 供给端点）。
+// 与 Cast 共用同一套 AVTransport 控制，但跳过 resolveStream/主线代理。
+func (c *CastService) SetURL(udn, streamURL, title, contentType string) (map[string]any, error) {
+	dc, err := c.controller(udn)
+	if err != nil {
+		return map[string]any{"code": 404, "message": err.Error()}, err
+	}
+	if contentType == "" {
+		contentType = "audio/mpeg"
+	}
+	if err := dc.av.SetAVTransportURI(0, streamURL, buildDIDLLite(streamURL, title, contentType)); err != nil {
 		return map[string]any{"code": 500, "message": "设置播放地址失败"}, err
 	}
 	if err := dc.av.Play(0, "1"); err != nil {

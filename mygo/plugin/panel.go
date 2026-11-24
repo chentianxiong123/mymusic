@@ -52,9 +52,21 @@ type TargetPanelHost interface {
 	StopSpeaker(did string)
 	QueryCastStatus(udn string)
 
+	// 蓝牙设备操作
+	ConnectBluetooth(id string)
+	DisconnectBluetooth(id string)
+	PlayBluetooth(id, name string)
+	StopBluetooth()
+	BtBackendName() string
+
+	// 本机输出
+	SwitchToLocal()
+	ToggleLocal()
+
 	// UI 辅助
 	Invalidate()
 	Resp(a, b float32) float32
+	Status() string
 }
 
 // TargetPanel 一个目标种类的页面区块（DLNA/蓝牙/音箱/...）。
