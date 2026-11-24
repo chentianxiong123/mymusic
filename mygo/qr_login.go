@@ -79,6 +79,8 @@ func createQR(src string) (*qrSession, error) {
 			s.Image = png
 		}
 		return s, err
+	case "migu":
+		return createMiguQR()
 	}
 	return nil, fmt.Errorf("该音源不支持扫码登录")
 }
@@ -97,6 +99,8 @@ func checkQR(s *qrSession) error {
 		return checkKugouQR(s)
 	case "qqmusic":
 		return checkQQQR(s)
+	case "migu":
+		return checkMiguQR(s)
 	}
 	return fmt.Errorf("该音源不支持扫码登录")
 }
@@ -261,7 +265,7 @@ func (a *app) applyQRCookie(src, cookie string) {
 
 // qrLoginSection 音源详情页的登录区块（仅支持扫码的平台显示按钮）。
 func (a *app) qrLoginSection(c *ui.Context, src string) {
-	if src != "bilibili" && src != "netease" && src != "kugou" && src != "qqmusic" {
+	if src != "bilibili" && src != "netease" && src != "kugou" && src != "qqmusic" && src != "migu" {
 		return
 	}
 	logged := plugin.GetSetting("source", src, "cookie", "") != ""
