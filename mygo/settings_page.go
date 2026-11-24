@@ -14,7 +14,7 @@ import (
 )
 
 func (a *app) settingsPage(c *ui.Context) {
-	ui.Column(c).Fill().Padding(a.resp(16, 10), a.resp(24, 12), 0, a.resp(24, 12)).Gap(10 * uiScale).Children(func() {
+	ui.Column(c).Fill().Padding(a.resp(16, 10), a.resp(24, 12), a.resp(12, 8), a.resp(24, 12)).Gap(10 * uiScale).Children(func() {
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "设置").FontSize(20 * uiScale).Bold().TextColor(clrText)
 			ui.Spacer(c).Grow(1)

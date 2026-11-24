@@ -69,6 +69,10 @@ func LoadFromDir(dir string) ([]error, error) {
 		if !e.IsDir() {
 			continue
 		}
+		// 已有 Go 内置实现的 key：按目录名跳过（NewJSPlugin 会拒绝内置 key）
+		if IsBuiltinKey("source", e.Name()) || IsBuiltinKey("lyric", e.Name()) || IsBuiltinKey("target", e.Name()) {
+			continue
+		}
 		p := filepath.Join(dir, e.Name(), "plugin.js")
 		code, err := os.ReadFile(p)
 		if err != nil {

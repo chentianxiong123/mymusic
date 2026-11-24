@@ -127,6 +127,11 @@ type app struct {
 	limitPendingIdx int          // 待确认档位（0-3 预置，4=自定义）
 	limitPendingVal int          // 待确认/输入数值
 	limitBuf       string        // 弹窗输入框 buffer
+	lyricBindSel    string       // 歌词源下拉选中值（持久，避免每帧重建抖动）
+	lyricBindOwn    string       // 当前下拉归属的音源（切换时重新同步）
+	qrLoginSession  *qrSession    // 音源扫码登录会话（非空=弹窗显示）
+	qrLoginImg      ui.ImageSource // 二维码图片（解码后）
+	qrLoginStop     chan struct{} // 停止扫码轮询
 	lastSavedSource string      // 音源下拉保存去重（避免每帧写盘）
 	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件 2=日志
 	pluginTab    int    // 插件页子 tab：0=音源 1=歌词 2=输出
@@ -310,6 +315,8 @@ func (a *app) view(c *ui.Context) {
 	a.restoreConfigDialog(c)
 	// 自定义上限弹窗
 	a.customLimitDialog(c)
+	// 音源扫码登录弹窗
+	a.qrLoginDialog(c)
 }
 
 // navBar 顶部导航——结构随档位切换（对齐主线：桌面完整导航 vs md:hidden 汉堡+侧滑面板）。
@@ -468,8 +475,16 @@ func main() {
 		}})
 	}
 	plugin.RegisterSystemLyric(lyricplug.NewNetease()) // 网易云歌词源（系统级兜底）
+	// 网易云音源（Go 内置：明文 API + 扫码登录；JS 版同 key 自动跳过）
+	plugin.RegisterSystemSource(source.NewNetease(plugin.GetSetting("source", "netease", "cookie", "")))
+	plugin.RegisterSettings("source", "netease", []plugin.Setting{
+		{Key: "quality", Name: "音质", Type: plugin.SettingSelect, Options: []string{"128k", "320k"}, Default: "320k", Desc: "播放音质"},
+		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索条数"},
+		{Key: "cookie", Name: "登录 Cookie", Type: plugin.SettingText, Default: "", Desc: "扫码登录或粘贴网易云 Cookie；空=免登录"},
+	})
 	// 插件元数据（插件页展示）
 	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐 · 搜索、播放、歌词", Order: 10})
+	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "source", Icon: "netease", Version: "1.0", Desc: "网易云音乐 · 搜索、播放、歌词", Order: 20})
 	// B站音源插件设置：搜索条数/分页自控（插件声明，系统统一存储 SettingStore）
 	plugin.RegisterSettings("source", "bilibili", []plugin.Setting{
 		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索显示的条数"},
@@ -481,19 +496,34 @@ func main() {
 	plugin.RegisterSettings("source", "local", []plugin.Setting{
 		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav）"},
 	})
+	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "source", Icon: "local", Version: "1.0", Desc: "本地文件 · 扫描目录播放", Order: 20})
 	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词 · 智能匹配", Order: 20})
 	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）", Order: 30})
 	plugin.RegisterInfo(plugin.Info{Name: "cast", Type: "target", Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
 	plugin.RegisterInfo(plugin.Info{Name: "bluetooth", Type: "target", Icon: "bluetooth", Version: "1.0", Desc: "蓝牙设备 · 无线播放", Order: 50})
 	plugin.RegisterInfo(plugin.Info{Name: "speaker", Type: "target", Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
-	// JS 沙箱插件：扫描 plugins/ 加载第三方 .js 音源/歌词（sobek 纯 Go，无 cgo）。
+	// JS 沙箱插件：扫描可执行文件旁的 plugins/（相对路径会随 cwd 变化导致插件时多时少）。
 	// 单个插件失败不拖垮启动（errs 收集，日志列出原因）。
-	if errs, err := plugin.LoadFromDir("plugins"); err != nil {
-		log.Printf("js plugin dir: %v", err)
-	} else {
-		for _, e := range errs {
-			log.Printf("js plugin load: %v", e)
+	pluginDirs := []string{}
+	if exe, err := os.Executable(); err == nil {
+		pluginDirs = append(pluginDirs, filepath.Join(filepath.Dir(exe), "plugins"))
+	}
+	if dir, err := os.UserConfigDir(); err == nil {
+		pluginDirs = append(pluginDirs, filepath.Join(dir, "mymusic-mygo", "plugins"))
+	}
+	pluginDirs = append(pluginDirs, "plugins")
+	for _, pluginDir := range pluginDirs {
+		if _, err := os.Stat(pluginDir); err != nil {
+			continue
 		}
+		if errs, err := plugin.LoadFromDir(pluginDir); err != nil {
+			log.Printf("js plugin dir: %v", err)
+		} else {
+			for _, e := range errs {
+				log.Printf("js plugin load: %v", e)
+			}
+		}
+		break // 找到第一个存在的目录就停，避免重复注册
 	}
 	// 恢复用户自定义插件顺序（影响 SourceNames/插件页/搜索下拉框）——必须在
 	// SourceNames() 首次调用前，否则默认源取的还是未排序的第一个。

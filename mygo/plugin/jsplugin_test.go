@@ -7,7 +7,8 @@ import (
 	"mymusic-mygo/source"
 )
 
-// TestJSPluginLoadNetease 加载正式网易云音源插件，验证注册 + 编译期契约。
+// TestJSPluginLoadNetease 网易云已改 Go 内置；JS 插件目录里有同 key 时跳过，
+// 不重复注册（Go 实现由 main 注册，这里只验证跳过逻辑不报错）。
 func TestJSPluginLoadNetease(t *testing.T) {
 	errs, err := LoadFromDir(filepath.Join("..", "plugins"))
 	if err != nil {
@@ -16,23 +17,11 @@ func TestJSPluginLoadNetease(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("load errs: %v", errs)
 	}
-	// 网易云音源已注册
-	src := Sources()["netease"]
-	if src == nil {
-		t.Fatal("netease source 未注册")
-	}
-	if src.Name() != "netease" {
-		t.Fatalf("Name=%q", src.Name())
-	}
-	var _ source.MusicSource = src // 编译期契约
-	// 音源 netease 不覆盖歌词 netease：歌词插件仍应是内置 Netease（非 JS）。
+	// JS 版 netease 因内置 key 被跳过，不应覆盖歌词 netease。
 	if Lyric("netease") != nil {
 		t.Fatal("netease 不应注册 lyric 能力（歌词走内置）")
 	}
-	// 音源元数据已注册（source/netease）
-	if InfoOf("source", "netease").Name != "netease" {
-		t.Fatal("netease source info 未注册")
-	}
+	var _ source.MusicSource = (*source.Netease)(nil) // Go 版编译期契约
 }
 
 // TestJSPluginLoadConflict 与内置 key 同名应拒绝。

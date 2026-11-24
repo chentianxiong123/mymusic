@@ -34,12 +34,31 @@ func (a *app) loadLyricAsync(bvid string) {
 		kw := urlQE(kwRaw)
 		keywords := []string{lyric.CleanSearchKeyword(a.current.title), lyric.CleanSearchKeyword(a.current.author)}
 
-		// 按用户排序的启用歌词插件挨个试。InfoNames("lyric") 已按 orderOverride 排好。
+		// 当前音源绑定的歌词插件（音源插件详情页可配置：自带 / 选择）。
+		bound := a.lyricBoundFor(a.current.src)
 		infos := plugin.InfoNames("lyric")
-		for _, in := range infos {
-			if !plugin.IsEnabled(in.Type, in.Name) {
-				continue
+		var chosen *plugin.Info
+		for i := range infos {
+			if infos[i].Name == bound && plugin.IsEnabled("lyric", bound) {
+				chosen = &infos[i]
+				break
 			}
+		}
+		if chosen == nil {
+			// 绑定缺失/被关 → 没词（不跨源兜底，配置归用户）
+			a.win.Update(func() {
+				if a.current == nil || a.current.bvid != bvid {
+					return
+				}
+				a.lyricLines = nil
+				a.lyricWords = nil
+				a.lyricSID = 0
+				a.lyricSrcName = ""
+				a.win.Invalidate()
+			})
+			return
+		}
+		for _, in := range []plugin.Info{*chosen} {
 			prov := plugin.Lyric(in.Name)
 			if prov == nil {
 				continue

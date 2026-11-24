@@ -19,7 +19,7 @@ func (a *app) pluginPage(c *ui.Context) {
 		a.pluginDetailPage(c)
 		return
 	}
-	ui.Column(c).Fill().Gap(10 * uiScale).Children(func() {
+	ui.Column(c).Grow(1).Fill().Gap(10 * uiScale).Children(func() {
 		// 分页 tab：音源 | 歌词 | 输出（复用设置页的分段选择器）
 		a.setRowSeg(c, []string{"音源", "歌词", "输出"}, a.pluginTab, func(i int) {
 			a.pluginTab = i
@@ -184,9 +184,16 @@ func (a *app) pluginDetailName() string {
 
 // pluginConfigForm 子页内容：当前插件配置表单（网易云歌词完整设置 / JS 插件通用表单）。
 func (a *app) pluginConfigForm(c *ui.Context) {
+	// 音源插件：歌词源绑定（插件自带 / 手动选择歌词插件）+ 扫码登录
+	if tp, name, ok := splitPluginDetail(a.pluginDetail); ok && tp == "source" {
+		a.qrLoginSection(c, name)
+		a.lyricBindSection(c, name)
+	}
 	switch a.pluginDetail {
 	case "source/bilibili":
 		a.bilibiliSourceConfig(c)
+	case "source/netease":
+		a.neteaseSourceConfig(c)
 	case "lyric/netease":
 		a.neteaseLyricConfig(c)
 	case "target/speaker":
@@ -356,6 +363,16 @@ func (a *app) bilibiliSourceConfig(c *ui.Context) {
 		a.savePref("mygo_quality", i)
 		a.win.Invalidate()
 	})
+	// 登录 Cookie（有=登录态/高清，空=匿名）
+	a.setRow(c, "登录 Cookie")
+	a.setRowText(c, "粘贴 B站登录态 Cookie（登录 www.bilibili.com 后从浏览器复制），空=匿名")
+	cookie := plugin.GetSetting("source", "bilibili", "cookie", "")
+	ui.TextInput(c, &cookie).Grow(1).Height(38 * uiScale).FontSize(12 * uiScale).TextColor(clrText).Placeholder("SESSDATA=...; buvid3=...")
+	if chip(c, "保存").Clicked() {
+		_ = plugin.SetSetting("source", "bilibili", "cookie", cookie)
+		a.bili.Cookie = cookie
+		a.win.Invalidate()
+	}
 }
 
 // neteaseLyricConfig 网易云歌词完整配置（从系统设置移入：字号/背景/时间显示/偏移）。
@@ -391,6 +408,30 @@ func (a *app) neteaseLyricConfig(c *ui.Context) {
 	// 歌词时间显示（主线 set-lytime 开关）
 	a.setRowSwitch(c, "歌词时间显示", "歌词行旁显示时间戳", a.lyricTime, func(on bool) {
 		a.lyricTime = on
+		a.win.Invalidate()
+	})
+}
+
+// neteaseSourceConfig 网易云 Go 音源配置（音质/搜索条数/Cookie；扫码登录在上方登录区块）。
+func (a *app) neteaseSourceConfig(c *ui.Context) {
+	a.setRow(c, "音质")
+	q := plugin.GetSetting("source", "netease", "quality", "320k")
+	qi := indexOf([]string{"128k", "320k"}, q)
+	if qi < 0 {
+		qi = 1
+	}
+	a.setRowSeg(c, []string{"128k", "320k"}, qi, func(i int) {
+		_ = plugin.SetSetting("source", "netease", "quality", []string{"128k", "320k"}[i])
+		a.win.Invalidate()
+	})
+	a.setRow(c, "搜索条数")
+	s := plugin.GetSetting("source", "netease", "searchSize", "40")
+	si := indexOf([]string{"20", "40", "60"}, s)
+	if si < 0 {
+		si = 1
+	}
+	a.setRowSeg(c, []string{"20", "40", "60"}, si, func(i int) {
+		_ = plugin.SetSetting("source", "netease", "searchSize", []string{"20", "40", "60"}[i])
 		a.win.Invalidate()
 	})
 }

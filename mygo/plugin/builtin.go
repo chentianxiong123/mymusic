@@ -19,7 +19,7 @@ import (
 // systemCapabilities 系统级能力清单：capability 类型 → 受保护 key 列表。
 // 新增系统级能力：先在此声明，再用 RegisterSystem* 注册（漏登记即 panic）。
 var systemCapabilities = map[string][]string{
-	"source": {"bilibili", "local"},                     // Go 音源
+	"source": {"bilibili", "local", "netease"},            // Go 音源
 	"lyric":  {"netease"},                               // Go 词源（兜底匹配）
 	"target": {"local", "cast", "bluetooth", "speaker"}, // Go 播放目标
 }
