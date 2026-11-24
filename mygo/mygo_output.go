@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"mymusic-mygo/plugin"
@@ -19,6 +20,7 @@ import (
 	"homecast/service/music"
 	"homecast/service/playback"
 	"homecast/service/playlist"
+	"homecast/service/transcode"
 
 	"homecast/bilibili"
 )
@@ -36,13 +38,15 @@ type MyGoOutput struct {
 	src     source.MusicSource  // 音源接口（阶段 2 解耦：取流走接口，不认具体源）
 	curSrc  string              // 当前播放歌的来源名（分开搜索：歌可能来自网易云/插件源）
 	cache   *cache.CacheService // 主线缓存域包（可空：命中→秒开）
+	xcoder  *transcode.Transcoder // 主线 mp3 转码缓存（与音箱/供给端点共用，本地播放也走它）
 	qualFn  func() int          // 当前音质档（0=64k 1=128k 2=192k，默认 192k）
 	qualMu  sync.Mutex
 	quality int // Locked by qualMu：默认 192k
 
 	mu    sync.Mutex
 	p     *audio.Player
-	path  string // 当前临时音频文件（Stop/切歌时清理）
+	path  string // 当前播放文件路径（共享缓存/本地源/临时文件）
+	temp  bool   // path 是否自建临时文件（仅此类切歌时删除；共享缓存永不删）
 	bvid  string
 	title string
 	gen   int // 切歌代际：切歌后旧 goroutine 的下载放弃（防竞态）
@@ -62,6 +66,11 @@ func (o *MyGoOutput) setMusic(m *music.MusicService) {
 // setSource 注入音源接口（阶段 2 解耦：取流走 MusicSource）。
 func (o *MyGoOutput) setSource(s source.MusicSource) {
 	o.src = s
+}
+
+// setXcoder 注入主线 mp3 转码缓存（本地播放与音箱共用同一份基础设施）。
+func (o *MyGoOutput) setXcoder(x *transcode.Transcoder) {
+	o.xcoder = x
 }
 
 // setSrcName 设置当前播放歌的来源名（分开搜索：歌可能来自网易云/插件源）。
@@ -161,74 +170,117 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 		return
 	}
 
-	// 缓存命中（对齐主线 cache 域包：再次播放秒开）
-	if o.cache != nil {
-		if _, _, ok := o.cache.Get(bvid); ok {
-			path := o.cache.FilePath(bvid)
-			if fi, err := os.Stat(path); err == nil && fi.Size() > 0 {
-				o.openAndPlay(bvid, opts, gen, path)
+	// 本地文件源（file://）：已是 mp3/flac/m4a 等可解码格式，无需转码/缓存，直接解码。
+	if strings.HasPrefix(stream.URL, "file://") {
+		o.openAndPlay(bvid, opts, gen, strings.TrimPrefix(stream.URL, "file://"), false)
+		return
+	}
+
+	// 共用基础设施：本地播放与音箱/供给端点共用同一套 m4s 源缓存 + mp3 转码缓存。
+	// 不再自建临时文件 / 重复下载 / 重复回写缓存。
+	// 音质统一用车厘子 qn 值（30280/30232/30216），与主线 cache/xcoder 键一致。
+	if o.xcoder != nil {
+		if _, ok := o.xcoder.Get(bvid, qn); ok {
+			path := o.xcoder.FilePath(bvid, qn)
+			if fi, statErr := os.Stat(path); statErr == nil && fi.Size() > 0 {
+				o.openAndPlay(bvid, opts, gen, path, false) // mp3 缓存命中 → 秒开
 				return
 			}
 		}
 	}
-	// 下载到临时文件（B站 CDN 多节点，拒连重试）
-	f, err := os.CreateTemp("", "mymusic-mygo-*.m4a")
+
+	// 确保源 m4s 落主线 cache（唯一源缓存；未命中才下载一次）。
+	m4sPath, err := o.ensureM4S(bvid, qn, stream.URL)
 	if err != nil {
-		log.Printf("[mygo-output] 临时文件失败: %v", err)
-		if o.onErr != nil {
-			o.onErr("临时文件失败：" + err.Error())
-		}
-		return
-	}
-	path := f.Name()
-	var resp *http.Response
-	if strings.HasPrefix(stream.URL, "file://") {
-		// 本地文件源：file:///abs/path 直接读文件，不下载（mp3/flac 解码走 OpenStream magic）。
-		lf, ferr := os.Open(strings.TrimPrefix(stream.URL, "file://"))
-		if ferr != nil {
-			err = ferr
-		} else {
-			_, err = io.Copy(f, lf)
-			lf.Close()
-		}
-	} else {
-		for attempt := 0; attempt < 5; attempt++ {
-			resp, err = o.bili.GetRaw(stream.URL, nil)
-			if err == nil {
-				break
-			}
-			time.Sleep(600 * time.Millisecond)
-		}
-		if err == nil {
-			_, err = io.Copy(f, resp.Body)
-			resp.Body.Close()
-		}
-	}
-	f.Close()
-	if err != nil {
-		os.Remove(path)
-		log.Printf("[mygo-output] 下载失败 %s: %v", bvid, err)
+		log.Printf("[mygo-output] 取源失败 %s: %v", bvid, err)
 		if o.onErr != nil {
 			o.onErr("下载失败：" + err.Error())
 		}
 		return
 	}
-	// 回写缓存域包（SQLite 元数据 + 磁盘）；失败不影响播放
-	if o.cache != nil {
-		if data, rerr := os.ReadFile(path); rerr == nil {
-			_ = o.cache.Put(bvid, bilibili.PreferredQuality, data)
-		}
-	}
 
-	o.openAndPlay(bvid, opts, gen, path)
+	// 转码 mp3 落共享缓存（与音箱/供给端点共用），再从 mp3 解码播放。
+	// xcoder 不可用（ffmpeg 缺失）→ 降级直接解码源 m4s（mygo 已注册 mp4/aac 解码器）。
+	if o.xcoder == nil {
+		o.openAndPlay(bvid, opts, gen, m4sPath, false)
+		return
+	}
+	mp3Path, err := o.xcoder.EnsureMP3(m4sPath, bvid, qn)
+	if err != nil {
+		log.Printf("[mygo-output] 转码失败 %s（降级直接解码 m4s）: %v", bvid, err)
+		o.openAndPlay(bvid, opts, gen, m4sPath, false)
+		return
+	}
+	o.openAndPlay(bvid, opts, gen, mp3Path, false)
 }
 
-// openAndPlay 打开音频文件并提交到 audio.Player（缓存命中/下载后共用）。
-func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, path string) {
+// ensureM4S 确保源音频落主线 cache（与音箱/供给端点共用同一份 m4s 缓存），返回缓存路径。
+// 命中直接返回；未命中带 referer 取流（B站 CDN 多节点，拒连重试）→ 完整性校验 → Put。
+func (o *MyGoOutput) ensureM4S(bvid string, qn int, url string) (string, error) {
+	if o.cache != nil {
+		if _, _, ok := o.cache.Get(bvid); ok {
+			path := o.cache.FilePath(bvid)
+			if fi, err := os.Stat(path); err == nil && fi.Size() > 0 {
+				return path, nil
+			}
+		}
+	}
+	if url == "" {
+		return "", fmt.Errorf("empty audio url")
+	}
+	var resp *http.Response
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		resp, err = o.bili.GetRaw(url, nil)
+		if err == nil {
+			break
+		}
+		time.Sleep(600 * time.Millisecond)
+	}
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.ContentLength > 0 && int64(len(data)) != resp.ContentLength {
+		return "", fmt.Errorf("truncated %d/%d", len(data), resp.ContentLength)
+	}
+	if o.cache != nil {
+		if err := o.cache.Put(bvid, qn, data); err != nil {
+			log.Printf("[mygo-output] 回写缓存失败 %s: %v（不影响播放）", bvid, err)
+		}
+		return o.cache.FilePath(bvid), nil
+	}
+	// 无缓存域包（降级）：写临时文件供本次播放，播完清理。
+	f, err := os.CreateTemp("", "mymusic-mygo-src-*.m4s")
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", err
+	}
+	f.Close()
+	return f.Name(), nil
+}
+
+// openAndPlay 打开音频文件并提交到 audio.Player。
+// temp=true 表示本次是自建临时文件（无缓存域包降级），切歌/出错时才删；
+// 共享缓存文件（m4s/mp3/本地源）永远不删——音箱与供给端点也在用。
+func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, path string, temp bool) {
+	cleanup := func() {
+		if temp {
+			os.Remove(path)
+		}
+	}
 	// 解码
 	r, err := os.Open(path)
 	if err != nil {
-		os.Remove(path)
+		cleanup()
 		log.Printf("[mygo-output] 打开音频失败: %v", err)
 		if o.onErr != nil {
 			o.onErr("打开音频失败：" + err.Error())
@@ -238,7 +290,7 @@ func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, p
 	p, err := audio.OpenStream(r)
 	if err != nil {
 		r.Close()
-		os.Remove(path)
+		cleanup()
 		log.Printf("[mygo-output] 解码失败 %s: %v", bvid, err)
 		if o.onErr != nil {
 			o.onErr("解码失败：" + err.Error())
@@ -251,13 +303,14 @@ func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, p
 	if o.gen != gen {
 		o.mu.Unlock()
 		p.Stop()
-		os.Remove(path)
+		cleanup()
 		return
 	}
 	old := o.p
-	oldPath := o.path
+	oldPath, oldTemp := o.path, o.temp
 	o.p = p
 	o.path = path
+	o.temp = temp
 	o.bvid = bvid
 	o.title = opts.Title
 	hook := o.ended
@@ -265,7 +318,7 @@ func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, p
 	if old != nil {
 		old.Stop()
 	}
-	if oldPath != "" && !strings.HasSuffix(oldPath, ".m4s") {
+	if oldTemp && oldPath != "" {
 		os.Remove(oldPath)
 	}
 	// 播完回调核心（自动连播：核心填 Next）
@@ -329,15 +382,17 @@ func (o *MyGoOutput) Stop() error {
 	o.mu.Lock()
 	p := o.p
 	path := o.path
+	temp := o.temp
 	o.p = nil
 	o.path = ""
+	o.temp = false
 	o.bvid = ""
 	o.mu.Unlock()
 	if p != nil {
 		p.Stop()
 	}
-	if path != "" {
-		os.Remove(path)
+	if temp && path != "" {
+		os.Remove(path) // 只删自建临时文件；共享缓存/本地源永不删
 	}
 	return nil
 }

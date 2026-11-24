@@ -33,58 +33,20 @@ func (a *app) toggleLyric() {
 		Y:             80,
 		Content:       ui.View(a.lyricView),
 	})
-	// 默认整窗鼠标穿透；聚焦用全局光标轮询 lyricHoverLoop。
-	// 为什么轮询：穿透窗口收不到任何鼠标事件（GDK 不投 hover、Xlib root motion
-	// 真鼠标走 GNOME XInput2 收不到、xgb 无 XInput2 包）。查全局光标位置
-	// mygo.Screen.CursorScreenPoint() 是真鼠标唯一可靠方式（X server 维护光标
-	// 位置，不分输入路径）。代价 100ms 一次 XQueryPointer，可忽略。
+	// 纯事件驱动：SetInputRegion 只让歌词带接收鼠标（其余穿透到下层窗口）。
+	// 鼠标进入歌词带 → Hovered() 触发展开（全窗可交互）；移出 → 恢复歌词带。
+	// Linux 下 X11 SHAPE 是真 input shape（零轮询），这是 mygo 官方桌宠方案。
 	a.lyricHot = false
-	a.lyricHoverStart = time.Time{}
-	a.lyricWin.SetIgnoreMouseEvents(true)
-	if !a.lyricLooping {
-		a.lyricLooping = true
-		go a.lyricHoverLoop()
-	}
+	a.lyricWin.SetInputRegion(lyricBandRegion())
 }
 
-// lyricHoverMs 悬停浮现控制条的时长（对齐主线 widget.go HoverMs = 1200ms）
-const lyricHoverMs = 1200 * time.Millisecond
-
-// lyricHoverLoop 全局光标轮询（150ms，对齐主线 g_timeout_add(150)）：鼠标在挂件
-// 矩形内持续 lyricHoverMs（1.2 秒，对齐主线 HoverMs）→ 取消穿透（可拖拽 + 控制
-// 按钮）；移出 → 恢复穿透。与主线 widget.go 同源方案（CursorInside 也走
-// XQueryPointer），性能损耗主线已真机验证可接受。
-func (a *app) lyricHoverLoop() {
-	defer func() { a.lyricLooping = false }()
-	for a.lyricWin != nil {
-		time.Sleep(150 * time.Millisecond)
-		w := a.lyricWin
-		if w == nil {
-			return
-		}
-		p := mygo.Screen.CursorScreenPoint()
-		wx, wy := w.Position()
-		ww, wh := w.Size()
-		inside := p.X >= wx && p.X <= wx+ww && p.Y >= wy && p.Y <= wy+wh
-		now := time.Now()
-		if inside {
-			if a.lyricHoverStart.IsZero() {
-				a.lyricHoverStart = now
-			}
-			if !a.lyricHot && now.Sub(a.lyricHoverStart) >= lyricHoverMs {
-				a.lyricHot = true
-				w.SetIgnoreMouseEvents(false) // 取消穿透：可拖拽 + 控制按钮
-				a.win.Invalidate()
-			}
-		} else {
-			a.lyricHoverStart = time.Time{}
-			if a.lyricHot {
-				a.lyricHot = false
-				w.SetIgnoreMouseEvents(true) // 恢复穿透
-				a.win.Invalidate()
-			}
-		}
-	}
+// lyricBandRegion 挂件"歌词带"输入区（窗口 DIP 坐标）：只让中间歌词文字条
+// 接收鼠标，其余区域穿透（官方桌宠方案 SetInputRegion）。
+// 窗口 560×130，歌词居中；上下各留 20px 让控制条/空白区平时穿透。
+func lyricBandRegion() []mygo.Rectangle {
+	w, h := int(560*uiScale), int(130*uiScale)
+	bandH := int(58 * uiScale)
+	return []mygo.Rectangle{{X: 0, Y: (h - bandH) / 2, Width: w, Height: bandH}}
 }
 
 // lyricView 挂件内容：透明底 + 当前歌词行（真歌词 KTV 定位）+ 下一行预览 + 进度。
@@ -92,9 +54,29 @@ func (a *app) lyricView(c *ui.Context) {
 	// 挂件透明：mygo ui.View 根默认 theme.Background（不透明），显式置透明
 	// 才对（对齐主线 subtitle-bar 无背景；白字靠 text-shadow 投影兜底）。
 	c.Root().Background(ui.Transparent)
+	// 纯事件驱动聚焦：Hovered() 在鼠标进入/离开歌词带时自动重建视图（mygo ui 保证）。
+	// 用同一个承载内容的 Column 读 Hovered —— 保证命中区与实际内容一致。
+	// 状态变化时用 AfterFunc(0) 投递到下一 tick 切 input region，避免在 view 构建中
+	// 直接改窗口属性（onMain 在主线程同步执行，构建中改可能干扰布局）。
+	root := ui.Column(c).Fill().Center().Gap(6 * uiScale).Padding(16).DragWindow()
+	hot := root.Hovered()
+	if hot != a.lyricHot {
+		a.lyricHot = hot
+		w := a.lyricWin
+		time.AfterFunc(0, func() {
+			if w == nil {
+				return
+			}
+			if hot {
+				w.SetInputRegion(nil) // 整窗可交互：控制条/拖拽
+			} else {
+				w.SetInputRegion(lyricBandRegion()) // 恢复：只有歌词带接收鼠标
+			}
+		})
+	}
 	// DragWindow：整条作为窗口拖拽句柄（学主线 subtitle.js pointerdown/move 拖动定位）；
-	// 只有聚焦态（SetIgnoreMouseEvents(false)）才拖得动，穿透态鼠标直接穿过。
-	ui.Column(c).Fill().Center().Gap(6 * uiScale).Padding(16).DragWindow().Children(func() {
+	// 只有聚焦态（整窗 region）才拖得动，穿透态鼠标直接穿过。
+	root.Children(func() {
 		// 聚焦后浮现控制按钮面板（学主线 subtitle-bar group-hover 浮现控制；
 		// 复用 dock 控件：上一首/播放/下一首/收藏/关闭）
 		if a.lyricHot {

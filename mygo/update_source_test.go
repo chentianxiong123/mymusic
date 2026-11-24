@@ -4,11 +4,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestUpdateTarget 平台 manifest 后缀（与 mygo build 产出的 update-<target>.json 对齐）。
@@ -57,19 +58,45 @@ func TestApplyUpdateSource(t *testing.T) {
 	applyUpdateSource("", "", "", "")
 }
 
-// TestUpdateClientNoReleaseYet 当前仓库还没有 mygo- 标签的 release：
-// 应返回 404（而不是 panic 或当成"已是最新"）。
-func TestUpdateClientNoReleaseYet(t *testing.T) {
-	g := updateClient{kind: kindGitHub, githu: "chentianxiong123/mymusic"}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	body, err := g.Manifest(ctx, false)
+// TestUpdateClientManifest404 源站没有 manifest 时应返回 404 错误（不 panic、不当"已是最新"）。
+// 用本地 httptest，不依赖外网 / 仓库 release 状态（v1.0.0 发布后旧测试前提已失效）。
+func TestUpdateClientManifest404(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+	u := updateClient{kind: kindURL, base: srv.URL}
+	body, err := u.Manifest(context.Background(), false)
 	if err == nil {
 		body.Close()
-		t.Fatal("期望 manifest 取不到（仓库尚无 release），实际成功")
+		t.Fatal("期望 404 错误，实际成功")
 	}
 	if !strings.Contains(err.Error(), "HTTP 404") {
-		t.Logf("注意：实际错误为 %v（若仓库已发 release，可忽略）", err)
+		t.Errorf("未含 HTTP 404：%v", err)
+	}
+}
+
+// TestUpdateClientManifestOK 源站有 manifest 时应能读到 body。
+func TestUpdateClientManifestOK(t *testing.T) {
+	name := "update-" + updateTarget() + ".json"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/"+name {
+			http.NotFound(w, r)
+			return
+		}
+		fmt.Fprint(w, `{"version":"9.9.9"}`)
+	}))
+	defer srv.Close()
+	u := updateClient{kind: kindURL, base: srv.URL}
+	body, err := u.Manifest(context.Background(), false)
+	if err != nil {
+		t.Fatalf("读 manifest 失败: %v", err)
+	}
+	defer body.Close()
+	buf := make([]byte, 64)
+	n, _ := body.Read(buf)
+	if !strings.Contains(string(buf[:n]), "9.9.9") {
+		t.Errorf("manifest 内容不对: %q", buf[:n])
 	}
 }
 

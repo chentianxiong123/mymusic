@@ -96,26 +96,56 @@ func (a *app) pbLoop() {
 					a.durText = fmtDurMygo(pr.Duration)
 					a.posSec = pr.Position // 歌词/桌面挂件随进度走（音箱模式进度只经核心广播来）
 					a.playing = pr.Playing
-					a.win.Invalidate()
+					// 只在播放中或播放态刚变化时重绘：暂停静止时 progress 帧仍在 250ms
+					// 到达（progressReporter 上报），但内容没动 → 不 Invalidate，mygo 保持 0 帧。
+					// 暂停期间的用户交互各自会 Invalidate，不依赖此循环。
+					if pr.Playing || pr.Playing != a.lastPBPlaying {
+						a.win.Invalidate()
+					}
+					a.lastPBPlaying = pr.Playing
 				})
 			}
 		}
 	}
 }
 
-// progressReporter MyGo 本地 audio 进度 → 上报 SSOT（等价 web timeupdate）。
-// 仅 source=web 接受（MyGo 默认 web 语义），与音箱模式隔离。
+// progressReporter 本地播放进度：直接读播放端 audio.Player，不再写入 SSOT。
+//
+// 进度是播放端的产物（Position() 从音频输出时钟插值算出），不是业务状态。
+// 本地播放时 UI/歌词/挂件直接消费它，不必绕 SSOT 一圈（写 PB → 广播 → 回读）。
+// 音箱模式（source=speaker）进度来自音箱设备，由核心 progressLoop 投影并广播，
+// 本循环跳过——那才是该由后端管进度的场景。
 func (a *app) progressReporter() {
-	// 上报频率对齐主线 player.js timeupdate：低频 250ms（不是越小越好，SSE 广播 + 挂件
-	// 重绘都吃这个；主线注释原话"低频 250ms"）。旧版 500ms 会让 EQ/歌词动效偏卡。
+	// 250ms 拉播放端进度（audio.Player.Position 从输出时钟插值算，是播放端产物）。
+	// 本循环只更新本地 UI 字段 + 推挂件 SSE，不再写 SSOT：进度不进业务状态源。
+	// 音箱模式（source=speaker）进度来自设备，由核心 progressLoop 投影广播，这里跳过。
 	t := time.NewTicker(250 * time.Millisecond)
 	defer t.Stop()
+	lastPlaying := false // 上次播放状态：暂停瞬间仍要重绘一次让 EQ 归位
 	for range t.C {
+		if a.spkMode {
+			lastPlaying = false
+			continue
+		}
 		info := a.mygoOut.Position()
 		if info.Dur > 0 {
-			a.pb.SetProgress(info.Pos, info.Dur, info.Playing)
-			a.posSec = info.Pos
-			a.pushWidgetState() // 挂件 SSE 歌词行随进度更新（安卓浮窗 + 桌面挂件）
+			a.win.Update(func() {
+				if !a.scrubbing {
+					f := info.Pos / info.Dur
+					if f < 0 {
+						f = 0
+					}
+					if f > 1 {
+						f = 1
+					}
+					a.progress = f
+				}
+				a.posText = fmtDurMygo(info.Pos)
+				a.durText = fmtDurMygo(info.Dur)
+				a.posSec = info.Pos
+				a.playing = info.Playing
+			})
+			a.pushWidgetState() // 挂件 SSE 歌词行随进度更新（去重，跨进程）
 		}
 		// dock 封面 EQ 频谱相位（播放中跳动；对齐主线 d-eq CSS 动画）
 		if info.Playing {
@@ -123,11 +153,14 @@ func (a *app) progressReporter() {
 		} else {
 			a.eqPhase = -1 // -1 = 不显示
 		}
-		a.win.Invalidate()
-		// 桌面挂件歌词跟着动（挂件是独立窗口，需单独重绘）
-		if a.lyricWin != nil {
-			a.lyricWin.Invalidate()
+		// 播放中持续重绘（进度条/歌词走 250ms）；暂停静止不重绘 → 0 帧空闲。
+		if info.Playing || info.Playing != lastPlaying {
+			a.win.Invalidate()
+			if a.lyricWin != nil {
+				a.lyricWin.Invalidate()
+			}
 		}
+		lastPlaying = info.Playing
 	}
 }
 

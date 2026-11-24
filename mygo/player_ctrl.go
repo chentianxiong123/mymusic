@@ -36,9 +36,11 @@ func (a *app) prev() {
 	a.pb.Prev()
 }
 
-// seek 按比例跳转进度（走 SSOT）。
+// seek 按比例跳转进度。
+// 本地模式：时长取播放端（ProgressInfo.Dur，mygo 的 audio 时钟），直接调输出端 Seek——
+// 进度不进 SSOT，就不该回读 SSOT 的时长（那里已不再被本地进度写入）。
 // 音箱模式：playback.Seek → SpeakerOutput.Seek → speaker.SeekTo → 投带 start=N 的新 URL
-// （ffmpeg 切剩余段，代价 1~2s）。本地模式：MyGoOutput.Seek 直接在解码器定位。
+// （ffmpeg 切剩余段，代价 1~2s）；时长取 SSOT（设备投影维护）。
 func (a *app) seek(frac float64) {
 	if frac < 0 {
 		frac = 0
@@ -46,11 +48,22 @@ func (a *app) seek(frac float64) {
 	if frac > 1 {
 		frac = 1
 	}
-	dur := a.pb.Snapshot().Duration
-	if dur <= 0 {
-		return // 时长未知不 seek（否则 seek 到 0 变成从头播）
+	if a.spkMode {
+		dur := a.pb.Snapshot().Duration
+		if dur <= 0 {
+			return // 时长未知不 seek（否则 seek 到 0 变成从头播）
+		}
+		a.pb.Seek(frac * dur)
+		return
 	}
-	a.pb.Seek(frac * dur)
+	if a.mygoOut == nil {
+		return
+	}
+	dur := a.mygoOut.Position().Dur
+	if dur <= 0 {
+		return
+	}
+	a.mygoOut.Seek(frac * dur)
 }
 
 // setVolume 设置音量 0..1 并持久化偏好（音量条拖动用）。

@@ -104,13 +104,12 @@ type app struct {
 	durText        string
 	lyricText      string
 	lyricShown     bool
+	lastPBPlaying  bool                // pbLoop 上次播放态（progress 帧只在状态变/播放中重绘，省电）
 	widgetState    *widget.WidgetState // 挂件状态机（安卓浮窗 SSE 数据源）
 	androidLyricOn bool                // 安卓悬浮歌词开关状态
-	// 桌面挂件聚焦（事件驱动，无轮询）：默认窗口只有左边缘把手区接收鼠标
-	// （其余穿透），鼠标进把手 1 秒（AfterFunc）→ 全窗口可交互，移出恢复穿透
-	lyricHot        bool
-	lyricHoverStart time.Time
-	lyricLooping    bool // 桌面挂件聚焦轮询 goroutine 在跑（防重复启动）
+	// 桌面挂件聚焦（纯事件驱动，无轮询）：SetInputRegion 只让歌词带接收鼠标，
+	// Hovered() 变化（鼠标进出）触发展开/收起控制条 + 切换 input region。
+	lyricHot bool
 
 	// 封面缓存（主线程；异步加载经 win.Update 写）
 	covers       map[string]ui.ImageSource
@@ -498,7 +497,10 @@ func main() {
 	}
 	// 一切皆插件：本机声卡也注册为 target 插件（默认播放路径）
 	plugin.RegisterSystemTarget(target.NewLocal(a.mygoOut))
-	a.mygoOut.cache = a.svc.cache // 缓存域包注入（命中秒开）
+	a.mygoOut.cache = a.svc.cache // m4s 源缓存（与音箱/供给端点共用）
+	if a.svc != nil && a.svc.xcoder != nil {
+		a.mygoOut.setXcoder(a.svc.xcoder) // mp3 转码缓存（本地播放也共用）
+	}
 	// B站音质设置（插件设置）：64k/128k/192k → 音质档 0/1/2（默认 192k）。
 	switch plugin.GetSetting("source", "bilibili", "quality", "192k") {
 	case "64k":

@@ -11,6 +11,7 @@ import (
 	"homecast/service/lyric"
 	"homecast/service/widget"
 	"log"
+	"math"
 )
 
 // mygoLyricSource 适配器：复用 go/server/widget_lyricsource.go 同款逻辑，
@@ -95,6 +96,14 @@ func (a *app) pushWidgetState() {
 		if a.progress > 0 {
 			dur = a.posSec / a.progress
 		}
+	}
+	// 去重：暂停静止时 progressReporter 上报的 posSec 不变，但每 250ms 仍在调 Set
+	// （内部广播 SSE + PickLine 歌词定位）。状态没变就跳过，省掉这些空转。
+	// 时间用 0.01s 容差避浮点抖动（切歌/拖动/播放态变化都必然越过容差）。
+	ob, ot, oa, oct, odur, oplay := a.widgetState.Get()
+	if ob == bvid && ot == title && oa == artist && oplay == a.playing &&
+		math.Abs(oct-a.posSec) < 0.01 && math.Abs(odur-dur) < 0.01 {
+		return
 	}
 	a.widgetState.Set(bvid, title, artist, a.posSec, dur, a.playing)
 }
