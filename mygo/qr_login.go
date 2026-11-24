@@ -265,7 +265,8 @@ func (a *app) applyQRCookie(src, cookie string) {
 
 // qrLoginSection 音源详情页的登录区块（仅支持扫码的平台显示按钮）。
 func (a *app) qrLoginSection(c *ui.Context, src string) {
-	if src != "bilibili" && src != "netease" && src != "kugou" && src != "qqmusic" && src != "migu" {
+	// 只给有登录概念的源显示（免登录源不显示）
+	if !sourceNeedsLogin(src) {
 		return
 	}
 	logged := plugin.GetSetting("source", src, "cookie", "") != ""
@@ -277,16 +278,88 @@ func (a *app) qrLoginSection(c *ui.Context, src string) {
 			state = "已登录"
 		}
 		ui.Text(c, state).FontSize(12 * uiScale).TextColor(clrPink)
-		if chip(c, "扫码登录").Clicked() {
-			a.startQRLogin(src)
-		}
-		if logged && chip(c, "退出").Clicked() {
-			_ = plugin.SetSetting("source", src, "cookie", "")
-			if src == "bilibili" {
-				a.bili.Cookie = ""
-			}
+		if chip(c, "登录方式 ›").Clicked() {
+			a.loginDialogSrc = src
+			a.loginCookieBuf = plugin.GetSetting("source", src, "cookie", "")
+			a.showLoginDialog = true
 			a.win.Invalidate()
 		}
+	})
+}
+
+// sourceNeedsLogin 哪些源有登录概念（其余免登录不显示入口）。
+func sourceNeedsLogin(src string) bool {
+	switch src {
+	case "bilibili", "netease", "kugou", "qqmusic", "migu", "kuwo":
+		return true
+	}
+	return false
+}
+
+// sourceHasQR 哪些源有扫码协议。
+func sourceHasQR(src string) bool {
+	switch src {
+	case "bilibili", "netease", "kugou", "qqmusic", "migu":
+		return true
+	}
+	return false
+}
+
+// loginMethodDialog 登录方式弹窗：扫码（支持的）+ Cookie/Token 粘贴（全部）。
+func (a *app) loginMethodDialog(c *ui.Context) {
+	src := a.loginDialogSrc
+	if !a.showLoginDialog || src == "" {
+		return
+	}
+	lx, ly, pw, ph := a.dialogRect(360, 300)
+	ui.Overlay(c, func() {
+		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+		bg.Draw(func(p *ui.Painter, r ui.Rect) { p.Fill(r, ui.RGBA(0, 0, 0, 0.55), 0) })
+		if bg.Clicked() {
+			a.showLoginDialog = false
+			a.win.Invalidate()
+		}
+		panel := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(18 * uiScale).Background(clrCard)
+		panel.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Shadow(r, 24, 0, 14, 48, 0, ui.RGBA(0, 0, 0, 0.6))
+			p.FillRadii(r, [4]float32{18, 18, 18, 18}, clrCard)
+		})
+		panel.Children(func() {
+			ui.Column(c).Fill().Padding(18 * uiScale).Gap(12 * uiScale).Children(func() {
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(9 * uiScale).Children(func() {
+					ui.Box(c).Size(4*uiScale, 16*uiScale).Radius(2*uiScale).Background(clrPink)
+					ui.Text(c, sourceShortName(src)+" 登录").FontSize(16 * uiScale).Bold().TextColor(clrText)
+					ui.Spacer(c).Grow(1)
+					if chip(c, "×").Clicked() {
+						a.showLoginDialog = false
+						a.win.Invalidate()
+					}
+				})
+				if sourceHasQR(src) {
+					if chip(c, "扫码登录").Clicked() {
+						a.showLoginDialog = false
+						a.startQRLogin(src)
+					}
+				}
+				ui.Text(c, "或粘贴登录 Cookie / Token").FontSize(12 * uiScale).TextColor(clrMuted)
+				ui.TextInput(c, &a.loginCookieBuf).Grow(1).Height(38 * uiScale).FontSize(12 * uiScale).TextColor(clrText).Placeholder("Cookie / Token")
+				ui.Spacer(c).Grow(1)
+				ui.Row(c).AlignSelf(ui.Stretch).Gap(10 * uiScale).Children(func() {
+					if chip(c, "取消").Clicked() {
+						a.showLoginDialog = false
+						a.win.Invalidate()
+					}
+					if gradButton(c, "保存").Clicked() {
+						_ = plugin.SetSetting("source", src, "cookie", a.loginCookieBuf)
+						if src == "bilibili" {
+							a.bili.Cookie = a.loginCookieBuf
+						}
+						a.showLoginDialog = false
+						a.win.Invalidate()
+					}
+				})
+			})
+		})
 	})
 }
 

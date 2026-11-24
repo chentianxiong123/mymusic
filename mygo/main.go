@@ -132,6 +132,9 @@ type app struct {
 	qrLoginSession  *qrSession    // 音源扫码登录会话（非空=弹窗显示）
 	qrLoginImg      ui.ImageSource // 二维码图片（解码后）
 	qrLoginStop     chan struct{} // 停止扫码轮询
+	showLoginDialog bool          // 登录方式弹窗
+	loginDialogSrc  string        // 登录方式弹窗对应的音源
+	loginCookieBuf  string        // 登录方式弹窗 Cookie 输入框
 	lastSavedSource string      // 音源下拉保存去重（避免每帧写盘）
 	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件 2=日志
 	pluginTab    int    // 插件页子 tab：0=音源 1=歌词 2=输出
@@ -317,6 +320,8 @@ func (a *app) view(c *ui.Context) {
 	a.customLimitDialog(c)
 	// 音源扫码登录弹窗
 	a.qrLoginDialog(c)
+	// 登录方式弹窗（扫码 / Cookie）
+	a.loginMethodDialog(c)
 }
 
 // navBar 顶部导航——结构随档位切换（对齐主线：桌面完整导航 vs md:hidden 汉堡+侧滑面板）。

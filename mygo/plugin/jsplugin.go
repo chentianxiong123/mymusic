@@ -87,16 +87,23 @@ func LoadFromDir(dir string) ([]error, error) {
 			errs = append(errs, fmt.Errorf("%s: %w", p, err))
 			continue
 		}
-		// requiresCookie 源：无 cookie 不激活（跳过注册；加 cookie 重启后激活）。
+		// requiresCookie 源：无 cookie 不激活 source（搜索不出），但 Info/Settings 仍注册
+		// ——否则插件页看不到它，用户没法进详情页登录（鸡生蛋）。
+		inactive := false
 		if jp.meta.RequiresCookie {
 			ptype := "source"
 			if len(jp.meta.Capabilities) > 0 {
 				ptype = jp.meta.Capabilities[0]
 			}
 			if GetSetting(ptype, jp.meta.Key, "cookie", "") == "" {
-				fmt.Printf("[plugin] %s 需登录 Cookie 才能激活（无 cookie，跳过）\n", jp.meta.Key)
-				continue
+				inactive = true
 			}
+		}
+		// 元数据/设置始终注册（详情页可见）
+		jp.registerMeta()
+		if inactive {
+			fmt.Printf("[plugin] %s 需登录 Cookie 才能激活（无 cookie，仅显示配置）\n", jp.meta.Key)
+			continue
 		}
 		if err := jp.register(); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", p, err))
@@ -186,18 +193,25 @@ func (jp *JSPlugin) register() error {
 				return fmt.Errorf("capabilities 含 source 但缺 search/getURL")
 			}
 			RegisterSource(&jsSource{jp: jp})
-			RegisterInfo(Info{Name: jp.meta.Key, Type: "source", Icon: jp.meta.Key, Version: jp.meta.Version, Desc: jp.meta.Name, Order: jp.meta.Order})
 		case "lyric":
 			if jp.lyricFn == nil {
 				return fmt.Errorf("capabilities 含 lyric 但缺 lyric 函数")
 			}
 			RegisterLyric(&jsLyric{jp: jp})
-			RegisterInfo(Info{Name: jp.meta.Key, Type: "lyric", Icon: jp.meta.Key, Version: jp.meta.Version, Desc: jp.meta.Name, Order: jp.meta.Order})
 		default:
 			return fmt.Errorf("未知 capability %q", cap)
 		}
 	}
 	return nil
+}
+
+// registerMeta 只注册元数据（插件页展示）——requiresCookie 无 cookie 时也要能进详情页登录。
+func (jp *JSPlugin) registerMeta() {
+	for _, cap := range jp.meta.Capabilities {
+		if cap == "source" || cap == "lyric" {
+			RegisterInfo(Info{Name: jp.meta.Key, Type: cap, Icon: jp.meta.Key, Version: jp.meta.Version, Desc: jp.meta.Name, Order: jp.meta.Order})
+		}
+	}
 }
 
 // registerSettings 把 meta.settings 声明注册进设置表（系统统一存储）。
