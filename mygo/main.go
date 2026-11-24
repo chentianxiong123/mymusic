@@ -120,6 +120,14 @@ type app struct {
 	// 播放控制面板 / 队列 / 收藏
 	showPlayer   bool
 	activeTab    string // search|queue|fav|cast|settings
+	restoreCfg     restoreConfig // 启动恢复配置（所有退出记忆开关）
+	showRestoreCfg  bool          // 启动恢复配置弹窗
+	showLimitDlg   bool          // 上限确认弹窗（所有档位都走它）
+	limitKind      string        // "cache"/"lyric"：当前改哪个上限
+	limitPendingIdx int          // 待确认档位（0-3 预置，4=自定义）
+	limitPendingVal int          // 待确认/输入数值
+	limitBuf       string        // 弹窗输入框 buffer
+	lastSavedSource string      // 音源下拉保存去重（避免每帧写盘）
 	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件 2=日志
 	pluginTab    int    // 插件页子 tab：0=音源 1=歌词 2=输出
 	pluginDetail string // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
@@ -298,6 +306,10 @@ func (a *app) view(c *ui.Context) {
 	if updateDetail {
 		a.updateDetailDialog(c)
 	}
+	// 启动恢复配置弹窗
+	a.restoreConfigDialog(c)
+	// 自定义上限弹窗
+	a.customLimitDialog(c)
 }
 
 // navBar 顶部导航——结构随档位切换（对齐主线：桌面完整导航 vs md:hidden 汉堡+侧滑面板）。
@@ -488,9 +500,24 @@ func main() {
 	a.restorePluginOrder()
 	a.restorePluginEnabled()
 	a.restoreLogConfig()
-	// 当前源 = 排序后首个（默认 B站）；未来网易云/本地/插件源都注册进表，UI 可选
+	a.restoreCfg = a.appLoadRestoreConfig()
+	// 当前源 = 排序后首个（默认 B站）；配置开启时优先用上次搜索音源
 	if names := plugin.SourceNames(); len(names) > 0 {
 		a.src = plugin.Sources()[names[0]]
+		if a.restoreCfg.LastSource {
+			if last := a.loadPrefStr("mygo_lastsource", ""); last != "" {
+				if s := plugin.Sources()[last]; s != nil {
+					a.src = s
+					a.activeSource = last
+				}
+				a.lastSavedSource = last
+			}
+		}
+	}
+	if a.restoreCfg.LastTab {
+		if tab := a.loadPrefStr("mygo_lasttab", ""); tab != "" {
+			a.activeTab = tab
+		}
 	}
 	a.startStreamServer()    // 音箱供给端点（/api/v1/music/stream，transcode mp3 秒开 + seek）
 	a.listenWidgetCommands() // 浮窗控制命令（toggle/prev/next）→ mygo 播放器
@@ -502,8 +529,12 @@ func main() {
 	if runtime.GOOS == "android" && a.androidLyricOn {
 		widgetoverlay.Start()
 	}
-	a.restoreRecent()  // 恢复最近播放
-	a.restoreHistory() // 恢复搜索历史
+	if a.restoreCfg.Recent {
+		a.restoreRecent()
+	}
+	if a.restoreCfg.History {
+		a.restoreHistory()
+	}
 	a.pb = playback.NewPlaybackState()
 	a.link = NewLink(a.pb) // 稳定链路 API 实现（播放核心注入）
 	a.mygoOut = newMyGoOutput(a.bili)
@@ -532,7 +563,11 @@ func main() {
 	a.mygoOut.onErr = func(msg string) {               // 取流失败 UI 提示（付费/VIP/需登录）
 		a.win.Update(func() { a.status = msg })
 	}
-	a.mygoOut.SetVolume(int(a.volume * 100)) // 恢复音量（restorePrefs 后 mygoOut 才存在）
+	initVol := a.volume
+	if a.muted {
+		initVol = 0 // 静音恢复：输出静音但 mygo_volume 保持原值（音量条不归零）
+	}
+	a.mygoOut.SetVolume(int(initVol * 100))
 	a.pb.SetOutput(a.mygoOut)
 	a.pb.SetDB(a.db)
 	// 音箱输出工厂：SwitchSpeaker(did) 时创建绑定该 did 的 SpeakerOutput（对齐主线
@@ -569,7 +604,10 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		// 恢复上次的窗口位置/大小（settings 表 mygo_windowstate）；无记录用默认
-		ws := a.restoreWindowState()
+		var ws *winState
+		if a.restoreCfg.Window {
+			ws = a.restoreWindowState()
+		}
 		wx, wy, ww, wh := 0, 0, 980, 680
 		if ws != nil {
 			wx, wy, ww, wh = ws.X, ws.Y, ws.W, ws.H
@@ -605,7 +643,7 @@ func main() {
 		a.win.OnMove(func() { a.saveWindowStateThrottled(a.win) })
 		a.win.OnClose(func(e *mygo.CloseEvent) { a.saveWindowState(a.win) })
 		// 恢复队列（window 就绪后再恢复，自动播放的进度上报不会撞未创建窗口）
-		a.pb.Restore(a.db)
+		a.pb.RestoreWithOptions(a.db, a.restoreCfg.Position, a.restoreCfg.AutoPlay)
 		// restore 只写后端 p.cur 不广播（主线 GUI 页面载人时自行拉状态，不依赖 push）；
 		// mygo 靠事件流渲染 → 主动拉一次快照喂 applyState，否则队列页启动显示 0，
 		// 要等用户播一首触发广播才补上（bug）。

@@ -262,7 +262,12 @@ func (a *app) restorePrefs() {
 	a.lyricSize = a.loadPref("mygo_lyricsize", 2)
 	a.lyricCtrlBottom = a.loadPref("mygo_lyricctrlpos", 1) == 1 // 默认下方
 	a.androidLyricOn = a.loadPref("mygo_androlyric", 0) == 1    // 安卓悬浮歌词持久化
-	a.volume = a.loadPrefFloat("mygo_volume", 0.8)
+	if a.restoreCfg.Volume {
+		a.volume = a.loadPrefFloat("mygo_volume", 0.8)
+	}
+	if a.restoreCfg.Muted {
+		a.muted = a.loadPref("mygo_muted", 0) == 1
+	}
 	if a.svc != nil && a.svc.speaker != nil && a.loopMode != 0 {
 		a.pb.SetMode(intToMode(a.loopMode))
 	}

@@ -12,6 +12,9 @@ import (
 
 func (a *app) setTab(t string) {
 	a.activeTab = t
+	if a.restoreCfg.LastTab {
+		a.savePrefStr("mygo_lasttab", t)
+	}
 	a.syncLogWatch()
 	a.win.Invalidate()
 }

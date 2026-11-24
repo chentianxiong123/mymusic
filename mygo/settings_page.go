@@ -117,7 +117,9 @@ func (a *app) systemSettings(c *ui.Context) {
 					a.win.Invalidate()
 				})
 			}
-			// 12 更新（运行期自填源：GitHub / 自建 URL + 代理；校验公钥构建期烙进二进制）
+			// 12 启动恢复（详情藏弹窗，不堆在设置页）——放在更新上面
+			a.restoreConfigEntry(c)
+			// 13 更新（运行期自填源：GitHub / 自建 URL + 代理；校验公钥构建期烙进二进制）
 			a.updateSettings(c)
 		})
 	})
@@ -335,25 +337,25 @@ func (a *app) limitSubRow(c *ui.Context, label string, opts []string, cur int, c
 		})
 		// 档位 seg 下一行（不坏规矩：选项按钮独占一行）
 		a.setRowSeg(c, opts, cur, func(i int) {
-			v := *custom
-			if i == 4 {
-				v = a.customInputBuf(cur, custom)
-			}
-			apply(i, v)
+			// 所有档位都进确认弹窗（包括预置档），确定才生效
+			a.limitKind = labelKind(unit)
+			a.limitPendingIdx = i
+			a.limitPendingVal = *custom
+			a.limitBuf = fmt.Sprintf("%d", *custom)
+			a.showLimitDlg = true
 			a.win.Invalidate()
 		})
-		// 自定义输入框也独占一行
+		// 自定义已选时显示当前值（点击重新弹窗改）
 		if cur == 4 {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).PaddingX(4 * uiScale).Children(func() {
-				buf := strconv.Itoa(*custom)
-				ui.TextInput(c, &buf).Width(72 * uiScale).Height(30 * uiScale).TextColor(clrText)
-				ui.Text(c, unit).FontSize(11 * uiScale).TextColor(clrMuted)
-				if chip(c, "应用").Clicked() {
-					v := parseIntDefault(buf, *custom)
-					if v < 0 {
-						v = 0
-					}
-					apply(4, v)
+				ui.Text(c, fmt.Sprintf("自定义：%d %s", *custom, unit)).FontSize(11 * uiScale).TextColor(clrMuted)
+				ui.Spacer(c).Grow(1)
+				if chip(c, "修改").Clicked() {
+					a.limitKind = labelKind(unit)
+					a.limitPendingIdx = 4
+					a.limitPendingVal = *custom
+					a.limitBuf = fmt.Sprintf("%d", *custom)
+					a.showLimitDlg = true
 					a.win.Invalidate()
 				}
 			})
@@ -379,4 +381,127 @@ func boolIdx(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// labelKind 用单位区分缓存类型（MB=歌曲缓存，首=歌词缓存）。
+func labelKind(unit string) string {
+	if unit == "MB" {
+		return "cache"
+	}
+	return "lyric"
+}
+
+// customLimitDialog 自定义上限弹窗：输入数值 → 确定/取消（每个数值必须点确定才生效）。
+// limitDialog 上限确认弹窗：所有档位（含预置）都经它，确定才生效。
+// 精致版：色条标题 + 大数值卡（当前→新值 / 自定义输入）+ 渐变主按钮。
+func (a *app) customLimitDialog(c *ui.Context) {
+	if !a.showLimitDlg {
+		return
+	}
+	cache := a.limitKind == "cache"
+	unit, title := "首", "歌词缓存"
+	if cache {
+		unit, title = "MB", "歌曲缓存"
+	}
+	custom := a.limitPendingIdx == 4
+	// 预置档显示值（0=关闭 1=200/100 2=500/300 3=1GB/500）
+	presetVal := 0
+	if !custom {
+		if cache {
+			presetVal = []int{0, 200, 500, 1024}[a.limitPendingIdx]
+		} else {
+			presetVal = []int{0, 100, 300, 500}[a.limitPendingIdx]
+		}
+	}
+	lx, ly, pw, ph := a.dialogRect(360, 230)
+	ui.Overlay(c, func() {
+		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+		bg.Draw(func(p *ui.Painter, r ui.Rect) { p.Fill(r, ui.RGBA(0, 0, 0, 0.55), 0) })
+		if bg.Clicked() {
+			a.showLimitDlg = false
+			a.win.Invalidate()
+		}
+		panel := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(18 * uiScale).Background(clrCard)
+		panel.Draw(func(p *ui.Painter, r ui.Rect) {
+			p.Shadow(r, 24, 0, 14, 48, 0, ui.RGBA(0, 0, 0, 0.6))
+			p.FillRadii(r, [4]float32{18, 18, 18, 18}, clrCard)
+		})
+		panel.Children(func() {
+			ui.Column(c).Fill().Padding(20 * uiScale).Gap(12 * uiScale).Children(func() {
+				// 标题行：色条 + 标题 + 关闭
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(9 * uiScale).Children(func() {
+					ui.Box(c).Size(4*uiScale, 16*uiScale).Radius(2*uiScale).Background(clrPink)
+					ui.Text(c, title+"上限").FontSize(16 * uiScale).Bold().TextColor(clrText)
+					ui.Spacer(c).Grow(1)
+					if chip(c, "×").Clicked() {
+						a.showLimitDlg = false
+						a.win.Invalidate()
+					}
+				})
+				// 数值卡片：自定义=输入框，预置=大数值
+				card := ui.Box(c).AlignSelf(ui.Stretch).Radius(12 * uiScale).Padding(12 * uiScale).Background(clrField)
+				card.Children(func() {
+					if custom {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+							ui.Text(c, "自定义").FontSize(12 * uiScale).TextColor(clrMuted)
+							ui.Spacer(c).Grow(1)
+							ui.TextInput(c, &a.limitBuf).Width(90 * uiScale).Height(38 * uiScale).
+								FontSize(22 * uiScale).TextColor(clrText).Background(ui.RGBA(0, 0, 0, 0))
+							ui.Text(c, unit).FontSize(13 * uiScale).TextColor(clrPink)
+						})
+					} else {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+							ui.Column(c).Gap(2 * uiScale).Children(func() {
+								ui.Text(c, "上限设为").FontSize(11 * uiScale).TextColor(clrMuted)
+								if presetVal == 0 {
+									ui.Text(c, "关闭").FontSize(24 * uiScale).Bold().TextColor(clrText)
+								} else {
+									ui.Text(c, fmt.Sprintf("%d %s", presetVal, unit)).FontSize(24 * uiScale).Bold().TextColor(clrText)
+								}
+							})
+						})
+					}
+				})
+				ui.Text(c, "确定后立即生效；调小上限会立即清理最旧的缓存").FontSize(11 * uiScale).TextColor(clrMuted)
+				ui.Spacer(c).Grow(1)
+				// 按钮行：取消（描边）+ 确定（渐变）
+				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+					ui.Spacer(c).Grow(1)
+					if chip(c, "取消").Clicked() {
+						a.showLimitDlg = false
+						a.win.Invalidate()
+					}
+					if gradButton(c, "确定").Clicked() {
+						v := a.limitPendingVal
+						if custom {
+							v = parseIntDefault(a.limitBuf, a.limitPendingVal)
+							if v < 0 {
+								v = 0
+							}
+						}
+						idx := a.limitPendingIdx
+						if cache {
+							a.cacheLimit = idx
+							a.cacheCustom = v
+							a.savePref("mygo_cachelimit", idx)
+							a.savePref("mygo_cachelimit_custom", v)
+							if a.svc != nil && a.svc.cache != nil {
+								a.svc.cache.SetLimitMB(a.cacheMB())
+							}
+						} else {
+							a.lyricLimit = idx
+							a.lyricCustom = v
+							a.savePref("mygo_lyriclimit", idx)
+							a.savePref("mygo_lyriclimit_custom", v)
+							if a.svc != nil && a.svc.lyricCache != nil {
+								a.svc.lyricCache.SetLimit(a.lyricCap())
+							}
+						}
+						a.showLimitDlg = false
+						a.win.Invalidate()
+					}
+				})
+			})
+		})
+	})
 }

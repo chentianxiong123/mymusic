@@ -264,6 +264,10 @@ func (a *app) sourceSelector(c *ui.Context) {
 	}
 	cur := a.currentSource()
 	sel := ui.SelectBase(c, &a.activeSource)
+	if a.restoreCfg.LastSource && a.activeSource != "" && a.activeSource != a.lastSavedSource {
+		a.savePrefStr("mygo_lastsource", a.activeSource)
+		a.lastSavedSource = a.activeSource
+	}
 	// trigger：撑满搜索框高度（44px）+ 宽点击热区 + hover 反馈——
 	// 之前只有文字高度 ~16px，点不准；现在整个源名块都可点。
 	sel.Trigger.Height(44*uiScale).Padding(0, 14*uiScale, 0, 8*uiScale).Draw(func(p *ui.Painter, r ui.Rect) {

@@ -852,6 +852,8 @@ func (p *PlaybackState) persist() []byte {
 		"play_mode": s.PlayMode,
 		"qidx":      s.QIdx,
 		"queue":     s.Queue,
+		"position":  s.Position,
+		"playing":   s.Playing,
 	}
 	b, _ := json.Marshal(v)
 	return b
@@ -863,9 +865,14 @@ func (p *PlaybackState) Save(db *sql.DB) {
 	p.persistNow()
 }
 
-// Restore 启动恢复：读 settings 回队列/模式/当前歌（playing=false，不自动播）。
-// 无持久化数据则保留默认（Source=web, PlayMode=order, 空队列）。
+// Restore 启动恢复（默认策略：不续播/不自动播）——主线 web/wails 保持原行为。
 func (p *PlaybackState) Restore(db *sql.DB) {
+	p.RestoreWithOptions(db, false, false)
+}
+
+// RestoreWithOptions 启动恢复（可配置续播进度/自动播放；mygo 用）。
+// resumePosition=true 恢复上次退出时播放位置；autoPlay=true 启动时调用输出 Resume 续播。
+func (p *PlaybackState) RestoreWithOptions(db *sql.DB, resumePosition, autoPlay bool) {
 	if db == nil {
 		return
 	}
@@ -874,9 +881,11 @@ func (p *PlaybackState) Restore(db *sql.DB) {
 		return // 无历史，保留默认
 	}
 	var d struct {
-		PlayMode string `json:"play_mode"`
-		QIdx     int    `json:"qidx"`
-		Queue    []Song `json:"queue"`
+		PlayMode string  `json:"play_mode"`
+		QIdx     int     `json:"qidx"`
+		Queue    []Song  `json:"queue"`
+		Position float64 `json:"position"`
+		Playing  bool    `json:"playing"`
 	}
 	if json.Unmarshal([]byte(v), &d) != nil {
 		return
@@ -888,7 +897,6 @@ func (p *PlaybackState) Restore(db *sql.DB) {
 	}
 	if len(d.Queue) > 0 {
 		p.cur.Queue = d.Queue
-		// 上次歌恢复（qidx 越界钳制）；不自动播
 		if d.QIdx >= 0 && d.QIdx < len(d.Queue) {
 			p.cur.QIdx = d.QIdx
 		} else {
@@ -900,9 +908,30 @@ func (p *PlaybackState) Restore(db *sql.DB) {
 		p.cur.Cover = p.cur.Queue[p.cur.QIdx].Cover
 		p.cur.Playing = false
 		p.cur.Position = 0
+		if resumePosition {
+			p.cur.Position = d.Position
+		}
+	}
+	wantAutoPlay := autoPlay && d.Playing && len(d.Queue) > 0
+	if wantAutoPlay {
+		p.cur.Playing = true
 	}
 	p.mu.Unlock()
 	if len(d.Queue) > 0 {
-		log.Printf("[playback] restore queue=%d qidx=%d cur=%s mode=%s", len(d.Queue), p.Snapshot().QIdx, p.Snapshot().BVID, p.Snapshot().PlayMode)
+		log.Printf("[playback] restore queue=%d qidx=%d cur=%s mode=%s pos=%.1f autoplay=%v",
+			len(d.Queue), p.Snapshot().QIdx, p.Snapshot().BVID, p.Snapshot().PlayMode, p.Snapshot().Position, wantAutoPlay)
+	}
+	if wantAutoPlay {
+		// 输出端真正起播并定位到恢复进度（Seek 不支持时忽略）
+		p.mu.Lock()
+		out := p.out
+		pos := p.cur.Position
+		p.mu.Unlock()
+		if out != nil {
+			_ = out.Resume()
+			if pos > 0 {
+				_ = out.Seek(pos)
+			}
+		}
 	}
 }

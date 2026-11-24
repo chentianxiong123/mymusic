@@ -385,13 +385,20 @@ func (a *app) toggleMute() {
 	if a.volume > 0 {
 		a.lastVolume = a.volume
 		a.muted = true
-		a.applyVolume(0) // 静音不持久化，否则下次启动音量条归 0
+		a.applyVolume(0)
 	} else {
 		if a.lastVolume <= 0 {
 			a.lastVolume = 0.8
 		}
 		a.muted = false
 		a.applyVolume(a.lastVolume)
+	}
+	if a.restoreCfg.Muted {
+		v := 0
+		if a.muted {
+			v = 1
+		}
+		a.savePref("mygo_muted", v) // 只存静音标记，不动 mygo_volume
 	}
 }
 
