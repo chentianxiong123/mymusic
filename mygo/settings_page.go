@@ -462,7 +462,6 @@ func (a *app) customLimitDialog(c *ui.Context) {
 						})
 					}
 				})
-				ui.Text(c, "确定后立即生效；调小上限会立即清理最旧的缓存").FontSize(11 * uiScale).TextColor(clrMuted)
 				ui.Spacer(c).Grow(1)
 				// 按钮行：取消（描边）+ 确定（渐变）
 				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
