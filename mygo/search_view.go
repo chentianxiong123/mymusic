@@ -280,9 +280,15 @@ func (a *app) sourceSelector(c *ui.Context) {
 			ui.Text(c, "▾").FontSize(12 * uiScale).TextColor(clrMuted)
 		})
 	})
-	// 下拉弹层：深色卡片圆角 + 限高可滚动（插件多时不会超出屏幕看不到）
+	// 下拉弹层：深色卡片圆角 + 限高可滚动（插件多时不会超出屏幕看不到）。
+	// Scroll.Grow(1) 要求父容器有确定高度；父若只有 MaxHeight（content-sized），
+	// 每帧在「内容高度 vs 上限」间重算 → 列表上下跳动。给 panel 确定高度消除。
+	popupH := len(names) * 44 + 12 // 每项 44 + 上下 padding 6*2
+	if popupH > 412 {
+		popupH = 412
+	}
 	sel.Popup(func(panel ui.Element) {
-		panel.Padding(6 * uiScale).Background(clrCard).Radius(12 * uiScale).MaxHeight(400 * uiScale)
+		panel.Padding(6 * uiScale).Background(clrCard).Radius(12 * uiScale).Height(float32(popupH) * uiScale)
 		ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 			for _, name := range names {
 				name := name
