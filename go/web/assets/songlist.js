@@ -13,7 +13,7 @@
 
   // 新建歌单：prompt 名字 → POST → 刷新网格片段（htmx 触发）
   async function create() {
-    const name = window.prompt('歌单名称');
+    const name = await hcDialog.prompt('新建歌单', '', null, '歌单名称');
     if (!name || !name.trim()) return;
     try {
       await api('/api/v1/songlists', {
@@ -30,7 +30,7 @@
 
   // 重命名：prompt 现名 → PATCH → 刷新
   async function rename(id, curName) {
-    const name = window.prompt('新歌单名称', curName || '');
+    const name = await hcDialog.prompt('重命名歌单', curName || '', null, '新歌单名称');
     if (!name || !name.trim()) return;
     try {
       await api('/api/v1/songlists/' + id + '/rename', {
@@ -92,15 +92,16 @@
     m.addEventListener('click', (e) => {
       if (e.target === m || e.target.closest('[data-close]')) closeSheet();
     });
-    m.querySelector('[data-new]').addEventListener('click', () => {
-      const name = window.prompt('新歌单名称');
+    m.querySelector('[data-new]').addEventListener('click', async () => {
+      const name = await hcDialog.prompt('新建歌单', '', null, '新歌单名称');
       if (name && name.trim()) {
-        api('/api/v1/songlists', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name.trim() }),
-        })
-          .then((g) => { closeSheet(); addItem(g.id, item); toast('已创建并添加'); refreshGrid(); })
-          .catch((e2) => toast(e2.message || '创建失败'));
+        try {
+          const g = await api('/api/v1/songlists', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name.trim() }),
+          });
+          closeSheet(); addItem(g.id, item); toast('已创建并添加'); refreshGrid();
+        } catch (e2) { toast(e2.message || '创建失败'); }
       }
     });
     return m;

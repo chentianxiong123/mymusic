@@ -42,11 +42,11 @@
   }
 
   // 切换收藏（统一逻辑）：已收藏需确认 → POST /hx/fav/toggle → 更新集合 + 广播
-  function toggle(btn) {
+  async function toggle(btn) {
     const s = songOf(btn);
     if (!s.bvid) return Promise.resolve();
     const wasFaved = faved.has(s.bvid);
-    if (wasFaved && !window.confirm('确定取消收藏？')) return Promise.resolve();
+    if (wasFaved && !(await hcDialog.confirm('确定取消收藏？'))) return Promise.resolve();
     const qs = new URLSearchParams({
       bvid: s.bvid, title: s.title || '', artist: s.artist || '', cover: s.cover || '', duration: String(s.duration || 0),
     });

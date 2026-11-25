@@ -274,14 +274,14 @@
       }).catch(() => {});
     }
     const cacheLimit = document.getElementById('cache-limit');
-    if (cacheLimit) cacheLimit.addEventListener('change', () => {
+    if (cacheLimit) cacheLimit.addEventListener('change', async () => {
       let mb = parseInt(cacheLimit.value, 10);
       if (cacheLimit.value === 'custom') {
-        const raw = window.prompt('自定义缓存上限（MB）', String(cachelimit || 500));
+        const raw = await hcDialog.prompt('自定义缓存上限', String(cachelimit || 500), null, 'MB');
         mb = parseInt(raw || '', 10);
         if (!Number.isFinite(mb) || mb < 1) { cacheLimit.value = String(cachelimit); return; }
       }
-      if (!window.confirm('缓存上限改为 ' + (mb === 0 ? '关闭' : mb + 'MB') + '？')) {
+      if (!(await hcDialog.confirm('缓存上限改为 ' + (mb === 0 ? '关闭' : mb + 'MB') + '？'))) {
         cacheLimit.value = String(cachelimit);
         return;
       }
@@ -308,14 +308,14 @@
         else lycSel.value = 'custom';
       }
     }).catch(() => {});
-    if (lycSel) lycSel.addEventListener('change', () => {
+    if (lycSel) lycSel.addEventListener('change', async () => {
       let n = parseInt(lycSel.value, 10);
       if (lycSel.value === 'custom') {
-        const raw = window.prompt('歌词缓存上限（首）', '300');
+        const raw = await hcDialog.prompt('歌词缓存上限', '300', null, '首数');
         n = parseInt(raw || '', 10);
         if (!Number.isFinite(n) || n < 1) { lycSel.value = '300'; return; }
       }
-      if (!window.confirm('歌词缓存上限改为 ' + n + ' 首？')) { lycSel.value = '300'; return; }
+      if (!(await hcDialog.confirm('歌词缓存上限改为 ' + n + ' 首？'))) { lycSel.value = '300'; return; }
       fetch('/api/v1/cache/lyric/limit', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ limit: n })
