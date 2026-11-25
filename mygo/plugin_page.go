@@ -369,8 +369,7 @@ func (a *app) bilibiliSourceConfig(c *ui.Context) {
 	cookie := plugin.GetSetting("source", "bilibili", "cookie", "")
 	ui.TextInput(c, &cookie).Grow(1).Height(38 * uiScale).FontSize(12 * uiScale).TextColor(clrText).Placeholder("SESSDATA=...; buvid3=...")
 	if chip(c, "保存").Clicked() {
-		_ = plugin.SetSetting("source", "bilibili", "cookie", cookie)
-		a.bili.Cookie = cookie
+		a.applySourceCookie("bilibili", cookie)
 		a.win.Invalidate()
 	}
 }

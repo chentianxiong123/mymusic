@@ -22,6 +22,9 @@ type Netease struct{ cookie string }
 
 func NewNetease(cookie string) *Netease { return &Netease{cookie: cookie} }
 
+// SetCookie 登录/退出后热更新（扫码/粘贴无需重启应用）。
+func (n *Netease) SetCookie(cookie string) { n.cookie = cookie }
+
 var _ MusicSource = (*Netease)(nil)
 
 func (n *Netease) Name() string { return "netease" }

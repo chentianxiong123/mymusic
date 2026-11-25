@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/grafana/sobek"
 	"mymusic-mygo/source"
 )
 
@@ -98,5 +99,40 @@ func TestParseLRC(t *testing.T) {
 	}
 	if lines[3].Text != "整秒" {
 		t.Errorf("text3=%q", lines[3].Text)
+	}
+}
+
+// TestJSPluginCtxConfigPersistent ctx.config 必须能读到 SettingStore 里的持久化 cookie。
+// 回归：之前 makeCtx 注入空 map，所有 JS 插件 ctx.config.get("cookie") 恒为空 = 登录态失效。
+func TestJSPluginCtxConfigPersistent(t *testing.T) {
+	fs := &fakeStore{}
+	SetSettingStore(fs)
+	t.Cleanup(func() { SetSettingStore(nil) })
+	_ = SetSetting("source", "kuwo", "cookie", "Hm_lvt_test=123")
+
+	code := `var meta={apiVersion:1,key:"kuwo-test",name:"x",capabilities:["source"],allowedHosts:["a.com"]};
+	function search(c){return {total:0,songs:[{id:c.config.get("cookie","NONE"),title:"x",artist:"y"}]}}
+	function getURL(c){return{url:"http://x"}}`
+	jp, err := NewJSPlugin("ctxcfg.js", code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jp.host.withPlugin("source", "kuwo") // 用 kuwo 的设置命名空间
+	ctx, err := jp.makeCtx(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = jp.vm.Set("ctxcfg", ctx)
+	cfgObj := ctx.Get("config").ToObject(jp.vm)
+	fn, ok := sobek.AssertFunction(cfgObj.Get("get"))
+	if !ok {
+		t.Fatal("ctx.config.get 不是函数（config 是空 map）")
+	}
+	v, err := fn(sobek.Undefined(), jp.vm.ToValue("cookie"), jp.vm.ToValue("NONE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.String() != "Hm_lvt_test=123" {
+		t.Fatalf("ctx.config.get(cookie) = %q, want Hm_lvt_test=123", v.String())
 	}
 }

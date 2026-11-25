@@ -55,6 +55,7 @@ type app struct {
 	db           *sql.DB
 	svc          *services              // 主线域包句柄（fav/lyric/cast/speaker）
 	src          source.MusicSource     // 当前音源（阶段 2 解耦：UI 只认接口，不认具体源）
+	neteaseSrc   *source.Netease        // Go 内置网易云源（登录态热更新用）
 	castOn       string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
 	btOn         string                 // 蓝牙音频当前路由到的设备名（空=本机）
 	currentRef   model.SongRef          // 1.2.5 当前歌曲的跨源引用（输出层统一传它）
@@ -493,7 +494,8 @@ func main() {
 	}
 	plugin.RegisterSystemLyric(lyricplug.NewNetease()) // 网易云歌词源（系统级兜底）
 	// 网易云音源（Go 内置：明文 API + 扫码登录；JS 版同 key 自动跳过）
-	plugin.RegisterSystemSource(source.NewNetease(plugin.GetSetting("source", "netease", "cookie", "")))
+	a.neteaseSrc = source.NewNetease(plugin.GetSetting("source", "netease", "cookie", ""))
+	plugin.RegisterSystemSource(a.neteaseSrc)
 	plugin.RegisterSettings("source", "netease", []plugin.Setting{
 		{Key: "quality", Name: "音质", Type: plugin.SettingSelect, Options: []string{"128k", "320k"}, Default: "320k", Desc: "播放音质"},
 		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索条数"},

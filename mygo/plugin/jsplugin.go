@@ -267,8 +267,9 @@ func (jp *JSPlugin) makeCtx(fields map[string]interface{}) (*sobek.Object, error
 			return nil, err
 		}
 	}
-	// config：插件设置（默认空；可扩展持久化）
-	if err := obj.Set("config", map[string]interface{}{}); err != nil {
+	// config：与 host.config 同一对象（get/set/all 走 SettingStore 落库）。
+	// 之前注入空 map 导致全部 JS 插件的 ctx.config.get("cookie") 永远拿不到登录态。
+	if err := obj.Set("config", jp.host.configObject(jp.vm)); err != nil {
 		return nil, err
 	}
 	// host 也注入 ctx（插件可用 ctx.host 或全局 host）

@@ -253,12 +253,40 @@ func qrPNG(text string, size int) ([]byte, error) {
 	return qrcode.Encode(text, qrcode.Medium, size)
 }
 
+// applySourceCookie 统一：落库 + 热更新当前客户端（扫码/粘贴共用）。
+func (a *app) applySourceCookie(src, cookie string) {
+	_ = plugin.SetSetting("source", src, "cookie", cookie)
+	a.hotUpdateCookie(src, cookie)
+}
+
+// hotUpdateCookie 热更新已构造的客户端（不重启可见；JS 插件每次 getURL 都读 config，无需动）。
+func (a *app) hotUpdateCookie(src, cookie string) {
+	switch src {
+	case "bilibili":
+		a.bili.Cookie = cookie
+	case "netease":
+		// Go 内置网易云源：用 setter 更新，避免重启才生效
+		if a.neteaseSrc != nil {
+			a.neteaseSrc.SetCookie(cookie)
+		}
+	}
+}
+
 // applyQRCookie 登录成功后写入音源插件 Cookie 设置 + 热更新客户端。
 func (a *app) applyQRCookie(src, cookie string) {
-	_ = plugin.SetSetting("source", src, "cookie", cookie)
-	if src == "bilibili" {
-		a.bili.Cookie = cookie
+	a.applySourceCookie(src, cookie)
+}
+
+// logoutSource 退出登录：清持久 cookie + 热更新客户端为空 + 停未完成的扫码。
+func (a *app) logoutSource(src string) {
+	a.applySourceCookie(src, "")
+	a.loginCookieBuf = ""
+	if a.qrLoginSession != nil && a.qrLoginSession.Source == src {
+		a.stopQRLogin()
 	}
+	a.showLoginDialog = false
+	a.win.Invalidate()
+	_ = src
 }
 
 // ---- UI ----
@@ -349,11 +377,12 @@ func (a *app) loginMethodDialog(c *ui.Context) {
 						a.showLoginDialog = false
 						a.win.Invalidate()
 					}
+					logged := plugin.GetSetting("source", src, "cookie", "") != ""
+					if logged && chip(c, "退出登录").Clicked() {
+						a.logoutSource(src)
+					}
 					if gradButton(c, "保存").Clicked() {
-						_ = plugin.SetSetting("source", src, "cookie", a.loginCookieBuf)
-						if src == "bilibili" {
-							a.bili.Cookie = a.loginCookieBuf
-						}
+						a.applySourceCookie(src, a.loginCookieBuf)
 						a.showLoginDialog = false
 						a.win.Invalidate()
 					}
