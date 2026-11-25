@@ -96,33 +96,52 @@ func SettingsOf(typeName, name string) []Setting {
 	return settings[typeName+"/"+name]
 }
 
-// settingKey 拼插件设置存储 key（带命名空间）。
-func settingKey(typeName, name, key string) string {
+// settingKey 拼插件设置存储 key（一体化：按平台名，不按能力类型）。
+// typeName 参数保留兼容旧调用，但存储身份只有 name（平台 key）。
+func settingKey(_typeName, name, key string) string {
+	return settingKeyPrefix + name + "/" + key
+}
+
+// legacySettingKey 旧命名空间（迁移用）。
+func legacySettingKey(typeName, name, key string) string {
 	return settingKeyPrefix + typeName + "/" + name + "/" + key
 }
 
-// GetSetting 读插件设置（系统统一存储；未设置/无存储 → 默认值）。
+// GetSetting 读平台设置（新键优先；旧键存在则迁移）。
 func GetSetting(typeName, name, key, def string) string {
 	settingsMu.RLock()
 	store := settingStore
 	settingsMu.RUnlock()
-	if store != nil {
-		if v, ok := store.Get(settingKey(typeName, name, key)); ok {
+	if store == nil {
+		return def
+	}
+	if v, ok := store.Get(settingKey(typeName, name, key)); ok {
+		return v
+	}
+	// 旧键迁移：plugin:<type>/<name>/<key> → plugin:<name>/<key>
+	if typeName != "" {
+		if v, ok := store.Get(legacySettingKey(typeName, name, key)); ok && v != "" {
+			_ = store.Set(settingKey(typeName, name, key), v)
+			_ = store.Set(legacySettingKey(typeName, name, key), "")
 			return v
 		}
 	}
 	return def
 }
 
-// SetSetting 写插件设置（系统统一存储；无存储 → 内存态仅本次进程）。
+// SetSetting 写平台设置（新键；清旧键避免分歧）。
 func SetSetting(typeName, name, key, value string) error {
 	settingsMu.RLock()
 	store := settingStore
 	settingsMu.RUnlock()
-	if store != nil {
-		return store.Set(settingKey(typeName, name, key), value)
+	if store == nil {
+		return nil
 	}
-	return nil
+	err := store.Set(settingKey(typeName, name, key), value)
+	if err == nil && typeName != "" {
+		_ = store.Set(legacySettingKey(typeName, name, key), "")
+	}
+	return err
 }
 
 // GetSettingInt 读整数设置（默认 def）。
@@ -184,7 +203,7 @@ func SettingKeys(typeName, name string) []string {
 	if store == nil {
 		return nil
 	}
-	prefix := settingKeyPrefix + typeName + "/" + name + "/"
+	prefix := settingKeyPrefix + name + "/" // 一体化：按平台
 	// 通用 store 可能不支持枚举；这里靠 Get 探测默认（有声明项才可枚举）
 	var keys []string
 	for _, it := range SettingsOf(typeName, name) {

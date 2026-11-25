@@ -11,32 +11,85 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// pluginPage 插件页：3 个分页 tab（音源 / 歌词 / 输出）——每页只显示一类，
-// 不再三类全堆一起让用户滚很久。设置页子 tab（settingsTab==1）进入。
+// pluginPage 插件页：一体化列表——一个平台一个条目（能力是标签，不再按类型分页）。
+// 设置页子 tab（settingsTab==1）进入。
 func (a *app) pluginPage(c *ui.Context) {
-	// 子页：点击某插件「详情」后进入，显示该插件配置（复页显示配置）
 	if a.pluginDetail != "" {
 		a.pluginDetailPage(c)
 		return
 	}
 	ui.Column(c).Grow(1).Fill().Gap(10 * uiScale).Children(func() {
-		// 分页 tab：音源 | 歌词 | 输出（复用设置页的分段选择器）
-		a.setRowSeg(c, []string{"音源", "歌词", "输出"}, a.pluginTab, func(i int) {
-			a.pluginTab = i
-			a.win.Invalidate()
-		})
-		// 只渲染当前 tab 的那一类插件
-		var kind, title string
-		switch a.pluginTab {
-		case 1:
-			kind, title = "lyric", "歌词插件"
-		case 2:
-			kind, title = "target", "输出目标"
-		default:
-			kind, title = "source", "音源插件"
-		}
-		a.pluginGroup(c, title, kind)
+		a.pluginAllGroup(c)
 	})
+}
+
+// pluginAllGroup 全部平台一个列表（拖拽排序 + 能力标签 + 启用开关）。
+func (a *app) pluginAllGroup(c *ui.Context) {
+	infos := plugin.AllInfos()
+	section := ui.Box(c).Fill().Grow(1).Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
+	section.Children(func() {
+		ui.Column(c).Fill().Gap(10 * uiScale).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(clrPink)
+				ui.Text(c, "插件").FontSize(13 * uiScale).Bold().TextColor(clrText)
+				ui.Spacer(c).Grow(1)
+				ui.Text(c, "拖动排序").FontSize(10 * uiScale).TextColor(clrMuted)
+				ui.Text(c, fmt.Sprintf("%d 个", len(infos))).FontSize(11 * uiScale).TextColor(clrMuted)
+			})
+			if len(infos) == 0 {
+				ui.Text(c, "无").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
+				return
+			}
+			st := a.pluginListState("all", len(infos))
+			ui.List(c, st, len(infos), func(idx int) {
+				in := infos[idx]
+				row := ui.Box(c).Fill().Radius(8 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale)
+				row.Children(func() {
+					ui.Column(c).Fill().Gap(8 * uiScale).Children(func() {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+							ui.Text(c, fmt.Sprintf("%d", idx+1)).FontSize(11 * uiScale).TextColor(clrMuted).Width(16)
+							ui.Text(c, "⠿").FontSize(14 * uiScale).TextColor(clrMuted)
+							icon(c, pluginIcon(in.Icon), 18, clrBlue)
+							ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+								name := in.DisplayName
+								if name == "" {
+									name = in.Name
+								}
+								ui.Text(c, name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
+								ui.Text(c, capabilityLabels(in.Capabilities)).FontSize(10 * uiScale).TextColor(clrMuted)
+								ui.Text(c, in.Desc+" · v"+in.Version).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(2)
+							})
+							if chip(c, "详情").Clicked() {
+								a.pluginDetail = in.Name // 一体化：直接用平台 key
+								a.win.Invalidate()
+							}
+							on := plugin.IsEnabled("", in.Name)
+							if switchToggle(c, on).Clicked() {
+								plugin.SetEnabled("", in.Name, !on)
+								a.savePref("plugin_"+in.Name, map[bool]int{true: 1, false: 0}[!on])
+								a.win.Invalidate()
+							}
+						})
+					})
+				})
+			}).Grow(1)
+		})
+	})
+}
+
+// capabilityLabels 能力列表 → 中文标签。
+func capabilityLabels(caps []string) string {
+	labels := map[string]string{"source": "音源", "lyric": "歌词", "recommend": "推荐", "target": "输出"}
+	out := ""
+	for _, c := range caps {
+		if l, ok := labels[c]; ok {
+			if out != "" {
+				out += " · "
+			}
+			out += l
+		}
+	}
+	return out
 }
 
 // pluginGroup 一个分区区块：背景 + 色条标题 + 数量 + 官方 ui.List（拖拽排序）。
@@ -104,9 +157,14 @@ func (a *app) pluginListState(kind string, n int) *ui.ListState {
 	}
 	st := &ui.ListState{
 		Key: func(row int) any {
-			cur := plugin.InfoNames(kind) // 每次读当前顺序（重排后更新）
+			var cur []plugin.Info
+			if kind == "all" {
+				cur = plugin.AllInfos() // 一体化：全部平台一个列表
+			} else {
+				cur = plugin.InfoNames(kind)
+			}
 			if row >= 0 && row < len(cur) {
-				return cur[row].Type + "/" + cur[row].Name
+				return cur[row].Name // 平台 key
 			}
 			return row
 		},
@@ -167,51 +225,59 @@ func (a *app) pluginDetailPage(c *ui.Context) {
 	})
 }
 
-// pluginDetailName 子页标题：当前插件名。
+// pluginDetailName 子页标题：平台名 · 配置。
 func (a *app) pluginDetailName() string {
 	if a.pluginDetail == "" {
 		return ""
 	}
-	for _, k := range []string{"source", "lyric", "target"} {
-		for _, in := range plugin.InfoNames(k) {
-			if in.Type+"/"+in.Name == a.pluginDetail {
-				return in.Name + " · 配置"
-			}
-		}
+	in := plugin.InfoOf("", a.pluginDetail)
+	name := in.DisplayName
+	if name == "" {
+		name = a.pluginDetail
 	}
-	return "插件配置"
+	return name + " · 配置"
 }
 
-// pluginConfigForm 子页内容：当前插件配置表单（网易云歌词完整设置 / JS 插件通用表单）。
+// pluginConfigForm 子页内容：一个平台的所有能力配置聚在一起（音源/歌词/登录/绑定/输出）。
 func (a *app) pluginConfigForm(c *ui.Context) {
-	// 音源插件：歌词源绑定（插件自带 / 手动选择歌词插件）+ 扫码登录
-	if tp, name, ok := splitPluginDetail(a.pluginDetail); ok && tp == "source" {
+	name := a.pluginDetail // 一体化：平台 key
+	if name == "" {
+		return
+	}
+	// 兼容旧 pluginDetail = type/name 形式（书签/旧状态）
+	if tp, n, ok := splitPluginDetail(name); ok {
+		name = n
+		_ = tp
+	}
+	// 登录 + 歌词绑定（音源插件）
+	if plugin.HasCapability(name, "source") || plugin.InfoOf("", name).Type == "source" {
 		a.qrLoginSection(c, name)
 		a.lyricBindSection(c, name)
 	}
-	switch a.pluginDetail {
-	case "source/bilibili":
+	// 平台专属配置（按平台 key 分派，不再按 type/name）
+	switch name {
+	case "bilibili":
 		a.bilibiliSourceConfig(c)
-	case "source/netease":
+	case "netease":
 		a.neteaseSourceConfig(c)
-	case "lyric/netease":
-		a.neteaseLyricConfig(c)
-	case "target/speaker":
+		a.neteaseLyricConfig(c) // 网易云既是音源又是歌词源，两个配置都显示
+	case "speaker":
 		a.speakerConfig(c)
-	case "target/local":
+	case "local":
 		a.localConfig(c)
 	default:
-		// JS 插件（meta.settings 声明）：渲染通用设置表单（系统统一管理）。
-		// 解析 pluginDetail = type/name，查设置声明，有则渲染。
-		tp, name, ok := splitPluginDetail(a.pluginDetail)
-		if ok {
-			items := plugin.SettingsOf(tp, name)
-			if len(items) > 0 {
+		// JS 插件（meta.settings 声明）：按平台 key 找设置声明
+		found := false
+		for _, tp := range []string{"source", "lyric", "target", "recommend"} {
+			if items := plugin.SettingsOf(tp, name); len(items) > 0 {
 				a.jsPluginConfig(c, tp, name, items)
-				return
+				found = true
+				break
 			}
 		}
-		ui.Text(c, "该插件暂无更多配置").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
+		if !found {
+			ui.Text(c, "该插件暂无更多配置").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
+		}
 	}
 }
 

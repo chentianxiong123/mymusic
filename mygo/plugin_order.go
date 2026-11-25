@@ -3,13 +3,14 @@
 // plugin_order.go —— 插件顺序的用户自定义（持久化 settings 表）。
 //
 // 顺序影响所有表征：插件页列表、搜索下拉框（SourceNames）、目标列表等。
-// 存 settings 键 mygo_pluginorder，JSON: {"source/netease":0,"source/bilibili":1,...}
-// 值 = 排序号（小在前）。未记录的插件保持 meta.Order 默认顺序。
+// 存 settings 键 mygo_pluginorder，JSON: {"netease":0,"bilibili":1,...}（平台 key）。
+// 旧格式 {"source/netease":0,...} 启动时自动迁移。值 = 排序号（小在前）。
 package main
 
 import (
 	"encoding/json"
 	"log"
+	"strings"
 
 	"mymusic-mygo/plugin"
 
@@ -31,7 +32,15 @@ func (a *app) restorePluginOrder() {
 	if json.Unmarshal([]byte(v), &m) != nil {
 		return
 	}
-	plugin.SetOrderOverride(m)
+	// 迁移旧 key：type/name → name（一体化）
+	migrated := map[string]int{}
+	for k, v := range m {
+		if i := strings.IndexByte(k, '/'); i >= 0 {
+			k = k[i+1:]
+		}
+		migrated[k] = v
+	}
+	plugin.SetOrderOverride(migrated)
 }
 
 // restorePluginEnabled 启动恢复插件启用状态：遍历所有已注册插件，读 settings 键
@@ -41,10 +50,14 @@ func (a *app) restorePluginEnabled() {
 		return
 	}
 	for _, in := range plugin.AllInfos() {
-		key := "plugin_" + in.Type + "_" + in.Name
+		key := "plugin_" + in.Name // 一体化：只按平台 key
 		v, ok := conv.LoadSetting(a.db, key)
+		if !ok || v != "0" {
+			// 兼容旧 plugin_<type>_<name>
+			v, ok = conv.LoadSetting(a.db, "plugin_"+in.Type+"_"+in.Name)
+		}
 		if ok && v == "0" {
-			plugin.SetEnabled(in.Type, in.Name, false)
+			plugin.SetEnabled("", in.Name, false)
 		}
 	}
 }
@@ -76,13 +89,7 @@ func (a *app) movePlugin(kind string, idx, delta int) {
 	// 全量写回：每个插件的新顺序号 = 列表索引（跨类型也保留各自原 override/Order）
 	m := map[string]int{}
 	for i, in := range list {
-		m[in.Type+"/"+in.Name] = i
-	}
-	// 保留其它类型的已有 override（不丢其它分组的顺序）
-	for k, v := range plugin.OrderOverride() {
-		if len(k) > 0 && k[:min(len(k), len(kind)+1)] != kind+"/" {
-			m[k] = v
-		}
+		m[in.Name] = i // 一体化：平台 key
 	}
 	plugin.SetOrderOverride(m)
 	a.savePluginOrder()
@@ -92,7 +99,12 @@ func (a *app) movePlugin(kind string, idx, delta int) {
 // reorderPlugins 官方 ui.List 的 Reorder 回调：rows=被拖行索引，to=插入位置（原列表第 to 行之前）。
 // 重排该类型插件 → 写 orderOverride + 持久化（影响插件页/搜索下拉框等所有表征）。
 func (a *app) reorderPlugins(kind string, rows []int, to int) {
-	list := plugin.InfoNames(kind)
+	var list []plugin.Info
+	if kind == "all" {
+		list = plugin.AllInfos() // 一体化：全部平台
+	} else {
+		list = plugin.InfoNames(kind)
+	}
 	if len(list) == 0 || len(rows) == 0 {
 		return
 	}
@@ -121,12 +133,7 @@ func (a *app) reorderPlugins(kind string, rows []int, to int) {
 	ordered = append(ordered, rest[at:]...)
 	m := map[string]int{}
 	for _, in := range ordered {
-		m[in.Type+"/"+in.Name] = len(m)
-	}
-	for k, v := range plugin.OrderOverride() {
-		if len(k) <= len(kind) || k[:len(kind)+1] != kind+"/" {
-			m[k] = v // 保留其它类型
-		}
+		m[in.Name] = len(m) // 一体化：平台 key
 	}
 	plugin.SetOrderOverride(m)
 	a.savePluginOrder()

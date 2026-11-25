@@ -504,8 +504,8 @@ func main() {
 		{Key: "cookie", Name: "登录 Cookie", Type: plugin.SettingText, Default: "", Desc: "扫码登录或粘贴网易云 Cookie；空=免登录"},
 	})
 	// 插件元数据（插件页展示）
-	plugin.RegisterInfo(plugin.Info{Name: "bilibili", Type: "source", Icon: "bilibili", Version: "1.0", Desc: "B站音乐 · 搜索、播放、歌词", Order: 10})
-	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "source", Icon: "netease", Version: "1.0", Desc: "网易云音乐 · 搜索、播放、歌词", Order: 20})
+	plugin.RegisterInfo(plugin.Info{Name: "bilibili", DisplayName: "B站", Capabilities: []string{"source"}, Icon: "bilibili", Version: "1.0", Desc: "B站音乐 · 搜索、播放、歌词", Order: 10})
+	plugin.RegisterInfo(plugin.Info{Name: "netease", DisplayName: "网易云", Capabilities: []string{"source", "lyric"}, Icon: "netease", Version: "1.0", Desc: "网易云音乐 · 搜索、取词、歌词", Order: 20})
 	// B站音源插件设置：搜索条数/分页自控（插件声明，系统统一存储 SettingStore）
 	plugin.RegisterSettings("source", "bilibili", []plugin.Setting{
 		{Key: "searchSize", Name: "搜索条数", Type: plugin.SettingSelect, Options: []string{"20", "40", "60"}, Default: "40", Desc: "每次搜索显示的条数"},
@@ -517,12 +517,10 @@ func main() {
 	plugin.RegisterSettings("source", "local", []plugin.Setting{
 		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav）"},
 	})
-	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "source", Icon: "local", Version: "1.0", Desc: "本地文件 · 扫描目录播放", Order: 20})
-	plugin.RegisterInfo(plugin.Info{Name: "netease", Type: "lyric", Icon: "netease", Version: "1.0", Desc: "网易云歌词 · 智能匹配", Order: 20})
-	plugin.RegisterInfo(plugin.Info{Name: "local", Type: "target", Icon: "local", Version: "1.0", Desc: "本机声卡播放（默认输出路径）", Order: 30})
-	plugin.RegisterInfo(plugin.Info{Name: "cast", Type: "target", Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
-	plugin.RegisterInfo(plugin.Info{Name: "bluetooth", Type: "target", Icon: "bluetooth", Version: "1.0", Desc: "蓝牙设备 · 无线播放", Order: 50})
-	plugin.RegisterInfo(plugin.Info{Name: "speaker", Type: "target", Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
+	plugin.RegisterInfo(plugin.Info{Name: "local", DisplayName: "本地", Capabilities: []string{"source", "target"}, Icon: "local", Version: "1.0", Desc: "本地文件 · 扫描目录播放 + 本机输出", Order: 20})
+	plugin.RegisterInfo(plugin.Info{Name: "cast", DisplayName: "投屏", Capabilities: []string{"target"}, Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
+	plugin.RegisterInfo(plugin.Info{Name: "bluetooth", DisplayName: "蓝牙", Capabilities: []string{"target"}, Icon: "bluetooth", Version: "1.0", Desc: "蓝牙设备 · 无线播放", Order: 50})
+	plugin.RegisterInfo(plugin.Info{Name: "speaker", DisplayName: "小爱音箱", Capabilities: []string{"target"}, Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
 	// JS 沙箱插件：扫描可执行文件旁的 plugins/（相对路径会随 cwd 变化导致插件时多时少）。
 	// 单个插件失败不拖垮启动（errs 收集，日志列出原因）。
 	pluginDirs := []string{}

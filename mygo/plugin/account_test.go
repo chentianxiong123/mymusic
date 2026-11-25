@@ -10,40 +10,44 @@ func TestCookieSharedAcrossCapabilities(t *testing.T) {
 	SetSettingStore(fs)
 	t.Cleanup(func() { SetSettingStore(nil) })
 
-	// 音源插件写入 cookie（走 account 层）
 	if err := SetCookie("netease", "MUSIC_U=abc"); err != nil {
 		t.Fatal(err)
 	}
-	// 歌词/推荐插件同名 key 读同一份（不按 pluginType 隔离）
-	if got := GetCookie("netease"); got != "MUSIC_U=abc" {
-		t.Fatalf("共享读取: got %q", got)
+	// 所有能力读同一份（GetSetting 的 type 参数被忽略）
+	if got := GetSetting("source", "netease", "cookie", ""); got != "MUSIC_U=abc" {
+		t.Fatalf("source 读: %q", got)
 	}
-	// 旧 type 命名空间下不应有残留（避免双写分歧）
-	if got := GetSetting("source", "netease", "cookie", "OLD"); got != "" {
-		t.Fatalf("老键应被清空，got %q", got)
+	if got := GetSetting("lyric", "netease", "cookie", ""); got != "MUSIC_U=abc" {
+		t.Fatalf("lyric 读: %q", got)
 	}
-	// 退出清除
+	if got := GetSetting("recommend", "netease", "cookie", ""); got != "MUSIC_U=abc" {
+		t.Fatalf("recommend 读: %q", got)
+	}
 	ClearCookie("netease")
 	if HasCookie("netease") {
 		t.Fatal("ClearCookie 后仍有登录态")
 	}
 }
 
-// TestCookieLegacyMigration 老用户老键自动迁移到平台级键。
-func TestCookieLegacyMigration(t *testing.T) {
-	fs := &fakeStore{}
+// TestLegacySettingMigration 老键 plugin:source/<name>/<key> 自动迁移到 plugin:<name>/<key>。
+func TestLegacySettingMigration(t *testing.T) {
+	fs := &fakeStore{m: map[string]string{
+		"plugin:source/netease/cookie": "LEGACY_COOKIE",
+		"plugin:source/netease/quality": "320k",
+	}}
 	SetSettingStore(fs)
 	t.Cleanup(func() { SetSettingStore(nil) })
 
-	// 模拟老用户：只存在 plugin:source/netease/cookie
-	_ = SetSetting("source", "netease", "cookie", "LEGACY_COOKIE")
-
-	got := GetCookie("netease")
-	if got != "LEGACY_COOKIE" {
-		t.Fatalf("迁移失败: got %q", got)
+	if got := GetSetting("source", "netease", "cookie", ""); got != "LEGACY_COOKIE" {
+		t.Fatalf("cookie 迁移: %q", got)
 	}
-	// 再读一次仍稳定（老键已清，新键保留）
-	if got := GetCookie("netease"); got != "LEGACY_COOKIE" {
-		t.Fatalf("迁移后二次读: got %q", got)
+	if got := GetSetting("lyric", "netease", "cookie", ""); got != "LEGACY_COOKIE" {
+		t.Fatalf("跨能力读迁移后的 cookie: %q", got)
+	}
+	if got := GetSetting("source", "netease", "quality", ""); got != "320k" {
+		t.Fatalf("quality 迁移: %q", got)
+	}
+	if got := fs.m["plugin:source/netease/cookie"]; got != "" {
+		t.Fatalf("老键应被清空: %q", got)
 	}
 }

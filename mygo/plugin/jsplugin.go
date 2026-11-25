@@ -203,11 +203,12 @@ func (jp *JSPlugin) register() error {
 
 // registerMeta 只注册元数据（插件页展示）——requiresCookie 无 cookie 时也要能进详情页登录。
 func (jp *JSPlugin) registerMeta() {
-	for _, cap := range jp.meta.Capabilities {
-		if cap == "source" || cap == "lyric" {
-			RegisterInfo(Info{Name: jp.meta.Key, Type: cap, Icon: jp.meta.Key, Version: jp.meta.Version, Desc: jp.meta.Name, Order: jp.meta.Order})
-		}
-	}
+	// 一体化：一个平台一个 Info，Capabilities 全带上（旧代码按能力注册多次由 RegisterInfo 合并，但漏了 recommend/target）
+	RegisterInfo(Info{
+		Name: jp.meta.Key, DisplayName: jp.meta.Name,
+		Capabilities: append([]string(nil), jp.meta.Capabilities...),
+		Icon: jp.meta.Key, Version: jp.meta.Version, Desc: jp.meta.Name, Order: jp.meta.Order,
+	})
 }
 
 // registerSettings 把 meta.settings 声明注册进设置表（系统统一存储）。
