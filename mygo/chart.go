@@ -222,8 +222,9 @@ type chartRecommend struct {
 	fetcher chartFetcher
 	mu      sync.Mutex
 	lists   []chartList
-	loaded  bool
-	loading bool
+	loaded    bool
+	loading   bool
+	activeList string // 当前选中的榜单（一次只显示一个，不堆叠）
 }
 
 func (r *chartRecommend) Name() string { return r.fetcher.name() + "榜单" }
@@ -262,22 +263,66 @@ func (r *chartRecommend) Render(c *ui.Context, h plugin.RecommendHost, preview b
 		ui.Text(c, "加载榜单…").FontSize(12 * uiScale).TextColor(clrMuted)
 		return
 	}
+	// 榜单下拉（模仿搜索栏音源选择：一次只显示一个榜，不堆一起）
+	names := make([]string, 0, len(lists))
+	for _, l := range lists {
+		names = append(names, l.Name)
+	}
+	if r.activeList == "" {
+		r.activeList = names[0]
+	}
+	cur := r.activeList
+	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+		sel := ui.SelectBase(c, &r.activeList)
+		sel.Trigger.Height(32 * uiScale).PaddingX(10 * uiScale).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(5 * uiScale).Children(func() {
+				ui.Text(c, cur).FontSize(12 * uiScale).Bold().TextColor(clrText)
+				ui.Text(c, "▾").FontSize(10 * uiScale).TextColor(clrMuted)
+			})
+		})
+		popupH := len(names)*40 + 12
+		if popupH > 360 {
+			popupH = 360
+		}
+		sel.Popup(func(panel ui.Element) {
+			panel.Padding(5 * uiScale).Background(clrCard).Radius(10 * uiScale).Height(float32(popupH) * uiScale)
+			ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
+				for _, name := range names {
+					name := name
+					item := sel.Item(name).Height(40 * uiScale).PaddingX(10 * uiScale)
+					if item.Highlighted() || name == cur {
+						item.Background(clrCardHov)
+					}
+					item.Children(func() {
+						ui.Text(c, name).FontSize(12 * uiScale).TextColor(clrText)
+					})
+				}
+			})
+		})
+	})
+	// 只渲染选中的榜
+	var selected *chartList
+	for i := range lists {
+		if lists[i].Name == r.activeList {
+			selected = &lists[i]
+			break
+		}
+	}
+	if selected == nil {
+		selected = &lists[0]
+	}
 	limit := 20 // 详情页全量
 	if preview {
-		limit = 3 // 来源页预览 1-2 首
+		limit = 3 // 来源页预览 3 首
 	}
-	for _, list := range lists {
-		ui.Text(c, fmt.Sprintf("%s · %s", list.Platform, list.Name)).
-			FontSize(13 * uiScale).Bold().TextColor(clrText).PaddingY(4 * uiScale)
-		n := len(list.Songs)
-		if n > limit {
-			n = limit
-		}
-		for i := 0; i < n; i++ {
-			s := list.Songs[i]
-			if chip(c, fmt.Sprintf("%d. %s — %s", i+1, s.Title, s.Artist)).Clicked() {
-				h.PlayRef(s.Source, s.ID, s.Title, s.Artist, s.Cover)
-			}
+	n := len(selected.Songs)
+	if n > limit {
+		n = limit
+	}
+	for i := 0; i < n; i++ {
+		s := selected.Songs[i]
+		if chip(c, fmt.Sprintf("%d. %s — %s", i+1, s.Title, s.Artist)).Clicked() {
+			h.PlayRef(s.Source, s.ID, s.Title, s.Artist, s.Cover)
 		}
 	}
 }
