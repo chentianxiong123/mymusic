@@ -116,18 +116,8 @@ func (a *app) pbLoop() {
 // 音箱模式（source=speaker）进度来自音箱设备，由核心 progressLoop 投影并广播，
 // 本循环跳过——那才是该由后端管进度的场景。
 func (a *app) progressReporter() {
-	// 播放时长统计：每 10s 累加一次，避免 250ms 频繁落库。
-	statTick := time.NewTicker(10 * time.Second)
-	defer statTick.Stop()
-	go func() {
-		for range statTick.C {
-			if a.current == nil || !a.playing || a.spkMode {
-				continue
-			}
-			cur := a.current
-			a.statsAddSec(cur.src, cur.bvid, 10)
-		}
-	}()
+	// 播放时长统计：按真实进度差累计（暂停不加、seek 大跳不计），10s 节流落库。
+	// 之前固定每 10s 加 10 秒，暂停/切歌/seek 都会多算。
 
 	// 250ms 拉播放端进度（audio.Player.Position 从输出时钟插值算，是播放端产物）。
 	// 本循环只更新本地 UI 字段 + 推挂件 SSE，不再写 SSOT：进度不进业务状态源。
@@ -155,6 +145,21 @@ func (a *app) progressReporter() {
 				}
 				a.posText = fmtDurMygo(info.Pos)
 				a.durText = fmtDurMygo(info.Dur)
+				// 播放时长：只累计播放中、小幅前进的真实差值（暂停不加、seek 大跳不计）。
+				if info.Playing && !a.scrubbing && a.current != nil {
+					if a.statLastPos > 0 && info.Pos > a.statLastPos {
+						delta := info.Pos - a.statLastPos
+						if delta < 2 { // 250ms 帧间隔 ≤0.5s；>2s 视为 seek
+							a.statPendingSec += delta
+						}
+					}
+				}
+				a.statLastPos = info.Pos
+				if time.Since(a.statLastSave) >= 10*time.Second && a.statPendingSec > 0 {
+					a.statsAddSec(a.current.src, a.current.bvid, a.statPendingSec)
+					a.statPendingSec = 0
+					a.statLastSave = time.Now()
+				}
 				a.posSec = info.Pos
 				a.playing = info.Playing
 			})
