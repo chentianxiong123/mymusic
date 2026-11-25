@@ -88,15 +88,36 @@
       '<a href="/hx/recent" hx-get="/hx/recent" hx-select="#main" hx-target="#main" hx-swap="innerHTML" hx-push-url="true"' +
       ' class="text-xs font-medium text-pink-500 hover:text-pink-600 transition-colors">查看全部 →</a>' +
       '</div></div>' +
-      '<div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">' +
+      '<div class="hc-recent-wrap" style="position:relative">' +
+      '<div class="hc-recent-strip" style="display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;white-space:nowrap;padding:2px 0">' +
       recent.slice(0, 10).map((r) =>
-        '<div class="recent-item group cursor-pointer min-w-0" data-bvid="' + esc(r.bvid) + '" data-title="' + esc(r.title) + '" data-full-title="' + esc(r.fullTitle || r.title) + '" data-artist="' + esc(r.artist) + '" data-cover="' + esc(r.cover) + '" title="' + esc(r.fullTitle || r.title) + '">' +
+        '<div class="recent-item group cursor-pointer min-w-0" style="flex:none;width:110px" data-bvid="' + esc(r.bvid) + '" data-title="' + esc(r.title) + '" data-full-title="' + esc(r.fullTitle || r.title) + '" data-artist="' + esc(r.artist) + '" data-cover="' + esc(r.cover) + '" title="' + esc(r.fullTitle || r.title) + '">' +
         '<img src="' + esc(r.cover) + '" alt="" loading="lazy" referrerpolicy="no-referrer" ' +
         'class="w-full aspect-square object-cover rounded-xl shadow-sm group-hover:shadow-md group-hover:scale-[1.02] transition-all duration-200">' +
         '<p class="text-xs text-gray-700 dark:text-gray-300 truncate mt-1.5 group-hover:text-pink-400 transition-colors">' + esc(window.hcTitle ? window.hcTitle(r.title) : r.title) + '</p>' +
         '<p class="text-[10px] text-gray-500 dark:text-gray-400 truncate">' + esc(r.artist) + '</p>' +
         '</div>').join('') +
+      '</div>' +
+      '<button class="hc-recent-nav hc-recent-prev" style="display:none;position:absolute;left:-4px;top:36%;z-index:2;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;border:none;cursor:pointer">‹</button>' +
+      '<button class="hc-recent-nav hc-recent-next" style="display:none;position:absolute;right:-4px;top:36%;z-index:2;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;border:none;cursor:pointer">›</button>' +
       '</div>';
+
+    // 单行横滑悬浮箭头（对齐 native：hover 才出现，不占位置）
+    const strip = view.querySelector('.hc-recent-strip');
+    const prev = view.querySelector('.hc-recent-prev');
+    const next = view.querySelector('.hc-recent-next');
+    if (strip && prev && next) {
+      const upd = () => {
+        prev.style.display = strip.scrollLeft > 4 ? '' : 'none';
+        next.style.display = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 4 ? '' : 'none';
+      };
+      strip.addEventListener('scroll', upd);
+      prev.addEventListener('click', () => strip.scrollBy({ left: -240, behavior: 'smooth' }));
+      next.addEventListener('click', () => strip.scrollBy({ left: 240, behavior: 'smooth' }));
+      view.addEventListener('mouseenter', upd);
+      view.addEventListener('mouseleave', () => { prev.style.display = 'none'; next.style.display = 'none'; });
+      requestAnimationFrame(upd);
+    }
 
     bindGrid(view, recent);
   }
