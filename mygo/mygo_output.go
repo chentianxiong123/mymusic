@@ -16,6 +16,7 @@ import (
 
 	"github.com/egoist/mygo/audio"
 
+	hmodel "homecast/model"
 	"homecast/service/cache"
 	"homecast/service/music"
 	"homecast/service/playback"
@@ -39,6 +40,7 @@ type MyGoOutput struct {
 	curSrc  string              // 当前播放歌的来源名（分开搜索：歌可能来自网易云/插件源）
 	cache   *cache.CacheService // 主线缓存域包（可空：命中→秒开）
 	xcoder  *transcode.Transcoder // 主线 mp3 转码缓存（与音箱/供给端点共用，本地播放也走它）
+	supplier *Supplier            // 1.2.5 统一取流（非空时 loadAndPlay 走它）
 	qualFn  func() int          // 当前音质档（0=64k 1=128k 2=192k，默认 192k）
 	qualMu  sync.Mutex
 	quality int // Locked by qualMu：默认 192k
@@ -72,6 +74,9 @@ func (o *MyGoOutput) setSource(s source.MusicSource) {
 func (o *MyGoOutput) setXcoder(x *transcode.Transcoder) {
 	o.xcoder = x
 }
+
+// setSupplier 注入统一取流供给（1.2.5）。
+func (o *MyGoOutput) setSupplier(s *Supplier) { o.supplier = s }
 
 // setSrcName 设置当前播放歌的来源名（分开搜索：歌可能来自网易云/插件源）。
 // play() 时 app 传入 item.Typename；空=当前默认源。
@@ -119,6 +124,30 @@ func (o *MyGoOutput) qualFnQuality() int {
 }
 
 func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
+	// 1.2.5 统一取流：有 supplier + 跨源引用 → 一条链出可播文件（本机/HTTP/DLNA 共用）。
+	if o.supplier != nil && opts.Source != "" {
+		qn := bilibili.PreferredQuality
+		switch o.qualFnQuality() {
+		case 0:
+			qn = bilibili.Audio64K
+		case 1:
+			qn = bilibili.Audio128K
+		}
+		path, direct, err := o.supplier.Resolve(
+			hmodel.SongRef{Source: opts.Source, ID: opts.ID, Title: opts.Title},
+			o.qualFnQuality(), qn)
+		if err != nil {
+			log.Printf("[mygo-output] 取流失败 %s/%s: %v", opts.Source, opts.ID, err)
+			if o.onErr != nil {
+				o.onErr(err.Error())
+			}
+			return
+		}
+		_ = direct // 可播路径已确定；本地源/缓存均不删除
+		o.openAndPlay(bvid, opts, gen, path, false) // 共享缓存/转码缓存永不删
+		return
+	}
+	// 老路径兜底（web 线 / supplier 未注入）：保持原行为。
 	// 音质档：0=64k 1=128k 2=192k（默认）
 	qn := bilibili.PreferredQuality
 	if o.qualFn != nil {
@@ -139,7 +168,8 @@ func (o *MyGoOutput) loadAndPlay(bvid string, opts playback.PlayOpts, gen int) {
 		o.mu.Lock()
 		srcName := o.curSrc
 		o.mu.Unlock()
-		st, serr := o.sourceByName(srcName).GetStream(bvid, o.qualFnQuality())
+		ref := hmodel.SongRef{Source: srcName, ID: bvid}
+		st, serr := o.sourceByName(srcName).GetStream(ref, o.qualFnQuality())
 		if serr != nil {
 			log.Printf("[mygo-output] 取流失败 %s: %v", bvid, serr)
 			if o.onErr != nil {

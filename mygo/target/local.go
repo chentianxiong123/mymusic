@@ -2,6 +2,7 @@
 package target
 
 import (
+	"homecast/model"
 	"homecast/service/playback"
 )
 
@@ -27,8 +28,8 @@ func (t *LocalPlayer) DeviceID() string   { return "" }
 func (t *LocalPlayer) DeviceName() string { return "本机声卡" }
 
 // Play 本机播放（songID=bvid）。
-func (t *LocalPlayer) Play(songID string, opts PlayOpts) error {
-	return t.out.Play(songID, playback.PlayOpts{Title: opts.Title})
+func (t *LocalPlayer) Play(ref model.SongRef, opts PlayOpts) error {
+	return t.out.Play(ref.ID, playback.PlayOpts{Title: opts.Title, Source: ref.Source, ID: ref.ID})
 }
 
 // Stop 本机停止。

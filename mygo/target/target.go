@@ -2,6 +2,8 @@
 // 核心原则：复用主线 speaker/cast 域包，这里只做接口抽象 + 注册表，不重写业务。
 package target
 
+import "homecast/model"
+
 // PlayOpts 投送播放参数（音源无关）。
 type PlayOpts struct {
 	Title  string
@@ -15,7 +17,7 @@ type Target interface {
 	Name() string                            // 目标类型名（"speaker"/"cast"/"local"/...）
 	DeviceID() string                        // 目标设备唯一 id（本机=""）
 	DeviceName() string                      // 展示名（音箱名/DLNA 名/"本机声卡"）
-	Play(songID string, opts PlayOpts) error // 投送播放
+	Play(ref model.SongRef, opts PlayOpts) error // 投送播放（跨音源引用）
 	Stop() error                             // 停止投送
 }
 

@@ -80,7 +80,7 @@ func (a *app) search() {
 			for _, s := range r.songs {
 				a.results = append(a.results, bilibili.SearchItem{
 					BVID: s.ID, Title: s.Title, Author: s.Artist, Pic: s.Cover,
-					Duration: s.Duration, Typename: s.Typename, Play: 0,
+					Duration: s.Duration, Typename: s.Typename, Play: 0, Src: r.name,
 				})
 			}
 			// 跳过无结果的源（不渲染空分区，但总数统计保留）

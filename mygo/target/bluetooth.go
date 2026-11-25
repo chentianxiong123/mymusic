@@ -1,6 +1,8 @@
 // 蓝牙目标插件：平台无关包装，实际蓝牙/路由操作委托给 BtBackend（各端实现）。
 package target
 
+import "homecast/model"
+
 // Bluetooth 蓝牙音箱投送目标（每台设备一个实例）。
 // Play = 路由音频到蓝牙 sink；Stop = 恢复本机 sink。
 type Bluetooth struct {
@@ -17,7 +19,7 @@ func (t *Bluetooth) Name() string       { return "bluetooth" }
 func (t *Bluetooth) DeviceID() string   { return t.id }
 func (t *Bluetooth) DeviceName() string { return t.name }
 
-func (t *Bluetooth) Play(songID string, opts PlayOpts) error {
+func (t *Bluetooth) Play(ref model.SongRef, opts PlayOpts) error {
 	b := Bt()
 	if b == nil {
 		return &BtUnsupported{}

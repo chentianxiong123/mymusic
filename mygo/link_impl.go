@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	hmodel "homecast/model"
 	"homecast/service/playback"
 	"mymusic-mygo/plugin"
 	"mymusic-mygo/model"
@@ -66,7 +67,7 @@ func (l *linkCore) Play(songID, title, targetName string) error {
 		if t == nil {
 			return errors.New("目标未注册: " + targetName)
 		}
-		return t.Play(songID, target.PlayOpts{Title: title})
+		return t.Play(hmodel.SongRef{Source: "bilibili", ID: songID}, target.PlayOpts{Title: title})
 	}
 	// 本机：走统一播放状态机（自动调度输出）
 	if l.pb == nil {

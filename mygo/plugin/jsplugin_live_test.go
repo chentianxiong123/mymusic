@@ -5,6 +5,7 @@
 package plugin
 
 import (
+	hmodel "homecast/model"
 	"path/filepath"
 	"testing"
 )
@@ -30,7 +31,7 @@ func TestLiveDemoSearch(t *testing.T) {
 		t.Error("封面为空（搜索接口应给歌手图 img1v1Url 兜底）")
 	}
 
-	st, err := src.GetStream(songs[0].ID, 1)
+	st, err := src.GetStream(hmodel.SongRef{ID: songs[0].ID}, 1)
 	if err != nil {
 		t.Fatalf("取流失败: %v", err)
 	}
@@ -38,7 +39,7 @@ func TestLiveDemoSearch(t *testing.T) {
 
 	// 歌词：demo 不声明 lyric 能力（网易云歌词走内置 netease 源），
 	// GetLyric 返回 (nil, nil)。若未来 JS 音源自带歌词，声明 capability "lyric" 即可。
-	lines, err := src.GetLyric(songs[0].ID, nil, 0)
+	lines, err := src.GetLyric(hmodel.SongRef{ID: songs[0].ID}, nil, 0)
 	if err != nil {
 		t.Fatalf("歌词失败: %v", err)
 	}

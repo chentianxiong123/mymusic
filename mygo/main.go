@@ -4,6 +4,7 @@ package main
 
 import (
 	"database/sql"
+	"homecast/model"
 	"homecast/service/widget"
 	"log"
 	"os"
@@ -56,6 +57,8 @@ type app struct {
 	src          source.MusicSource     // 当前音源（阶段 2 解耦：UI 只认接口，不认具体源）
 	castOn       string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
 	btOn         string                 // 蓝牙音频当前路由到的设备名（空=本机）
+	currentRef   model.SongRef          // 1.2.5 当前歌曲的跨源引用（输出层统一传它）
+	supplier     *Supplier              // 统一取流供给（本机播放/HTTP/DLNA 共用）
 	localPausedByCast bool              // 投送远程时本机被暂停（切回本机时恢复）
 	castDevices  []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
 	btDevices    []target.BtDevice      // 蓝牙设备列表（bluetoothctl 扫描）
@@ -587,6 +590,14 @@ func main() {
 	if a.svc != nil && a.svc.xcoder != nil {
 		a.mygoOut.setXcoder(a.svc.xcoder) // mp3 转码缓存（本地播放也共用）
 	}
+	// 1.2.5 统一取流供给：本机播放/HTTP 端点/DLNA 共用一份（音源表按函数注入）。
+	a.supplier = &Supplier{
+		sources: func() map[string]source.MusicSource { return plugin.Sources() },
+		cache:   a.svc.cache,
+		xcoder:  a.svc.xcoder,
+		client:  a.bili,
+	}
+	a.mygoOut.setSupplier(a.supplier)
 	// B站音质设置（插件设置）：64k/128k/192k → 音质档 0/1/2（默认 192k）。
 	switch plugin.GetSetting("source", "bilibili", "quality", "192k") {
 	case "64k":

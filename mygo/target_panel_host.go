@@ -109,7 +109,7 @@ func (a *app) PlayBluetooth(id, name string) {
 	if t == nil {
 		return
 	}
-	if err := t.Play("", target.PlayOpts{Title: a.CurrentTitle()}); err != nil {
+	if err := t.Play(a.currentRef, target.PlayOpts{Title: a.CurrentTitle()}); err != nil {
 		a.status = "蓝牙投送失败：" + err.Error()
 	} else {
 		a.pauseLocalForCast()

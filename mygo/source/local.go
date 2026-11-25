@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	hmodel "homecast/model"
 	"mymusic-mygo/model"
 )
 
@@ -60,7 +61,8 @@ func (l *Local) Search(keyword string, page, size int) ([]Song, int, error) {
 }
 
 // GetStream 本地文件直链（file:// 前缀，mygoOutput 特殊处理直接读文件）。
-func (l *Local) GetStream(id string, quality int) (*Stream, error) {
+func (l *Local) GetStream(ref hmodel.SongRef, quality int) (*Stream, error) {
+	id := ref.ID
 	if _, err := os.Stat(id); err != nil {
 		return nil, err
 	}
@@ -68,7 +70,7 @@ func (l *Local) GetStream(id string, quality int) (*Stream, error) {
 }
 
 // GetLyric 本地文件无歌词（nil → 播放歌词静默，UI 不报错）。
-func (l *Local) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
+func (l *Local) GetLyric(ref hmodel.SongRef, keywords []string, sid int) ([]model.LyricLine, error) {
 	return nil, nil
 }
 

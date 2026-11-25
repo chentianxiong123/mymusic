@@ -286,7 +286,9 @@ func (a *app) applyState(st playback.State) {
 			go a.loadLyricAsync(st.BVID)
 		}
 	}
-	a.current = &track{bvid: st.BVID, title: st.Title, author: st.Artist, pic: st.Cover, src: a.mygoOut.srcName()}
+	// 1.2.5 跨源引用：来源取歌曲自身（st.Source），不是输出端全局当前源。
+	a.current = &track{bvid: st.BVID, title: st.Title, author: st.Artist, pic: st.Cover, src: st.Source}
+	a.currentRef = st.Ref()
 	// 同步「当前该播的 bvid」给输出端：启动恢复（pb restore）只写 p.cur 不调 Play，
 	// 输出端 o.p==nil。不同步则首次点播放 Resume 无音源可恢复 → 没声音
 	// （必须去队列/搜索重新点歌才放）。
@@ -369,12 +371,19 @@ func toSongList(list []bilibili.SearchItem) []playback.Song {
 }
 
 // toSong bilibili.SearchItem → 主线 playback.Song（播放命令用）。
+// 1.2.5：Src 决定跨源引用；空=bilibili（兼容老数据）。
 func toSong(it bilibili.SearchItem) playback.Song {
+	src := it.Src
+	if src == "" {
+		src = "bilibili"
+	}
 	return playback.Song{
 		BVID:   it.BVID,
 		Title:  bilibili.CleanHTML(it.Title),
 		Artist: it.Author,
 		Cover:  it.Pic,
+		Source: src,
+		ID:     it.BVID,
 	}
 }
 

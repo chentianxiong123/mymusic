@@ -33,6 +33,9 @@ type PlayOpts struct {
 	Duration float64 // 秒（前端已知最准；0 则输出端自行解析）
 	NextBVID string  // 播完自动连播的下一首（循环模式核心填）
 	Quality  int     // 音质（0=输出端默认）
+	// 1.2.5 跨源引用：非空时输出端按 Source 取流；空=老行为（B站 BVID）。
+	Source string
+	ID     string
 }
 
 // ProgressInfo 输出端当前进度（统一上报：带真实 bvid/title，音箱模式核心据此

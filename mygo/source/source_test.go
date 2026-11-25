@@ -3,6 +3,7 @@
 package source
 
 import (
+	hmodel "homecast/model"
 	"testing"
 
 	"mymusic-mygo/model"
@@ -36,7 +37,7 @@ func TestLyricLineContract(t *testing.T) {
 func TestGetLyricBadID(t *testing.T) {
 	s := &BilibiliSource{}
 	// 空 keywords + sid=0 → 主线 GetLyricLines 返回 nil（业务正常，无词）
-	lines, err := s.GetLyric("", nil, 0)
+	lines, err := s.GetLyric(hmodel.SongRef{ID: ""}, nil, 0)
 	if err != nil {
 		t.Fatalf("无词不应报错: %v", err)
 	}

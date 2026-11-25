@@ -1,6 +1,7 @@
 package source
 
 import (
+	hmodel "homecast/model"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,7 +37,7 @@ func TestLocalSource(t *testing.T) {
 	}
 
 	// 取流 file://。
-	st, err := s.GetStream(all[0].ID, 0)
+	st, err := s.GetStream(hmodel.SongRef{ID: all[0].ID}, 0)
 	if err != nil {
 		t.Fatalf("stream: %v", err)
 	}
@@ -45,7 +46,7 @@ func TestLocalSource(t *testing.T) {
 	}
 
 	// 无歌词（nil，不报错）。
-	ly, err := s.GetLyric(all[0].ID, nil, 0)
+	ly, err := s.GetLyric(hmodel.SongRef{ID: all[0].ID}, nil, 0)
 	if err != nil || len(ly) != 0 {
 		t.Fatalf("lyric: %v %d 行，期望 nil/0", err, len(ly))
 	}

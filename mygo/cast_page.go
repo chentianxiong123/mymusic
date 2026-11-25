@@ -253,9 +253,9 @@ func (a *app) castTo(udn, name string) {
 		a.win.Invalidate()
 		return
 	}
-	if err := t.Play(a.current.bvid, target.PlayOpts{
+	if err := t.Play(a.currentRef, target.PlayOpts{
 		Title: a.current.title,
-		URL:   castStreamURL(a.current.bvid), // 本机 mp3 供给，局域网设备直连（不走主线代理）
+		URL:   castStreamURL(a.currentRef), // 1.2.5 按跨源引用供给（局域网设备直连本机）
 	}); err != nil {
 		a.status = "投屏失败：" + err.Error()
 	} else {
@@ -284,6 +284,13 @@ func (a *app) playToSpeaker(did, name string) {
 	if a.current == nil {
 		return
 	}
+	// 能力边界：小爱音箱协议只认 B站 BV 号（主线 speaker.Play），
+	// 其它音源明确拒绝，不假装支持。
+	if a.currentRef.Source != "" && a.currentRef.Source != "bilibili" {
+		a.status = "音箱仅支持 B站音源"
+		a.win.Invalidate()
+		return
+	}
 	// 找 did 匹配的 speaker 目标插件（一切皆插件：投送走插件表）
 	var t target.Target
 	for _, item := range plugin.Targets() {
@@ -297,7 +304,7 @@ func (a *app) playToSpeaker(did, name string) {
 		a.win.Invalidate()
 		return
 	}
-	if err := t.Play(a.current.bvid, target.PlayOpts{Title: a.current.title, NextID: a.pb.NextBVID()}); err != nil {
+	if err := t.Play(a.currentRef, target.PlayOpts{Title: a.current.title, NextID: a.pb.NextBVID()}); err != nil {
 		a.status = "音箱播放失败：" + err.Error()
 	} else {
 		a.castOn = name

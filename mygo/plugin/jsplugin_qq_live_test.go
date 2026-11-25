@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	hmodel "homecast/model"
 	"path/filepath"
 	"testing"
 )
@@ -32,7 +33,7 @@ func TestLiveQQ(t *testing.T) {
 		t.Fatalf("字段缺失: %+v", songs[0])
 	}
 	// 匿名取流应报需登录（code=1000 无 purl）。
-	_, err = src.GetStream(songs[0].ID, 1)
+	_, err = src.GetStream(hmodel.SongRef{ID: songs[0].ID}, 1)
 	if err == nil {
 		t.Logf("匿名取流返回了 URL（可能免费试听或接口变化）")
 	} else {

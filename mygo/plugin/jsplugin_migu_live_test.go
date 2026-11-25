@@ -3,6 +3,7 @@
 package plugin
 
 import (
+	hmodel "homecast/model"
 	"path/filepath"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestLiveMigu(t *testing.T) {
 		t.Fatalf("无结果")
 	}
 	t.Logf("咪咕搜索 total=%d 首条=%s/%s id=%s album=%s", total, songs[0].Title, songs[0].Artist, songs[0].ID, songs[0].Album)
-	st, err := src.GetStream(songs[0].ID, 1)
+	st, err := src.GetStream(hmodel.SongRef{ID: songs[0].ID}, 1)
 	if err != nil {
 		t.Fatalf("免登录取流失败: %v", err)
 	}

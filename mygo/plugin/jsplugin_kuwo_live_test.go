@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	hmodel "homecast/model"
 	"path/filepath"
 	"testing"
 )
@@ -27,7 +28,7 @@ func TestLiveKuwo(t *testing.T) {
 		t.Fatalf("字段缺失: %+v", songs[0])
 	}
 	// 假 cookie 取流：mobi.s 无真实登录 → 可能失败/需登录（预期不 panic，允许 error）。
-	if st, err := src.GetStream(songs[0].ID, 1); err == nil {
+	if st, err := src.GetStream(hmodel.SongRef{ID: songs[0].ID}, 1); err == nil {
 		if len(st.URL) > 60 {
 			t.Logf("酷我取流 OK: %s...", st.URL[:60])
 		} else {

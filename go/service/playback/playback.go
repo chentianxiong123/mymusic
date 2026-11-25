@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"homecast/model"
 	"homecast/service/conv"
 )
 
@@ -24,6 +25,22 @@ type Song struct {
 	Artist    string  `json:"artist"`
 	Cover     string  `json:"cover"`
 	Duration  float64 `json:"duration,omitempty"`
+	// 1.2.5 跨源引用：Source/ID 为空时按 B站 + BVID 兼容老数据（web/wails3 持久化）。
+	Source string `json:"source,omitempty"`
+	ID     string `json:"id,omitempty"`
+}
+
+// Ref 返回跨音源引用（老数据兼容：无 Source 视为 bilibili，无 ID 用 BVID）。
+func (s Song) Ref() model.SongRef {
+	source := s.Source
+	if source == "" {
+		source = "bilibili"
+	}
+	id := s.ID
+	if id == "" {
+		id = s.BVID
+	}
+	return model.SongRef{Source: source, ID: id, Title: s.Title, Artist: s.Artist, Cover: s.Cover}
 }
 
 // SSE 广播载荷（对齐 widget.SSEMsg）
@@ -34,7 +51,9 @@ type SSEMsg struct {
 
 // State 唯一状态源快照（前端渲染依据）
 type State struct {
-	Source   string  `json:"source"` // web | speaker
+	Source   string  `json:"source"` // web | speaker（播放模式，非音源）
+	SongSrc  string  `json:"songSrc,omitempty"` // 1.2.5 歌曲来源（音源名）
+	SongID   string  `json:"songId,omitempty"`  // 1.2.5 音源内 id
 	BVID     string  `json:"bvid"`
 	Title    string  `json:"title"`
 	Artist   string  `json:"artist"`
@@ -47,6 +66,19 @@ type State struct {
 	QIdx     int     `json:"qidx"`
 	SpkDID   string  `json:"spk_did,omitempty"` // source=speaker 时目标设备 did
 	Volume   int     `json:"volume"`            // 音量 0-100（仅 source=speaker 有意义；web 音量走前端本地 audio）。-1=未知（初始/回读失败），前端忽略不应用；不加 omitempty：volume=0(静音)是合法值必须广播
+}
+
+// Ref 当前歌曲的跨音源引用（从 State 自带的 SongSrc/SongID 构造）。
+func (s State) Ref() model.SongRef {
+	src := s.SongSrc
+	if src == "" {
+		src = "bilibili"
+	}
+	id := s.SongID
+	if id == "" {
+		id = s.BVID
+	}
+	return model.SongRef{Source: src, ID: id, Title: s.Title, Artist: s.Artist, Cover: s.Cover}
 }
 
 // PlaybackState 统一状态管理器（线程安全）
@@ -288,7 +320,7 @@ func (p *PlaybackState) Play(s Song) {
 	log.Printf("[playback] Play bvid=%s source=%s", s.BVID, p.Snapshot().Source)
 	// 当前输出真切歌（web=Null 前端重载；speaker=真投新歌；失败回滚继续播旧歌）
 	if out != nil {
-		if err := out.Play(s.BVID, PlayOpts{Title: s.Title, Duration: s.Duration, NextBVID: nextBVID, Quality: 30280}); err != nil {
+		if err := out.Play(s.BVID, PlayOpts{Title: s.Title, Duration: s.Duration, NextBVID: nextBVID, Quality: 30280, Source: s.Source, ID: s.ID}); err != nil {
 			log.Printf("[playback] play 投送失败 bvid=%s err=%v → 回滚继续播旧歌", s.BVID, err)
 			p.mu.Lock()
 			p.cur.Queue = oldQueue
@@ -472,7 +504,7 @@ func (p *PlaybackState) Next() {
 	p.mu.Unlock()
 	// 当前输出真切歌（web=Null 前端重载；speaker=真投下一曲；失败回滚继续播旧歌）
 	if out != nil {
-		if err := out.Play(song.BVID, PlayOpts{Title: song.Title, Duration: song.Duration, NextBVID: nextBVID, Quality: 30280}); err != nil {
+		if err := out.Play(song.BVID, PlayOpts{Title: song.Title, Duration: song.Duration, NextBVID: nextBVID, Quality: 30280, Source: song.Source, ID: song.ID}); err != nil {
 			log.Printf("[playback] next 投送失败 bvid=%s err=%v → 回滚继续播旧歌", song.BVID, err)
 			p.mu.Lock()
 			p.rollbackLocked(old)
@@ -546,7 +578,7 @@ func (p *PlaybackState) Prev() {
 	p.mu.Unlock()
 	// 当前输出真切上一曲（web=Null 前端重载；speaker=真投上一曲）
 	if out != nil {
-		if err := out.Play(song.BVID, PlayOpts{Title: song.Title, Duration: song.Duration, NextBVID: nextBVID, Quality: 30280}); err != nil {
+		if err := out.Play(song.BVID, PlayOpts{Title: song.Title, Duration: song.Duration, NextBVID: nextBVID, Quality: 30280, Source: song.Source, ID: song.ID}); err != nil {
 			log.Printf("[playback] prev 投送失败 bvid=%s err=%v → 回滚继续播旧歌", song.BVID, err)
 			p.mu.Lock()
 			p.rollbackLocked(old)
@@ -559,6 +591,8 @@ func (p *PlaybackState) Prev() {
 // applyLocked 把队列某曲设为当前歌（调用方已持锁）
 func (p *PlaybackState) applyLocked(s Song) {
 	p.cur.BVID = s.BVID
+	p.cur.SongSrc = s.Source
+	p.cur.SongID = s.ID
 	p.cur.Title = s.Title
 	p.cur.Artist = s.Artist
 	p.cur.Cover = s.Cover
@@ -641,7 +675,7 @@ func (p *PlaybackState) SetQueue(list []Song, startIdx int) {
 	if out != nil && playSong.BVID != "" {
 		if playOK {
 			// 队列有歌：真投当前输出（音箱模式核心与音箱同步切歌）
-			if err := out.Play(playSong.BVID, PlayOpts{Title: playSong.Title, Duration: playSong.Duration, NextBVID: nextBVID, Quality: 30280}); err != nil {
+			if err := out.Play(playSong.BVID, PlayOpts{Title: playSong.Title, Duration: playSong.Duration, NextBVID: nextBVID, Quality: 30280, Source: playSong.Source, ID: playSong.ID}); err != nil {
 				log.Printf("[playback] queue 投送失败 bvid=%s err=%v → 回滚继续播旧歌", playSong.BVID, err)
 				p.mu.Lock()
 				p.cur.Queue = oldQueue
@@ -791,7 +825,7 @@ func (p *PlaybackState) RemoveQueue(bvid string) {
 	out := p.out
 	p.mu.Unlock()
 	if needPlay && out != nil {
-		if err := out.Play(playSong.BVID, PlayOpts{Title: playSong.Title, Duration: playSong.Duration, NextBVID: nextBVID, Quality: 30280}); err != nil {
+		if err := out.Play(playSong.BVID, PlayOpts{Title: playSong.Title, Duration: playSong.Duration, NextBVID: nextBVID, Quality: 30280, Source: playSong.Source, ID: playSong.ID}); err != nil {
 			log.Printf("[playback] remove 切下一首失败 bvid=%s err=%v → 回滚继续播旧歌", playSong.BVID, err)
 			p.mu.Lock()
 			p.cur.Queue = oldQueue

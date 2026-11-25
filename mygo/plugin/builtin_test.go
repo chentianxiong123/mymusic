@@ -3,6 +3,7 @@ package plugin
 // 系统级能力清单测试：验证「系统级 = Go 内置」的 key 受保护、JS 插件不可覆盖。
 
 import (
+	hmodel "homecast/model"
 	"testing"
 
 	"mymusic-mygo/model"
@@ -18,10 +19,10 @@ func (s stubSource) Name() string { return s.n }
 func (s stubSource) Search(keyword string, page, size int) ([]source.Song, int, error) {
 	return nil, 0, nil
 }
-func (s stubSource) GetStream(id string, quality int) (*source.Stream, error) {
+func (s stubSource) GetStream(ref hmodel.SongRef, quality int) (*source.Stream, error) {
 	return nil, nil
 }
-func (s stubSource) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
+func (s stubSource) GetLyric(ref hmodel.SongRef, keywords []string, sid int) ([]model.LyricLine, error) {
 	return nil, nil
 }
 
@@ -37,7 +38,7 @@ type stubTarget struct{ n, tag string }
 func (t stubTarget) Name() string                                   { return t.n }
 func (t stubTarget) DeviceID() string                               { return "" }
 func (t stubTarget) DeviceName() string                             { return t.n }
-func (t stubTarget) Play(songID string, opts target.PlayOpts) error { return nil }
+func (t stubTarget) Play(ref hmodel.SongRef, opts target.PlayOpts) error { return nil }
 func (t stubTarget) Stop() error                                    { return nil }
 
 // TestSystemLyricKeyProtected 系统级词源 key 受保护：校验报错 + 公共入口拒绝覆盖。

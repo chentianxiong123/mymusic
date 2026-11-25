@@ -18,6 +18,7 @@ import (
 	"os"
 
 	"homecast/api"
+	"homecast/model"
 	"homecast/service/lyric"
 )
 
@@ -69,7 +70,9 @@ func (a *app) startStreamServer() {
 	mux.HandleFunc("GET /api/v1/music/lyric/candidates", lh.Candidates)
 	mux.HandleFunc("GET /api/v1/lyric/meta", lh.Meta)
 	mux.HandleFunc("POST /api/v1/lyric/offset", lh.Offset)
-	mux.HandleFunc("GET /api/v1/music/stream/{bvid}", mh.Stream)
+	mux.HandleFunc("GET /api/v1/music/stream/{bvid}", mh.Stream) // 老端点（音箱 B站专用，web 兼容）
+	// 1.2.5 通用供给：?source=xxx&id=yyy&quality=0..2 → 按音源插件取流 → mp3
+	mux.HandleFunc("GET /api/v1/music/stream/ref", a.streamRefHandler)
 	addr := ":" + port
 	log.Printf("[stream] 供给端点 http://%s/api/v1/music/stream/{bvid} + /music/lyric*", addr)
 	go func() {
@@ -102,12 +105,18 @@ func lanAddr() string {
 }
 
 // castStreamURL 本机 mp3 供给地址（局域网 DLNA 设备可直接拉）。
-func castStreamURL(bvid string) string {
+// 1.2.5：按 SongRef 走通用端点，不再写死 B站 bvid。
+func castStreamURL(ref model.SongRef) string {
 	port := os.Getenv("HC_PORT")
 	if port == "" {
 		port = "28977"
 	}
-	return fmt.Sprintf("http://%s:%s/api/v1/music/stream/%s?mp3=1", lanAddr(), port, bvid)
+	q := url.Values{
+		"source": {ref.Source},
+		"id":     {ref.ID},
+		"title":  {ref.Title},
+	}
+	return fmt.Sprintf("http://%s:%s/api/v1/music/stream/ref?%s", lanAddr(), port, q.Encode())
 }
 
 func (a *app) lyricBaseURL() string {

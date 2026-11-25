@@ -3,6 +3,7 @@ package target
 
 import (
 	"homecast/bilibili"
+	"homecast/model"
 	"homecast/service/playback"
 	"homecast/service/speaker"
 )
@@ -26,11 +27,14 @@ func (t *XiaoaiSpeaker) DeviceID() string   { return t.did }
 func (t *XiaoaiSpeaker) DeviceName() string { return t.name }
 
 // Play 投送当前播放到小爱音箱（音质档映射 B站 qn；NextID 自动连播）。
-func (t *XiaoaiSpeaker) Play(songID string, opts PlayOpts) error {
+func (t *XiaoaiSpeaker) Play(ref model.SongRef, opts PlayOpts) error {
+	if ref.Source != "bilibili" && ref.Source != "" {
+		return &PlayErr{"音箱仅支持 B站音源"}
+	}
 	qn := bilibili.Audio192K
 	// 音质档由调用方通过 PlayOpts 传入？—— 主线固定 192k，保持现状
 	po := speaker.PlayOpts{Title: opts.Title, Duration: 0, NextBVID: opts.NextID}
-	res, err := t.svc.Play(songID, t.did, qn, po)
+	res, err := t.svc.Play(ref.ID, t.did, qn, po)
 	if err != nil {
 		return err
 	}

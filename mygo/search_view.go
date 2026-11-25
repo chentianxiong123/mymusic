@@ -230,7 +230,7 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 			for _, r := range grp.songs {
 				a.listRow(c, bilibili.SearchItem{
 					BVID: r.ID, Title: r.Title, Author: r.Artist, Pic: r.Cover,
-					Duration: r.Duration, Typename: r.Typename, Play: 0,
+					Duration: r.Duration, Typename: r.Typename, Play: 0, Src: grp.name,
 				})
 			}
 			// 该源独立分页（用户要求：网易云/bilibili 各自分页显示，页码按钮放该源结果下方）

@@ -18,6 +18,8 @@ type SearchItem struct {
 	MID         int    `json:"mid"`
 	Play        int    `json:"play"`
 	VideoReview int    `json:"video_review"`
+	// 1.2.5 跨源引用：非 B站音源的结果也要能标识来源（B站结果留空=默认 bilibili）。
+	Src string `json:"src,omitempty"`
 }
 
 // SearchResult 搜索返回

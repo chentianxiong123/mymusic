@@ -3,6 +3,7 @@
 package main
 
 import (
+	hmodel "homecast/model"
 	"testing"
 
 	"homecast/service/playback"
@@ -28,8 +29,8 @@ func (fakeSource) Name() string { return "fake" }
 func (fakeSource) Search(kw string, page, size int) ([]source.Song, int, error) {
 	return []source.Song{{ID: "s1", Title: "歌1", Typename: "fake"}}, 1, nil
 }
-func (fakeSource) GetStream(id string, q int) (*source.Stream, error) { return &source.Stream{URL: "http://x/a.mp3"}, nil }
-func (fakeSource) GetLyric(id string, kw []string, sid int) ([]model.LyricLine, error) {
+func (fakeSource) GetStream(ref hmodel.SongRef, q int) (*source.Stream, error) { return &source.Stream{URL: "http://x/a.mp3"}, nil }
+func (fakeSource) GetLyric(ref hmodel.SongRef, kw []string, sid int) ([]model.LyricLine, error) {
 	return []model.LyricLine{{Time: 1, Text: "词"}}, nil
 }
 
@@ -39,7 +40,7 @@ type fakeTarget struct{}
 func (fakeTarget) Name() string       { return "fakeT" }
 func (fakeTarget) DeviceID() string   { return "dev1" }
 func (fakeTarget) DeviceName() string { return "假目标" }
-func (fakeTarget) Play(songID string, opts target.PlayOpts) error { return nil }
+func (fakeTarget) Play(ref hmodel.SongRef, opts target.PlayOpts) error { return nil }
 func (fakeTarget) Stop() error        { return nil }
 
 // TestLinkSources 音源列表 + 当前源（注册 fake 后非空）。

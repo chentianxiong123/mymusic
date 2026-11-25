@@ -5,6 +5,7 @@ package source
 
 import (
 	"homecast/bilibili"
+	hmodel "homecast/model"
 	"homecast/service/lyric"
 	"homecast/service/music"
 	"mymusic-mygo/model"
@@ -28,7 +29,7 @@ type Stream struct {
 	URL      string // 播放地址（B站 DASH baseUrl / 本地 file://）
 	Quality  int    // 音质档 0/1/2
 	Duration float64
-	// 扩展字段（未来本地源用）
+	Referer  string // 取流时的 Referer（B站 CDN 鉴权；其它源可空）
 }
 
 // LyricLine 歌词行（共享底层——model 包；避免 歌词域→音源域 越层）。
@@ -39,8 +40,8 @@ type Stream struct {
 type MusicSource interface {
 	Name() string                                               // "bilibili" / "netease" / "local"
 	Search(keyword string, page, size int) ([]Song, int, error) // 返回 (songs, total, err)
-	GetStream(id string, quality int) (*Stream, error)
-	GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error)
+	GetStream(ref hmodel.SongRef, quality int) (*Stream, error)
+	GetLyric(ref hmodel.SongRef, keywords []string, sid int) ([]model.LyricLine, error)
 }
 
 // --- B站实现：包装主线 music.MusicService（不重写 B站逻辑） ---
@@ -75,7 +76,8 @@ func (s *BilibiliSource) Search(keyword string, page, size int) ([]Song, int, er
 
 // GetStream 复用主线 music.GetAudioStream（VideoInfo 缓存 + GetBestAudioURL）。
 // quality = 音质档（0=64k 1=128k 2=192k，UI 层语义）；内部映射到 B站 qn 常量。
-func (s *BilibiliSource) GetStream(id string, quality int) (*Stream, error) {
+func (s *BilibiliSource) GetStream(ref hmodel.SongRef, quality int) (*Stream, error) {
+	id := ref.ID
 	qn := bilibili.PreferredQuality
 	switch quality {
 	case 0:
@@ -87,13 +89,13 @@ func (s *BilibiliSource) GetStream(id string, quality int) (*Stream, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Stream{URL: r.URL, Quality: quality}, nil
+	return &Stream{URL: r.URL, Quality: quality, Referer: "https://www.bilibili.com/"}, nil
 }
 
 // GetLyric B站歌词：主线 lyric 域（网易云词源）GetLyricLines 纯函数取词。
 // keywords = 标题关键词 + 歌手；sid>0 精确取。返回歌词行（无词返回 nil）。
-func (s *BilibiliSource) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
-	res := lyric.GetLyricLines(keywords, sid, s.svc.LyricDuration(id))
+func (s *BilibiliSource) GetLyric(ref hmodel.SongRef, keywords []string, sid int) ([]model.LyricLine, error) {
+	res := lyric.GetLyricLines(keywords, sid, s.svc.LyricDuration(ref.ID))
 	if res == nil {
 		return nil, nil
 	}

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	hmodel "homecast/model"
 	"homecast/service/lyric"
 	"mymusic-mygo/model"
 )
@@ -110,7 +111,8 @@ func (n *Netease) Search(keyword string, page, size int) ([]Song, int, error) {
 	return out, resp.Result.SongCount, nil
 }
 
-func (n *Netease) GetStream(id string, quality int) (*Stream, error) {
+func (n *Netease) GetStream(ref hmodel.SongRef, quality int) (*Stream, error) {
+	id := ref.ID
 	br := 320000
 	if quality == 0 {
 		br = 128000
@@ -135,7 +137,7 @@ func (n *Netease) GetStream(id string, quality int) (*Stream, error) {
 	return &Stream{URL: resp.Data[0].URL, Quality: quality, Duration: resp.Data[0].Time / 1000}, nil
 }
 
-func (n *Netease) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
+func (n *Netease) GetLyric(ref hmodel.SongRef, keywords []string, sid int) ([]model.LyricLine, error) {
 	res := lyric.GetLyricLines(keywords, sid, 0)
 	if res == nil {
 		return nil, nil

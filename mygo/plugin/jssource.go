@@ -3,6 +3,7 @@ package plugin
 import (
 	"fmt"
 
+	hmodel "homecast/model"
 	"mymusic-mygo/lyric"
 	"mymusic-mygo/source"
 	"mymusic-mygo/model"
@@ -64,9 +65,9 @@ func (s *jsSource) Search(keyword string, page, size int) ([]source.Song, int, e
 }
 
 // GetStream 调 JS getURL(ctx) → {url, quality, duration}。
-func (s *jsSource) GetStream(id string, quality int) (*source.Stream, error) {
+func (s *jsSource) GetStream(ref hmodel.SongRef, quality int) (*source.Stream, error) {
 	ctx, err := s.jp.makeCtx(map[string]interface{}{
-		"song":    map[string]interface{}{"id": id},
+		"song":    map[string]interface{}{"id": ref.ID},
 		"quality": quality,
 	})
 	if err != nil {
@@ -95,12 +96,12 @@ func (s *jsSource) GetStream(id string, quality int) (*source.Stream, error) {
 }
 
 // GetLyric 调 JS lyric(ctx) → {lrc} → 宿主 parseLRC。
-func (s *jsSource) GetLyric(id string, keywords []string, sid int) ([]model.LyricLine, error) {
+func (s *jsSource) GetLyric(ref hmodel.SongRef, keywords []string, sid int) ([]model.LyricLine, error) {
 	if s.jp.lyricFn == nil {
 		return nil, nil
 	}
 	ctx, err := s.jp.makeCtx(map[string]interface{}{
-		"song":     map[string]interface{}{"id": id},
+		"song":     map[string]interface{}{"id": ref.ID},
 		"keywords": keywords,
 	})
 	if err != nil {
