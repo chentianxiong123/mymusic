@@ -1,11 +1,10 @@
 //go:build native
 
-// chart.go —— 公共榜单推荐插件（无登录、跨源）。
-// 榜单 ≠ 个性化推荐：这里只做平台公开的"热门/榜单"，无 Cookie 即可拿。
+// chart.go —— 公共榜单面板（独立「排行」板块，无登录、跨源）。
+// 榜单 ≠ 推荐：这里是平台公开热榜，与推荐/分类并列，不混入推荐插件体系。
 // 实测（2026-11-25）：
 //   网易云 /api/toplist 列榜单 → /api/playlist/detail?id= 拿 100 首歌（无登录）
 //   酷狗 /api/v3/rank/list 列榜单 → /rank/song?rankid=8888&version=9108 拿歌（无登录）
-// 插件自绘 UI（RecommendHost 注入能力），核心不写死任何平台。
 
 package main
 
@@ -19,7 +18,6 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
-	"mymusic-mygo/plugin"
 )
 
 // ChartSong 榜单一首歌（跨源通用；source+id 真实，不塞进 BVID 撒谎）。
@@ -217,8 +215,8 @@ func kugouChartSongs(rankID int) []ChartSong {
 	return out
 }
 
-// ---- 榜单推荐插件（实现 plugin.Recommend）----
-type chartRecommend struct {
+// ---- 榜单面板（独立「排行」板块，不注册为推荐插件）----
+type chartPanel struct {
 	fetcher chartFetcher
 	mu      sync.Mutex
 	lists   []chartList
@@ -227,9 +225,9 @@ type chartRecommend struct {
 	activeList string // 当前选中的榜单（一次只显示一个，不堆叠）
 }
 
-func (r *chartRecommend) Name() string { return r.fetcher.name() + "榜单" }
+func (r *chartPanel) Name() string { return r.fetcher.name() }
 
-func (r *chartRecommend) ensureLoaded(h plugin.RecommendHost) {
+func (r *chartPanel) ensureLoaded(invalidate func()) {
 	r.mu.Lock()
 	if r.loaded || r.loading {
 		r.mu.Unlock()
@@ -246,18 +244,19 @@ func (r *chartRecommend) ensureLoaded(h plugin.RecommendHost) {
 			r.loaded = true
 		}
 		r.mu.Unlock()
-		h.Invalidate()
+		invalidate()
 	}()
 }
 
-func (r *chartRecommend) snapshot() []chartList {
+func (r *chartPanel) snapshot() []chartList {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.lists
 }
 
-func (r *chartRecommend) Render(c *ui.Context, h plugin.RecommendHost, preview bool) {
-	r.ensureLoaded(h)
+func (r *chartPanel) Render(c *ui.Context, a *app, preview bool) {
+	r.ensureLoaded(a.Invalidate)
+	playRef := a.PlayRef
 	lists := r.snapshot()
 	if len(lists) == 0 {
 		ui.Text(c, "加载榜单…").FontSize(12 * uiScale).TextColor(clrMuted)
@@ -322,14 +321,14 @@ func (r *chartRecommend) Render(c *ui.Context, h plugin.RecommendHost, preview b
 	for i := 0; i < n; i++ {
 		s := selected.Songs[i]
 		if chip(c, fmt.Sprintf("%d. %s — %s", i+1, s.Title, s.Artist)).Clicked() {
-			h.PlayRef(s.Source, s.ID, s.Title, s.Artist, s.Cover)
+			playRef(s.Source, s.ID, s.Title, s.Artist, s.Cover)
 		}
 	}
 }
 
-// 注册两个公共榜单插件（无登录；具体启用/顺序由插件页统一管理）。
-func init() {
-	plugin.RegisterRecommend(&chartRecommend{fetcher: neteaseChart{}})
-	plugin.RegisterRecommend(&chartRecommend{fetcher: kugouChart{}})
+// 榜单面板实例（两个平台；由排行板块下拉切换，不注册为推荐插件）。
+var chartPanels = []*chartPanel{
+	{fetcher: neteaseChart{}},
+	{fetcher: kugouChart{}},
 }
 

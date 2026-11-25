@@ -130,11 +130,12 @@ func (a *app) searchEmpty(c *ui.Context) {
 	ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(14 * uiScale).Children(func() {
 		a.searchBar(c)
 		a.searchChips(c)
-		// 推荐预览（在上）：每插件 1-2 行精简（吸引点击进详情），无推荐插件则隐藏
-		a.recommendPreview(c)
-		// 风格分类（在下）：卡片网格，点击 → 复用现有搜索流程
+		// 来源页空态三大并列板块：推荐 / 排行 / 分类
+		a.recommendSection(c)
+		a.rankSection(c)
+		// 板块三：分类（风格网格）
 		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "风格").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
+			ui.Text(c, "分类").FontSize(a.resp(18, 16)).Bold().TextColor(clrText)
 		})
 		// 风格网格（不挤一行：桌面 4 列 → 2 行，紧凑 3 列，手机 2 列）
 		// JustifyItems(Center)：固定宽卡片在格内水平居中（用户要求：格子自对齐居中）

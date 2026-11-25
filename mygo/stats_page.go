@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/egoist/mygo/ui"
-	"mymusic-mygo/plugin"
 )
 
 func (a *app) statsPage(c *ui.Context) {
@@ -60,30 +59,3 @@ func (a *app) statsPage(c *ui.Context) {
 	})
 }
 
-// 本地统计推荐插件（注册在 chart.go init 之外；和榜单并列，按启用状态显示）。
-type localStatsRecommend struct{}
-
-func (localStatsRecommend) Name() string { return "常听推荐" }
-
-func (localStatsRecommend) Render(c *ui.Context, h plugin.RecommendHost, preview bool) {
-	limit := 10
-	if preview {
-		limit = 3
-	}
-	// 通过宿主能访问的全局统计：app 是唯一 host 实现，取 topSongs。
-	// 这里用类型断言拿 app（依赖反转的例外：本地统计插件与宿主同包，允许）。
-	if a, ok := h.(*app); ok {
-		songs := a.topSongs(limit)
-		if len(songs) == 0 {
-			return
-		}
-		ui.Text(c, "你常听的").FontSize(13 * uiScale).Bold().TextColor(clrText).Padding(0, 0, 2*uiScale, 0)
-		for _, s := range songs {
-			if chip(c, fmt.Sprintf("%s — %s · %d 次", s.Title, s.Artist, s.Count)).Clicked() {
-				h.PlayRef(s.Source, s.ID, s.Title, s.Artist, s.Cover)
-			}
-		}
-	}
-}
-
-func init() { plugin.RegisterRecommend(localStatsRecommend{}) }

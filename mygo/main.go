@@ -95,6 +95,7 @@ type app struct {
 	recommendLoaded     map[string]bool
 	recommendDetailOpen bool // 推荐详情页是否打开（来源页预览 → 点击进详情）
 	activeRecommend   string // 当前选中的推荐插件名（一次只显示一个，对齐搜索栏音源下拉）
+	activeChart       string // 当前选中的排行平台（网易云/酷狗）
 
 	// 分页（各列表页当前页，每页 20 条；搜索结果每源独立分页）
 	pg          map[string]int // 列表页当前页：queue/recent/fav/detail（本地切片分页）
