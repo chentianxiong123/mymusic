@@ -94,10 +94,19 @@ var (
 )
 
 // toSimplified 繁体→简体（t2s）；转换器初始化失败时原样返回（不阻断清洗）。
-func toSimplified(s string) string {
+// opencc-go v1.0.0 的 MaxMatchSegmentation 遇到末尾截断的多字节 UTF-8 会越界 panic
+// （nextUTF8CharLength 返回 4 但剩余不足 4 字节 → text[position:position+4]）。
+// 先洗掉非法序列从根上避开，再 recover 兜底任何上游 panic：搜索关键词不能让应用崩。
+func toSimplified(s string) (out string) {
 	if s == "" {
 		return s
 	}
+	defer func() {
+		if recover() != nil {
+			out = s // 上游 panic 时返回原文，不中断歌词搜索
+		}
+	}()
+	s = strings.ToValidUTF8(s, "") // 根因：截尾多字节字符 → 非法 UTF-8
 	simplifierOnce.Do(func() {
 		if data, err := embeddata.GetConfig("t2s"); err == nil {
 			if c, err := opencc.NewSimpleConverterFromData(data); err == nil {

@@ -3,6 +3,7 @@ package lyric
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // CleanSearchKeyword 关键词清洗：对齐 musicxx 智能识别（去 B 站标题噪音）+ bili-music 正则回退
@@ -40,6 +41,21 @@ func TestCleanSearchKeyword(t *testing.T) {
 	long := strings.Repeat("歌", 60)
 	if got := CleanSearchKeyword(long); len(got) > 40 {
 		t.Errorf("超长未截断: len=%d", len(got))
+	}
+}
+
+// 末尾截断的多字节 UTF-8 不得让 opencc 越界 panic（原 panic: [:42] with length 40）。
+func TestCleanSearchKeywordInvalidUTF8(t *testing.T) {
+	inputs := []string{
+		"周杰倫晴天" + "\xe6\xbc",                    // 截断的 3 字节字
+		"海闊天空" + "\xf0\x9f\x8e",                   // 截断的 4 字节 emoji
+		strings.Repeat("歌", 12) + "\xf0\x9f\x8e", // 长串+截尾：原 panic 的复现形状
+	}
+	for _, in := range inputs {
+		got := CleanSearchKeyword(in) // 不 panic 即通过
+		if !utf8.ValidString(got) {
+			t.Errorf("CleanSearchKeyword 返回非法 UTF-8: %q", got)
+		}
 	}
 }
 
