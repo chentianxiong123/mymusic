@@ -56,6 +56,25 @@ func NewMusicHandler(m *music.MusicService) *MusicHandler {
 	return &MusicHandler{Music: m}
 }
 
+// StreamRef GET /api/v1/music/stream/ref?source=&id=&mp3=1 —— 通用取流端点。
+// 主线当前只实现 B站（source=bilibili 或空）；其它音源返回 400，
+// 由宿主（mygo 插件系统）用自己的 /stream/ref 端点覆盖。统一契约，先备好。
+func (h *MusicHandler) StreamRef(w http.ResponseWriter, r *http.Request) {
+	src := r.URL.Query().Get("source")
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		errResp(w, http.StatusBadRequest, "id required")
+		return
+	}
+	if src != "" && src != "bilibili" {
+		errResp(w, http.StatusBadRequest, "unsupported source: "+src)
+		return
+	}
+	// 复用 Stream 的取流/缓存/转码逻辑：把 id 注入 PathValue 后转调。
+	r.SetPathValue("bvid", id)
+	h.Stream(w, r)
+}
+
 // Search GET /api/v1/music/search?keyword=&page=&page_size=
 func (h *MusicHandler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()

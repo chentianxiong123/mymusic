@@ -59,3 +59,27 @@ func (h *CacheHandler) SetLimit(w http.ResponseWriter, r *http.Request) {
 func (h *CacheHandler) Limit(w http.ResponseWriter, r *http.Request) {
 	ok(w, map[string]any{"limit_mb": h.Cache.LimitMB()})
 }
+
+// LyricLimit GET /api/v1/cache/lyric/limit —— 歌词缓存上限（首数）
+func (h *CacheHandler) LyricLimit(w http.ResponseWriter, r *http.Request) {
+	n := 50
+	if h.LyricCache != nil {
+		n = h.LyricCache.Limit()
+	}
+	ok(w, map[string]any{"limit": n})
+}
+
+// SetLyricLimit POST /api/v1/cache/lyric/limit body {limit} —— 更新歌词缓存上限（首数）
+func (h *CacheHandler) SetLyricLimit(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Limit int `json:"limit"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		errResp(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if h.LyricCache != nil {
+		h.LyricCache.SetLimit(body.Limit)
+	}
+	ok(w, true)
+}

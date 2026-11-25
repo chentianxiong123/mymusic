@@ -4,7 +4,7 @@
   const KEY = 'hc:searches';
   const MAX = 8;
   function load() {
-    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; }
+    try { return window.hcRestore ? window.hcRestore.readJSON(KEY, []) : JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; }
   }
   function save(list) {
     try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) {}

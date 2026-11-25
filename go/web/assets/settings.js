@@ -170,11 +170,27 @@
       // 歌词缓存（字幕条与歌词面板共用：记忆你选的歌词源，LRU 50 首）
       '<div class="card p-5 mb-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">' +
       '<p class="font-medium text-gray-900 dark:text-white mb-1">歌词缓存</p>' +
-      '<p class="text-xs text-gray-500 dark:text-gray-400 mb-3">字幕条与歌词面板共用：自动记忆你选的歌词源，最多 50 首</p>' +
-      '<div class="flex items-center justify-between">' +
+      '<p class="text-xs text-gray-500 dark:text-gray-400 mb-3">字幕条与歌词面板共用：自动记忆你选的歌词源</p>' +
+      '<div class="flex items-center justify-between mb-3">' +
       '<span class="text-sm text-gray-500 dark:text-gray-400">已缓存：<span id="lyc-count" class="text-gray-700 dark:text-gray-200 font-medium">' + (lycCount()) + ' 首</span></span>' +
       '<button id="lyc-clear" class="px-3 py-1.5 rounded-full text-sm text-gray-400 hover:text-red-400 border border-gray-700 transition-colors">清空歌词缓存</button>' +
-      '</div></div>' +
+      '</div>' +
+      '<div class="flex items-center justify-between">' +
+      '<span class="text-sm text-gray-500 dark:text-gray-400">上限</span>' +
+      '<select id="lyc-limit" class="bg-gray-100 dark:bg-gray-700 text-sm rounded-lg px-2 py-1 border border-gray-300 dark:border-gray-600">' +
+      '<option value="100">100 首</option><option value="300">300 首</option><option value="500">500 首</option><option value="custom">自定义</option>' +
+      '</select></div></div>' +
+
+      // 退出记忆（对齐 native 启动恢复配置）
+      '<div class="card p-5 mb-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">' +
+      '<p class="font-medium text-gray-900 dark:text-white mb-3">退出记忆</p>' +
+      ['恢复音量|hc:vol','恢复搜索历史|hc:searches','恢复最近播放|hc:recent','恢复歌词字号|hc:lysize'].map((x) => {
+        const [label, key] = x.split('|');
+        return '<label class="flex items-center justify-between py-1.5">' +
+          '<span class="text-sm text-gray-500 dark:text-gray-400">' + label + '</span>' +
+          '<input type="checkbox" data-restore="' + key + '" class="restore-toggle w-4 h-4 accent-pink-500"' + (S('hc:restore:' + key, '1') !== '0' ? ' checked' : '') + '></label>';
+      }).join('') +
+      '</div>' +
 
       // 数据
       '<div class="card p-5 mb-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">' +
@@ -283,6 +299,28 @@
       if (!window.confirm('确定清空未收藏歌曲的缓存？')) return;
       window.hcCache.clear('unfav').then(() => { hcBus.emit('toast', { msg: '未收藏缓存已清空' }); refreshCacheUI(); });
     });
+    // 歌词缓存上限：拉后端权威值 + 改档位确认后生效（对齐 native）
+    const lycSel = document.getElementById('lyc-limit');
+    fetch('/api/v1/cache/lyric/limit').then((r) => r.json()).then((d) => {
+      const n = d.data && d.data.limit;
+      if (typeof n === 'number' && lycSel) {
+        if ([100, 300, 500].indexOf(n) >= 0) lycSel.value = String(n);
+        else lycSel.value = 'custom';
+      }
+    }).catch(() => {});
+    if (lycSel) lycSel.addEventListener('change', () => {
+      let n = parseInt(lycSel.value, 10);
+      if (lycSel.value === 'custom') {
+        const raw = window.prompt('歌词缓存上限（首）', '300');
+        n = parseInt(raw || '', 10);
+        if (!Number.isFinite(n) || n < 1) { lycSel.value = '300'; return; }
+      }
+      if (!window.confirm('歌词缓存上限改为 ' + n + ' 首？')) { lycSel.value = '300'; return; }
+      fetch('/api/v1/cache/lyric/limit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: n })
+      }).then(() => hcBus.emit('toast', { msg: '歌词缓存上限已更新' })).catch(() => {});
+    });
     // 歌词缓存：计数 + 清空（与歌词面板/字幕条共用 hc:lyc:cache）
     const lycClear = document.getElementById('lyc-clear');
     if (lycClear) lycClear.addEventListener('click', () => {
@@ -290,6 +328,12 @@
       try { localStorage.removeItem('hc:lyc:cache'); } catch (e) {}
       hcBus.emit('toast', { msg: '歌词缓存已清空' });
       render();
+    });
+    view.querySelectorAll('.restore-toggle').forEach((el) => {
+      el.addEventListener('change', () => {
+        W('hc:restore:' + el.dataset.restore, el.checked ? '1' : '0');
+        hcBus.emit('toast', { msg: '退出记忆设置已更新，下次启动生效' });
+      });
     });
     const clr = view.querySelector('.set-clrhis');
     if (clr) clr.addEventListener('click', () => {

@@ -6,7 +6,7 @@
     return String(x ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
   function readRecent() {
-    try { return JSON.parse(localStorage.getItem('hc:recent') || '[]'); } catch (e) { return []; }
+    try { return window.hcRestore ? window.hcRestore.readJSON('hc:recent', []) : JSON.parse(localStorage.getItem('hc:recent') || '[]'); } catch (e) { return []; }
   }
   function bindGrid(container, items) {
     container.querySelectorAll('.recent-item').forEach((el) => {

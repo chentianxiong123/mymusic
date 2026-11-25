@@ -19,7 +19,7 @@
 
   // 字号标准化 5 档（14/16/18/22/26px），档位数字展示（无黑盒）
   const LY_SIZES = [14, 16, 18, 22, 26];
-  let lyIdx = LY_SIZES.indexOf(parseInt(localStorage.getItem('hc:lysize') || '18', 10));
+  let lyIdx = LY_SIZES.indexOf(parseInt(window.hcRestore ? window.hcRestore.read('hc:lysize', '18') : (localStorage.getItem('hc:lysize') || '18'), 10));
   if (lyIdx < 0) lyIdx = 2;
 
   function setLyIdx(delta) {

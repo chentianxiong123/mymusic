@@ -207,7 +207,7 @@
       if (wasMuted) {
         // 取消静音 → 恢复上次音量（def=0 兜底 80，否则取消静音没声）
         volMuted = false;
-        let def = parseInt(localStorage.getItem('hc:vol') || '80', 10) || 80;
+        let def = parseInt(window.hcRestore ? window.hcRestore.read('hc:vol', '80') : (localStorage.getItem('hc:vol') || '80'), 10) || 80;
         if (def <= 0) def = 80;
         if (did) window.hcState && window.hcState.cmd('set_volume', { volume: def });
         if (el.vol) el.vol.value = def; // ★补：滑块 UI 同步（旧实现漏，取消静音滑块停 0）
@@ -221,7 +221,7 @@
       if (volMuted || audio.volume === 0) {
         volMuted = false;
         if (audio.volume === 0) {
-          let def = parseInt(localStorage.getItem('hc:vol') || '80', 10) || 80;
+          let def = parseInt(window.hcRestore ? window.hcRestore.read('hc:vol', '80') : (localStorage.getItem('hc:vol') || '80'), 10) || 80;
           if (def <= 0) def = 80;
           audio.volume = def / 100;
           if (el.vol) el.vol.value = def;
@@ -434,7 +434,7 @@
       const src = window.hcState?.get()?.source;
       if (src === 'web' && lastSource === 'speaker') {
         volMuted = false;
-        const v = parseInt(localStorage.getItem('hc:vol') || '80', 10) || 80;
+        const v = parseInt(window.hcRestore ? window.hcRestore.read('hc:vol', '80') : (localStorage.getItem('hc:vol') || '80'), 10) || 80;
         audio.volume = v / 100;
         audio.muted = false;
         if (el.vol) el.vol.value = v;
@@ -446,7 +446,7 @@
   }
 
   // ---- 音量/静音初始化（本地设备偏好）----
-  const initVol = parseInt(localStorage.getItem('hc:vol') || '80', 10) || 80;
+  const initVol = parseInt(window.hcRestore ? window.hcRestore.read('hc:vol', '80') : (localStorage.getItem('hc:vol') || '80'), 10) || 80;
   audio.volume = initVol / 100;
   volMuted = false;
   audio.muted = false;
