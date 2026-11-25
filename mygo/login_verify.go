@@ -115,7 +115,7 @@ func verifyLoginCookie(src, cookie string) loginCheck {
 
 // enqueueLoginVerify 异步校验并把结果写缓存，完成后重绘。
 func (a *app) enqueueLoginVerify(src string) {
-	cookie := plugin.GetSetting("source", src, "cookie", "")
+	cookie := plugin.GetCookie(src)
 	if cookie == "" {
 		setLoginCheck(src, loginCheck{Checked: true, Valid: false})
 		return

@@ -366,7 +366,7 @@ func (a *app) bilibiliSourceConfig(c *ui.Context) {
 	// 登录 Cookie（有=登录态/高清，空=匿名）
 	a.setRow(c, "登录 Cookie")
 	a.setRowText(c, "粘贴 B站登录态 Cookie（登录 www.bilibili.com 后从浏览器复制），空=匿名")
-	cookie := plugin.GetSetting("source", "bilibili", "cookie", "")
+	cookie := plugin.GetCookie("bilibili")
 	ui.TextInput(c, &cookie).Grow(1).Height(38 * uiScale).FontSize(12 * uiScale).TextColor(clrText).Placeholder("SESSDATA=...; buvid3=...")
 	if chip(c, "保存").Clicked() {
 		a.applySourceCookie("bilibili", cookie)

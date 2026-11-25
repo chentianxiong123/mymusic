@@ -485,7 +485,7 @@ func main() {
 	}
 	a.svc = newServices(a.db, a.bili, audioDir)
 	// B站登录 Cookie（可选）：有则用自己的（登录态/高清），空=匿名（仅 buvid3）。
-	a.bili.Cookie = plugin.GetSetting("source", "bilibili", "cookie", "")
+	a.bili.Cookie = plugin.GetCookie("bilibili")
 	// 一切皆插件：注册内置插件（音源/歌词）。第三方插件 = 各自 init() 注册，主程序空导入。
 	if a.svc != nil && a.svc.music != nil {
 		plugin.RegisterSystemSource(source.NewBilibili(a.svc.music)) // B站音乐源（系统级）
@@ -496,7 +496,7 @@ func main() {
 	}
 	plugin.RegisterSystemLyric(lyricplug.NewNetease()) // 网易云歌词源（系统级兜底）
 	// 网易云音源（Go 内置：明文 API + 扫码登录；JS 版同 key 自动跳过）
-	a.neteaseSrc = source.NewNetease(plugin.GetSetting("source", "netease", "cookie", ""))
+	a.neteaseSrc = source.NewNetease(plugin.GetCookie("netease"))
 	plugin.RegisterSystemSource(a.neteaseSrc)
 	plugin.RegisterSettings("source", "netease", []plugin.Setting{
 		{Key: "quality", Name: "音质", Type: plugin.SettingSelect, Options: []string{"128k", "320k"}, Default: "320k", Desc: "播放音质"},

@@ -255,7 +255,7 @@ func qrPNG(text string, size int) ([]byte, error) {
 
 // applySourceCookie 统一：落库 + 热更新当前客户端（扫码/粘贴共用）。
 func (a *app) applySourceCookie(src, cookie string) {
-	_ = plugin.SetSetting("source", src, "cookie", cookie)
+	_ = plugin.SetCookie(src, cookie)
 	a.hotUpdateCookie(src, cookie)
 	a.enqueueLoginVerify(src)
 }
@@ -299,7 +299,7 @@ func (a *app) qrLoginSection(c *ui.Context, src string) {
 	if !sourceNeedsLogin(src) {
 		return
 	}
-	cookie := plugin.GetSetting("source", src, "cookie", "")
+	cookie := plugin.GetCookie(src)
 	chk := getLoginCheck(src)
 	state := loginStateLabel(cookie, chk)
 	stateColor := clrMuted
@@ -314,7 +314,7 @@ func (a *app) qrLoginSection(c *ui.Context, src string) {
 		ui.Text(c, state).FontSize(12 * uiScale).TextColor(stateColor)
 		if chip(c, "登录方式 ›").Clicked() {
 			a.loginDialogSrc = src
-			a.loginCookieBuf = plugin.GetSetting("source", src, "cookie", "")
+			a.loginCookieBuf = plugin.GetCookie(src)
 			a.showLoginDialog = true
 			a.win.Invalidate()
 		}
@@ -383,7 +383,7 @@ func (a *app) loginMethodDialog(c *ui.Context) {
 						a.showLoginDialog = false
 						a.win.Invalidate()
 					}
-					logged := plugin.GetSetting("source", src, "cookie", "") != ""
+					logged := plugin.GetCookie(src) != ""
 					if logged && chip(c, "退出登录").Clicked() {
 						a.logoutSource(src)
 					}

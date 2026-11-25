@@ -91,11 +91,7 @@ func LoadFromDir(dir string) ([]error, error) {
 		// ——否则插件页看不到它，用户没法进详情页登录（鸡生蛋）。
 		inactive := false
 		if jp.meta.RequiresCookie {
-			ptype := "source"
-			if len(jp.meta.Capabilities) > 0 {
-				ptype = jp.meta.Capabilities[0]
-			}
-			if GetSetting(ptype, jp.meta.Key, "cookie", "") == "" {
+			if !HasCookie(jp.meta.Key) { // 登录态按平台共享（音源/歌词/推荐同一份）
 				inactive = true
 			}
 		}

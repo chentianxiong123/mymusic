@@ -121,6 +121,12 @@ func (h *jsHost) configObject(vm *sobek.Runtime) *sobek.Object {
 		if len(call.Arguments) > 1 {
 			def = call.Argument(1).String()
 		}
+		if key == "cookie" {
+			// 登录态按平台共享：音源/歌词/推荐读同一份，不按能力类型隔离。
+			if v := GetCookie(h.pluginKey); v != "" {
+				return vm.ToValue(v)
+			}
+		}
 		v := GetSetting(h.pluginType, h.pluginKey, key, def)
 		return vm.ToValue(v)
 	})
@@ -130,7 +136,13 @@ func (h *jsHost) configObject(vm *sobek.Runtime) *sobek.Object {
 		}
 		key := call.Argument(0).String()
 		val := call.Argument(1).String()
-		if err := SetSetting(h.pluginType, h.pluginKey, key, val); err != nil {
+		var err error
+		if key == "cookie" {
+			err = SetCookie(h.pluginKey, val)
+		} else {
+			err = SetSetting(h.pluginType, h.pluginKey, key, val)
+		}
+		if err != nil {
 			return vm.ToValue(false)
 		}
 		return vm.ToValue(true)
@@ -139,7 +151,11 @@ func (h *jsHost) configObject(vm *sobek.Runtime) *sobek.Object {
 	_ = obj.Set("all", func(call sobek.FunctionCall) sobek.Value {
 		out := map[string]string{}
 		for _, it := range SettingsOf(h.pluginType, h.pluginKey) {
-			out[it.Key] = GetSetting(h.pluginType, h.pluginKey, it.Key, it.Default)
+			if it.Key == "cookie" {
+				out[it.Key] = GetCookie(h.pluginKey)
+			} else {
+				out[it.Key] = GetSetting(h.pluginType, h.pluginKey, it.Key, it.Default)
+			}
 		}
 		return vm.ToValue(out)
 	})
@@ -158,13 +174,25 @@ func (h *jsHost) settingObject(vm *sobek.Runtime) *sobek.Object {
 		if len(call.Arguments) > 1 {
 			def = call.Argument(1).String()
 		}
+		if key == "cookie" {
+			if v := GetCookie(h.pluginKey); v != "" {
+				return vm.ToValue(v)
+			}
+		}
 		return vm.ToValue(GetSetting(h.pluginType, h.pluginKey, key, def))
 	})
 	_ = obj.Set("set", func(call sobek.FunctionCall) sobek.Value {
 		if len(call.Arguments) < 2 {
 			return vm.ToValue(false)
 		}
-		if err := SetSetting(h.pluginType, h.pluginKey, call.Argument(0).String(), call.Argument(1).String()); err != nil {
+		key, val := call.Argument(0).String(), call.Argument(1).String()
+		var err error
+		if key == "cookie" {
+			err = SetCookie(h.pluginKey, val)
+		} else {
+			err = SetSetting(h.pluginType, h.pluginKey, key, val)
+		}
+		if err != nil {
 			return vm.ToValue(false)
 		}
 		return vm.ToValue(true)
