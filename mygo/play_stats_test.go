@@ -41,18 +41,6 @@ func TestPlayStatsRecord(t *testing.T) {
 	}
 }
 
-func TestPlayStatsAddSec(t *testing.T) {
-	a := testStatsApp(t)
-	a.statsPlay("bilibili", "BV1", "测试", "作者", "")
-	a.statsAddSec("bilibili", "BV1", 30)
-	a.statsAddSec("bilibili", "BV1", 30)
-	a.statsAddSec("bilibili", "BVnone", 30) // 不存在的歌不panic
-	s := a.loadPlayStats()
-	if s.Songs[0].TotalSec != 60 {
-		t.Errorf("totalSec want 60, got %f", s.Songs[0].TotalSec)
-	}
-}
-
 func TestTopSongsAndArtists(t *testing.T) {
 	a := testStatsApp(t)
 	a.statsPlay("netease", "1", "晴天", "周杰伦", "")

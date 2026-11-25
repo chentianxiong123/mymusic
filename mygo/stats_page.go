@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 	"mymusic-mygo/plugin"
@@ -17,12 +16,10 @@ func (a *app) statsPage(c *ui.Context) {
 			ui.Text(c, "播放统计").FontSize(20 * uiScale).Bold().TextColor(clrText)
 			s := a.loadPlayStats()
 			total := 0
-			totalSec := 0.0
 			for _, x := range s.Songs {
 				total += x.Count
-				totalSec += x.TotalSec
 			}
-			ui.Text(c, fmt.Sprintf("累计播放 %d 次 · 总时长 %s", total, fmtDuration(totalSec))).
+			ui.Text(c, fmt.Sprintf("累计播放 %d 次", total)).
 				FontSize(12 * uiScale).TextColor(clrMuted)
 
 			// 常听歌手
@@ -61,14 +58,6 @@ func (a *app) statsPage(c *ui.Context) {
 			})
 		})
 	})
-}
-
-func fmtDuration(sec float64) string {
-	d := time.Duration(sec * float64(time.Second))
-	if d < time.Hour {
-		return fmt.Sprintf("%d 分钟", int(d.Minutes()))
-	}
-	return fmt.Sprintf("%d 小时 %d 分", int(d.Hours()), int(d.Minutes())%60)
 }
 
 // 本地统计推荐插件（注册在 chart.go init 之外；和榜单并列，按启用状态显示）。

@@ -172,9 +172,6 @@ type app struct {
 	addToPick           bool                // 「添加到歌单」浮层是否显示（ctxItem 为目标歌）
 	ctxPosSet           bool                // 右键菜单位置是否已记录（打开那刻记一次，之后固定不跟鼠标）
 	lyricSongPick       bool                // 歌级歌词绑定弹窗（ctxItem 为目标歌）
-	statLastPos         float64            // 上次进度（播放时长统计：真实差值累计）
-	statPendingSec      float64            // 待落库的播放秒数（10s 节流）
-	statLastSave        time.Time          // 上次落库时间
 
 	quality         int            // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
 	lyricSize       int            // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）

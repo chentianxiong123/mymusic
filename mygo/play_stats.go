@@ -22,9 +22,8 @@ type playStat struct {
 	Title    string  `json:"title"`
 	Artist   string  `json:"artist"`
 	Cover    string  `json:"cover"`
-	Count    int     `json:"count"`
-	TotalSec float64 `json:"totalSec"`
-	LastAt   int64   `json:"lastAt"` // Unix 秒
+	Count    int    `json:"count"`
+	LastAt   int64  `json:"lastAt"` // Unix 秒
 }
 
 type playStats struct {
@@ -81,21 +80,6 @@ func (a *app) statsPlay(source, id, title, artist, cover string) {
 		})
 	}
 	a.savePlayStats(s)
-}
-
-// statsAddSec 累计播放秒数（由 pb_bridge 进度差驱动，播放中定期累加）。
-func (a *app) statsAddSec(source, id string, sec float64) {
-	if sec <= 0 || source == "" || id == "" {
-		return
-	}
-	s := a.loadPlayStats()
-	for i := range s.Songs {
-		if s.Songs[i].Source == source && s.Songs[i].ID == id {
-			s.Songs[i].TotalSec += sec
-			a.savePlayStats(s)
-			return
-		}
-	}
 }
 
 // topSongs 播放次数最高的 N 首（本地推荐用）。

@@ -145,21 +145,6 @@ func (a *app) progressReporter() {
 				}
 				a.posText = fmtDurMygo(info.Pos)
 				a.durText = fmtDurMygo(info.Dur)
-				// 播放时长：只累计播放中、小幅前进的真实差值（暂停不加、seek 大跳不计）。
-				if info.Playing && !a.scrubbing && a.current != nil {
-					if a.statLastPos > 0 && info.Pos > a.statLastPos {
-						delta := info.Pos - a.statLastPos
-						if delta < 2 { // 250ms 帧间隔 ≤0.5s；>2s 视为 seek
-							a.statPendingSec += delta
-						}
-					}
-				}
-				a.statLastPos = info.Pos
-				if time.Since(a.statLastSave) >= 10*time.Second && a.statPendingSec > 0 {
-					a.statsAddSec(a.current.src, a.current.bvid, a.statPendingSec)
-					a.statPendingSec = 0
-					a.statLastSave = time.Now()
-				}
 				a.posSec = info.Pos
 				a.playing = info.Playing
 			})

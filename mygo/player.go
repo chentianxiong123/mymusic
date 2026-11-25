@@ -113,13 +113,6 @@ func (a *app) search() {
 // play 播放一首：交给主线 playback（SSOT）入队+定位+出声（MyGoOutput 取流）。
 // 状态/队列/进度全由 pbLoop 从状态流渲染，这里只发命令。
 func (a *app) play(item bilibili.SearchItem) {
-	// 切歌前把上一首待落库的时长结算掉，重置进度基准（避免切歌后首帧差值错算）
-	if a.current != nil && a.statPendingSec > 0 {
-		a.statsAddSec(a.current.src, a.current.bvid, a.statPendingSec)
-	}
-	a.statPendingSec = 0
-	a.statLastPos = 0
-	a.statLastSave = time.Now()
 	a.recordRecent(item)
 	// 播放统计：按真实 source+id 计数（不塞 BVID 撒谎）
 	src := item.Typename
