@@ -48,7 +48,8 @@ type MyGoOutput struct {
 	bvid  string
 	title string
 	gen   int // 切歌代际：切歌后旧 goroutine 的下载放弃（防竞态）
-	ended func()
+	ended     func()
+	onFinished func() // 播完统计回调（与核心 ended 并列，不抢 hook）
 	onErr  func(string) // 取流/播放错误回调 → UI 提示（付费/VIP/需登录等，main 注入）
 }
 
@@ -210,8 +211,16 @@ func (o *MyGoOutput) openAndPlay(bvid string, opts playback.PlayOpts, gen int, p
 		os.Remove(oldPath)
 	}
 	// 播完回调核心（自动连播：核心填 Next）
-	if hook != nil {
-		p.OnEnd(func() { hook() })
+	finished := o.onFinished
+	if hook != nil || finished != nil {
+		p.OnEnd(func() {
+			if finished != nil {
+				finished()
+			}
+			if hook != nil {
+				hook()
+			}
+		})
 	}
 	p.Play()
 }
@@ -331,6 +340,13 @@ func (o *MyGoOutput) Caps() playback.Capabilities {
 func (o *MyGoOutput) SetEndedHook(fn func()) {
 	o.mu.Lock()
 	o.ended = fn
+	o.mu.Unlock()
+}
+
+// SetFinishedHook 注入"播完"统计回调（与核心 SetEndedHook 独立，互不覆盖）。
+func (o *MyGoOutput) SetFinishedHook(fn func()) {
+	o.mu.Lock()
+	o.onFinished = fn
 	o.mu.Unlock()
 }
 

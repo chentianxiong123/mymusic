@@ -641,6 +641,16 @@ func main() {
 		// 有下一首 → 核心自动连播；无下一首（单曲/最后一首）→ 核心落停播态。
 		// 缺此钩子：播完什么都不做，核心一直“播放中”，设备卡永远撒谎。
 		a.svc.speaker.EndedHook = func(did, nextBVID string) {
+			// 音箱播完也算一次播放（与本机 ended 同口径）
+			mygo.RunOnMain(func() {
+				if cur := a.current; cur != nil {
+					src := cur.src
+					if src == "" {
+						src = "bilibili"
+					}
+					a.statsPlay(src, cur.bvid, cur.title, cur.author, cur.pic)
+				}
+			})
 			if nextBVID == "" {
 				a.pb.SpeakerFinished(did)
 				return
@@ -650,6 +660,20 @@ func main() {
 	}
 	// 播完自动连播（对齐主线 audio ended：single 前端 currentTime=0 重播当前歌，
 	// 其余 cmd('next') 后端顺序环绕）。single 用 seek(0)+Resume 重播（MyGo 本地 audio）。
+	// 播完统计：只在真正播完（audio ended）时计数 +1，切歌/暂停不算。
+	a.mygoOut.SetFinishedHook(func() {
+		mygo.RunOnMain(func() {
+			cur := a.current
+			if cur == nil {
+				return
+			}
+			src := cur.src
+			if src == "" {
+				src = "bilibili"
+			}
+			a.statsPlay(src, cur.bvid, cur.title, cur.author, cur.pic)
+		})
+	})
 	a.mygoOut.SetEndedHook(func() {
 		if a.loopMode == 2 { // 单曲循环：重播当前歌
 			a.seek(0)
