@@ -14,8 +14,48 @@ import (
 
 const lyricBindPrefix = "lyricbind/"
 
-// lyricBoundFor 取某音源绑定的歌词插件名。
-// 规则：用户配置 > 插件自带（同名 lyric provider）> 默认 netease。
+// 歌级绑定 key：lyricbind/song/<source>/<id> → lyricName。
+// 颗粒度：歌 > 渠道 > 插件自带 > 默认。
+func lyricSongKey(src, id string) string {
+	return lyricBindPrefix + "song/" + src + "/" + id
+}
+
+// lyricBoundForSong 取某首歌绑定的歌词插件名（歌级 > 渠道级 > 自带 > 默认）。
+func (a *app) lyricBoundForSong(src, id string) string {
+	if id != "" && a.db != nil {
+		if v, ok := conv.LoadSetting(a.db, lyricSongKey(src, id)); ok && v != "" {
+			return v
+		}
+	}
+	return a.lyricBoundFor(src)
+}
+
+// setLyricBoundForSong 设置某首歌的歌词绑定（歌级覆盖渠道级）。
+func (a *app) setLyricBoundForSong(src, id, lyricName string) {
+	if src == "" || id == "" || lyricName == "" || a.db == nil {
+		return
+	}
+	_ = conv.SaveSetting(a.db, lyricSongKey(src, id), lyricName)
+}
+
+// songLyricBinding 读取歌级绑定（存在=用户为这首歌单独选过）。
+func (a *app) songLyricBinding(src, id string) (string, bool) {
+	if src == "" || id == "" || a.db == nil {
+		return "", false
+	}
+	return conv.LoadSetting(a.db, lyricSongKey(src, id))
+}
+
+// clearLyricBoundForSong 删除歌级绑定（回落到音源渠道级）。
+func (a *app) clearLyricBoundForSong(src, id string) {
+	if src == "" || id == "" || a.db == nil {
+		return
+	}
+	_ = conv.SaveSetting(a.db, lyricSongKey(src, id), "") // 空值=未绑定，LoadSetting 判空回落
+}
+
+// lyricBoundFor 取某音源绑定的歌词插件名（渠道级）。
+// 规则：渠道用户配置 > 插件自带（同名 lyric provider）> 默认 netease。
 func (a *app) lyricBoundFor(src string) string {
 	if src == "" {
 		src = "bilibili"

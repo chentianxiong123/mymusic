@@ -114,6 +114,12 @@ func (a *app) search() {
 // 状态/队列/进度全由 pbLoop 从状态流渲染，这里只发命令。
 func (a *app) play(item bilibili.SearchItem) {
 	a.recordRecent(item)
+	// 播放统计：按真实 source+id 计数（不塞 BVID 撒谎）
+	src := item.Typename
+	if src == "" {
+		src = "bilibili"
+	}
+	a.statsPlay(src, item.BVID, bilibili.CleanHTML(item.Title), item.Author, item.Pic)
 	// 分开搜索：记录歌来源（Typename），MyGoOutput 取流按来源路由到对应源
 	a.mygoOut.setSrcName(item.Typename)
 	a.win.Update(func() {

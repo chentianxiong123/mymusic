@@ -34,8 +34,8 @@ func (a *app) loadLyricAsync(bvid string) {
 		kw := urlQE(kwRaw)
 		keywords := []string{lyric.CleanSearchKeyword(a.current.title), lyric.CleanSearchKeyword(a.current.author)}
 
-		// 当前音源绑定的歌词插件（音源插件详情页可配置：自带 / 选择）。
-		bound := a.lyricBoundFor(a.current.src)
+		// 歌词绑定：歌级 > 音源渠道级（音源插件详情页/歌曲右键可配置）。
+		bound := a.lyricBoundForSong(a.current.src, a.current.bvid)
 		infos := plugin.InfoNames("lyric")
 		var chosen *plugin.Info
 		for i := range infos {

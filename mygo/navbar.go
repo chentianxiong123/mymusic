@@ -34,6 +34,9 @@ func (a *app) navBarDesktop(c *ui.Context) {
 		if navTab(c, icSearch, "来源", a.activeTab == "search", false).Clicked() {
 			a.setTab("search")
 		}
+		if navTab(c, icFav, "统计", a.activeTab == "stats", false).Clicked() {
+			a.setTab("stats")
+		}
 		if navTab(c, icCast, "目标", a.activeTab == "cast", false).Clicked() {
 			a.setTab("cast")
 		}
@@ -95,6 +98,7 @@ func (a *app) navPanel(c *ui.Context) {
 					{"queue", "队列", icList},
 					{"fav", "歌单", icFav},
 					{"search", "来源", icSearch},
+					{"stats", "统计", icFav},
 					{"cast", "目标", icCast},
 					{"settings", "设置", icSet},
 				}

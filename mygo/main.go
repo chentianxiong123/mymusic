@@ -170,6 +170,7 @@ type app struct {
 	songlistRenameInput string              // 重命名输入值
 	addToPick           bool                // 「添加到歌单」浮层是否显示（ctxItem 为目标歌）
 	ctxPosSet           bool                // 右键菜单位置是否已记录（打开那刻记一次，之后固定不跟鼠标）
+	lyricSongPick       bool                // 歌级歌词绑定弹窗（ctxItem 为目标歌）
 
 	quality         int            // 0=64k 1=128k 2=192k（对齐主线 d-quality 三档循环）
 	lyricSize       int            // 0-4 歌词字号档（对齐主线 14/16/18/22/26px）
@@ -268,6 +269,8 @@ func (a *app) view(c *ui.Context) {
 				a.settingsPage(c)
 			case "recent":
 				a.recentPage(c)
+			case "stats":
+				a.statsPage(c)
 			default:
 				// 搜索页：搜索框 + 热词 + 结果（未搜索时显示风格分类）
 				ui.Column(c).Grow(1).Fill().Padding(4*uiScale, a.resp(24, 12), 0, a.resp(24, 12)).Gap(8 * uiScale).Children(func() {
@@ -310,6 +313,10 @@ func (a *app) view(c *ui.Context) {
 	// 「添加到歌单」浮层（ctxItem 为目标歌）
 	if a.addToPick && a.ctxItem != nil {
 		a.addToSonglistSheet(c)
+	}
+	// 歌级歌词绑定弹窗
+	if a.lyricSongPick && a.ctxItem != nil {
+		a.lyricSongPickDialog(c)
 	}
 	// 新建歌单弹窗（不占布局空间）
 	if a.songlistNewOpen {
