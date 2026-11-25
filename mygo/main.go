@@ -681,6 +681,8 @@ func main() {
 		})
 		// 🎵 应用图标：Linux/Windows 标题栏 + 任务栏（不给就是裸 X11 默认图标）
 		applyAppIcon(a.win)
+		// 登录态校验（异步，B站/网易云有可靠端点；有 Cookie 才查，不阻塞启动）
+		a.verifyAllLogins()
 		// 恢复最大化状态（WindowOptions 没有该字段，只能就绪后调 Maximize）
 		if ws != nil && ws.Max {
 			a.win.Maximize()

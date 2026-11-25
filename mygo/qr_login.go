@@ -257,6 +257,7 @@ func qrPNG(text string, size int) ([]byte, error) {
 func (a *app) applySourceCookie(src, cookie string) {
 	_ = plugin.SetSetting("source", src, "cookie", cookie)
 	a.hotUpdateCookie(src, cookie)
+	a.enqueueLoginVerify(src)
 }
 
 // hotUpdateCookie 热更新已构造的客户端（不重启可见；JS 插件每次 getURL 都读 config，无需动）。
@@ -270,6 +271,7 @@ func (a *app) hotUpdateCookie(src, cookie string) {
 			a.neteaseSrc.SetCookie(cookie)
 		}
 	}
+	// 其它 JS 插件：每次 getURL/search 都从 ctx.config 读，无需热更新。
 }
 
 // applyQRCookie 登录成功后写入音源插件 Cookie 设置 + 热更新客户端。
@@ -297,15 +299,19 @@ func (a *app) qrLoginSection(c *ui.Context, src string) {
 	if !sourceNeedsLogin(src) {
 		return
 	}
-	logged := plugin.GetSetting("source", src, "cookie", "") != ""
+	cookie := plugin.GetSetting("source", src, "cookie", "")
+	chk := getLoginCheck(src)
+	state := loginStateLabel(cookie, chk)
+	stateColor := clrMuted
+	if chk.Valid || (cookie != "" && !chk.Checked) {
+		stateColor = clrPink
+	} else if chk.Checked && !chk.Valid {
+		stateColor = clrRed // 过期：红
+	}
 	ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).PaddingX(4 * uiScale).Children(func() {
 		ui.Text(c, "登录").FontSize(14 * uiScale).Bold().TextColor(clrText)
 		ui.Spacer(c).Grow(1)
-		state := "未登录"
-		if logged {
-			state = "已登录"
-		}
-		ui.Text(c, state).FontSize(12 * uiScale).TextColor(clrPink)
+		ui.Text(c, state).FontSize(12 * uiScale).TextColor(stateColor)
 		if chip(c, "登录方式 ›").Clicked() {
 			a.loginDialogSrc = src
 			a.loginCookieBuf = plugin.GetSetting("source", src, "cookie", "")
