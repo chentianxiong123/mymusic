@@ -18,11 +18,13 @@
     // 清空最近播放（确认后移除 hc:recent 并重绘当前容器为空态/隐藏）
     const clr = container.querySelector('.recent-clear-all');
     if (clr) clr.addEventListener('click', () => {
-      if (!window.confirm('确定清空全部最近播放？')) return;
-      try { localStorage.removeItem('hc:recent'); } catch (e) {}
-      hcBus.emit('toast', { msg: '最近播放已清空' });
-      if (container.id === 'recent-all') renderAll();
-      else { container.innerHTML = ''; }
+      hcDialog.confirm('确定清空全部最近播放？', (yes) => {
+        if (!yes) return;
+        try { localStorage.removeItem('hc:recent'); } catch (e) {}
+        hcBus.emit('toast', { msg: '最近播放已清空' });
+        if (container.id === 'recent-all') renderAll();
+        else { container.innerHTML = ''; }
+      });
     });
     // hx 属性（如「查看全部」链接）是 JS 渲染出来的，需 htmx.process 才生效
     if (window.htmx && container.querySelector('[hx-get]')) htmx.process(container);

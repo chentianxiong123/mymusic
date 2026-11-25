@@ -86,8 +86,8 @@
     list.forEach((q, i) => {
       const active = i === idx;
       html +=
-        '<div class="group flex items-start space-x-4 p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm transition-all duration-200 min-w-0 ' +
-        (active ? 'is-playing border border-pink-500/50' : 'border border-gray-100 dark:border-gray-700') + '" data-ctx-bvid="' + esc(q.bvid) + '" data-ctx-title="' + esc(q.title) + '" data-ctx-full-title="' + esc(q.fullTitle || q.title) + '" data-ctx-artist="' + esc(q.artist) + '" data-ctx-cover="' + esc(q.cover) + '">' +
+        '<div draggable="true" class="q-row group flex items-start space-x-4 p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm transition-all duration-200 min-w-0 cursor-grab active:cursor-grabbing ' +
+        (active ? 'is-playing border border-pink-500/50' : 'border border-gray-100 dark:border-gray-700') + '" data-qi="' + i + '" data-ctx-bvid="' + esc(q.bvid) + '" data-ctx-title="' + esc(q.title) + '" data-ctx-full-title="' + esc(q.fullTitle || q.title) + '" data-ctx-artist="' + esc(q.artist) + '" data-ctx-cover="' + esc(q.cover) + '">' +
         '<div class="relative flex-shrink-0">' +
         '<img src="' + esc(q.cover) + '" alt="" loading="lazy" referrerpolicy="no-referrer" class="w-20 h-14 object-cover rounded-xl shadow-sm">' +
         '<button class="hx-play absolute inset-0 bg-black/30 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" data-bvid="' + esc(q.bvid) + '">' +
@@ -149,6 +149,37 @@
     });
     const clearBtn = view.querySelector('.queue-clear');
     if (clearBtn) clearBtn.addEventListener('click', () => hcBus.emit('queue-clear'));
+
+    // 拖拽排序（对齐 native 官方 ListState.Reorder）：松手重排 + 同步后端 SSOT
+    let dragFrom = -1;
+    view.querySelectorAll('.q-row').forEach((row) => {
+      row.addEventListener('dragstart', (e) => {
+        dragFrom = parseInt(row.dataset.qi, 10);
+        e.dataTransfer.effectAllowed = 'move';
+        row.style.opacity = '0.5';
+      });
+      row.addEventListener('dragend', () => { row.style.opacity = ''; dragFrom = -1; });
+      row.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.style.opacity = '';
+        const to = parseInt(row.dataset.qi, 10);
+        if (dragFrom < 0 || dragFrom === to) return;
+        // 重排本地 list + 调整当前播放索引
+        const moved = list.splice(dragFrom, 1)[0];
+        list.splice(to, 0, moved);
+        if (idx === dragFrom) idx = to;
+        else if (dragFrom < idx && to >= idx) idx--;
+        else if (dragFrom > idx && to <= idx) idx++;
+        render();
+        // 同步后端 SSOT（完整队列 + 新 qidx），失败静默（本地已重排）
+        if (window.hcState && window.hcState.cmd) {
+          window.hcState.cmd('queue', { queue: list.map((q) => ({
+            bvid: q.bvid, title: q.title, artist: q.artist, cover: q.cover, duration: q.duration || 0
+          })), qidx: idx });
+        }
+      });
+    });
   }
 
   hcBus.on('queue', (d) => { list = d.list || []; idx = d.idx; render(); });

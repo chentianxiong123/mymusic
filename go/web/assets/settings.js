@@ -291,13 +291,17 @@
     });
     const cacheClear = document.getElementById('cache-clear');
     if (cacheClear) cacheClear.addEventListener('click', () => {
-      if (!window.confirm('确定清空全部歌曲缓存？')) return;
-      window.hcCache.clear('all').then(() => { hcBus.emit('toast', { msg: '缓存已清空' }); refreshCacheUI(); });
+      hcDialog.confirm('确定清空全部歌曲缓存？', (yes) => {
+        if (!yes) return;
+        window.hcCache.clear('all').then(() => { hcBus.emit('toast', { msg: '缓存已清空' }); refreshCacheUI(); });
+      });
     });
     const cacheClearUnfav = document.getElementById('cache-clear-unfav');
     if (cacheClearUnfav) cacheClearUnfav.addEventListener('click', () => {
-      if (!window.confirm('确定清空未收藏歌曲的缓存？')) return;
-      window.hcCache.clear('unfav').then(() => { hcBus.emit('toast', { msg: '未收藏缓存已清空' }); refreshCacheUI(); });
+      hcDialog.confirm('确定清空未收藏歌曲的缓存？', (yes) => {
+        if (!yes) return;
+        window.hcCache.clear('unfav').then(() => { hcBus.emit('toast', { msg: '未收藏缓存已清空' }); refreshCacheUI(); });
+      });
     });
     // 歌词缓存上限：拉后端权威值 + 改档位确认后生效（对齐 native）
     const lycSel = document.getElementById('lyc-limit');
@@ -324,10 +328,12 @@
     // 歌词缓存：计数 + 清空（与歌词面板/字幕条共用 hc:lyc:cache）
     const lycClear = document.getElementById('lyc-clear');
     if (lycClear) lycClear.addEventListener('click', () => {
-      if (!window.confirm('确定清空全部歌词缓存？')) return;
-      try { localStorage.removeItem('hc:lyc:cache'); } catch (e) {}
-      hcBus.emit('toast', { msg: '歌词缓存已清空' });
-      render();
+      hcDialog.confirm('确定清空全部歌词缓存？', (yes) => {
+        if (!yes) return;
+        try { localStorage.removeItem('hc:lyc:cache'); } catch (e) {}
+        hcBus.emit('toast', { msg: '歌词缓存已清空' });
+        render();
+      });
     });
     view.querySelectorAll('.restore-toggle').forEach((el) => {
       el.addEventListener('change', () => {
