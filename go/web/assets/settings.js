@@ -164,7 +164,7 @@
       '<option value="200"' + (cachelimit === 200 ? ' selected' : '') + '>200MB</option>' +
       '<option value="500"' + (cachelimit === 500 ? ' selected' : '') + '>500MB</option>' +
       '<option value="1000"' + (cachelimit === 1000 ? ' selected' : '') + '>1GB</option>' +
-      '<option value="2000"' + (cachelimit === 2000 ? ' selected' : '') + '>2GB</option>' +
+      '<option value="custom"' + (cachelimit > 1000 && cachelimit !== 2000 ? ' selected' : '') + '>自定义</option>' +
       '</select></div></div>' +
 
       // 歌词缓存（字幕条与歌词面板共用：记忆你选的歌词源，LRU 50 首）
@@ -259,8 +259,18 @@
     }
     const cacheLimit = document.getElementById('cache-limit');
     if (cacheLimit) cacheLimit.addEventListener('change', () => {
-      W('hc:cachelimit', cacheLimit.value);
-      if (window.hcCache && window.hcCache.syncLimit) window.hcCache.syncLimit(parseInt(cacheLimit.value, 10) || 0);
+      let mb = parseInt(cacheLimit.value, 10);
+      if (cacheLimit.value === 'custom') {
+        const raw = window.prompt('自定义缓存上限（MB）', String(cachelimit || 500));
+        mb = parseInt(raw || '', 10);
+        if (!Number.isFinite(mb) || mb < 1) { cacheLimit.value = String(cachelimit); return; }
+      }
+      if (!window.confirm('缓存上限改为 ' + (mb === 0 ? '关闭' : mb + 'MB') + '？')) {
+        cacheLimit.value = String(cachelimit);
+        return;
+      }
+      W('hc:cachelimit', String(mb));
+      if (window.hcCache && window.hcCache.syncLimit) window.hcCache.syncLimit(mb || 0);
       hcBus.emit('toast', { msg: '缓存上限已更新' }); refreshCacheUI();
     });
     const cacheClear = document.getElementById('cache-clear');
