@@ -1,0 +1,290 @@
+//go:build native
+
+// chart.go —— 公共榜单推荐插件（无登录、跨源）。
+// 榜单 ≠ 个性化推荐：这里只做平台公开的"热门/榜单"，无 Cookie 即可拿。
+// 实测（2026-11-25）：
+//   网易云 /api/toplist 列榜单 → /api/playlist/detail?id= 拿 100 首歌（无登录）
+//   酷狗 /api/v3/rank/list 列榜单 → /rank/song?rankid=8888&version=9108 拿歌（无登录）
+// 插件自绘 UI（RecommendHost 注入能力），核心不写死任何平台。
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+	"mymusic-mygo/plugin"
+)
+
+// ChartSong 榜单一首歌（跨源通用；source+id 真实，不塞进 BVID 撒谎）。
+type ChartSong struct {
+	Source string
+	ID     string
+	Title  string
+	Artist string
+	Cover  string
+}
+
+// chartList 一个榜单（平台名 + 榜名 + 歌曲）。
+type chartList struct {
+	Platform string
+	Name     string
+	Songs    []ChartSong
+}
+
+// chartFetcher 榜单数据抓取（各平台实现）。
+type chartFetcher interface {
+	name() string        // 平台展示名
+	fetch() ([]chartList, error)
+}
+
+var chartHTTP = &http.Client{Timeout: 12 * time.Second}
+
+func chartGet(u, referer string) ([]byte, error) {
+	req, _ := http.NewRequest(http.MethodGet, u, nil)
+	req.Header.Set("Referer", referer)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36")
+	resp, err := chartHTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+// ---- 网易云榜单 ----
+type neteaseChart struct{}
+
+func (neteaseChart) name() string { return "网易云" }
+
+func (neteaseChart) fetch() ([]chartList, error) {
+	body, err := chartGet("https://music.163.com/api/toplist", "https://music.163.com/")
+	if err != nil {
+		return nil, err
+	}
+	var top struct {
+		Code int `json:"code"`
+		List []struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(body, &top); err != nil {
+		return nil, err
+	}
+	// 取前 4 个榜（避免 8 个全拉爆；用户点开详情可再扩）
+	out := make([]chartList, 0, 4)
+	for _, t := range top.List {
+		if len(out) >= 4 {
+			break
+		}
+		if t.ID == 0 || t.Name == "" {
+			continue
+		}
+		songs, err := neteaseChartSongs(t.ID)
+		if err != nil || len(songs) == 0 {
+			continue
+		}
+		out = append(out, chartList{Platform: "网易云", Name: t.Name, Songs: songs})
+	}
+	return out, nil
+}
+
+func neteaseChartSongs(id int64) ([]ChartSong, error) {
+	u := fmt.Sprintf("https://music.163.com/api/playlist/detail?id=%d", id)
+	body, err := chartGet(u, "https://music.163.com/")
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Code   int `json:"code"`
+		Result struct {
+			Tracks []struct {
+				ID     int64 `json:"id"`
+				Name   string `json:"name"`
+				Artists []struct{ Name string `json:"name"` } `json:"artists"`
+				Album  struct{ PicURL string `json:"picUrl"` } `json:"album"`
+			} `json:"tracks"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, err
+	}
+	out := make([]ChartSong, 0, len(resp.Result.Tracks))
+	for _, t := range resp.Result.Tracks {
+		artist := ""
+		if len(t.Artists) > 0 {
+			artist = t.Artists[0].Name
+		}
+		out = append(out, ChartSong{
+			Source: "netease", ID: strconv.FormatInt(t.ID, 10),
+			Title: t.Name, Artist: artist, Cover: t.Album.PicURL,
+		})
+		if len(out) >= 20 {
+			break
+		}
+	}
+	return out, nil
+}
+
+// ---- 酷狗榜单 ----
+type kugouChart struct{}
+
+func (kugouChart) name() string { return "酷狗" }
+
+func (kugouChart) fetch() ([]chartList, error) {
+	body, err := chartGet("http://mobilecdn.kugou.com/api/v3/rank/list?plat=0&version=9108&showtype=2&apiver=2", "http://mobile.kugou.com/")
+	if err != nil {
+		return nil, err
+	}
+	var top struct {
+		Data struct {
+			Info []struct {
+				RankID   int    `json:"rankid"`
+				RankName string `json:"rankname"`
+			} `json:"info"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &top); err != nil {
+		return nil, err
+	}
+	out := make([]chartList, 0, 4)
+	// TOP500(8888) 优先，其余取前 3
+	ids := []int{8888}
+	for _, t := range top.Data.Info {
+		if len(ids) >= 4 {
+			break
+		}
+		if t.RankID != 8888 && t.RankID != 0 {
+			ids = append(ids, t.RankID)
+		}
+	}
+	nameOf := map[int]string{8888: "TOP500"}
+	for _, t := range top.Data.Info {
+		nameOf[t.RankID] = t.RankName
+	}
+	for _, id := range ids {
+		songs := kugouChartSongs(id)
+		if len(songs) == 0 {
+			continue
+		}
+		out = append(out, chartList{Platform: "酷狗", Name: nameOf[id], Songs: songs})
+	}
+	return out, nil
+}
+
+func kugouChartSongs(rankID int) []ChartSong {
+	u := fmt.Sprintf("http://mobilecdn.kugou.com/api/v3/rank/song?rankid=%d&plat=0&page=1&pagesize=20&version=9108&showtype=2&apiver=2&with_res_tag=0", rankID)
+	body, err := chartGet(u, "http://mobile.kugou.com/")
+	if err != nil {
+		return nil
+	}
+	var resp struct {
+		Errcode int `json:"errcode"`
+		Data    struct {
+			Info []struct {
+				SongName string `json:"songname"`
+				SingerName string `json:"singername"`
+				AlbumID  string `json:"album_id"`
+				Hash     string `json:"hash"`
+			} `json:"info"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil || resp.Errcode != 0 {
+		return nil
+	}
+	out := make([]ChartSong, 0, len(resp.Data.Info))
+	for _, s := range resp.Data.Info {
+		cover := ""
+		if s.AlbumID != "" {
+			cover = "http://imge.kugou.com/stdmusic/150/" + s.AlbumID + ".jpg"
+		}
+		// 酷狗 JS 音源 getURL 用 hash 作 id
+		out = append(out, ChartSong{
+			Source: "kugou", ID: s.Hash, Title: s.SongName,
+			Artist: s.SingerName, Cover: cover,
+		})
+	}
+	return out
+}
+
+// ---- 榜单推荐插件（实现 plugin.Recommend）----
+type chartRecommend struct {
+	fetcher chartFetcher
+	mu      sync.Mutex
+	lists   []chartList
+	loaded  bool
+	loading bool
+}
+
+func (r *chartRecommend) Name() string { return r.fetcher.name() + "榜单" }
+
+func (r *chartRecommend) ensureLoaded(h plugin.RecommendHost) {
+	r.mu.Lock()
+	if r.loaded || r.loading {
+		r.mu.Unlock()
+		return
+	}
+	r.loading = true
+	r.mu.Unlock()
+	go func() {
+		lists, err := r.fetcher.fetch()
+		r.mu.Lock()
+		r.loading = false
+		if err == nil {
+			r.lists = lists
+			r.loaded = true
+		}
+		r.mu.Unlock()
+		h.Invalidate()
+	}()
+}
+
+func (r *chartRecommend) snapshot() []chartList {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lists
+}
+
+func (r *chartRecommend) Render(c *ui.Context, h plugin.RecommendHost, preview bool) {
+	r.ensureLoaded(h)
+	lists := r.snapshot()
+	if len(lists) == 0 {
+		ui.Text(c, "加载榜单…").FontSize(12 * uiScale).TextColor(clrMuted)
+		return
+	}
+	limit := 20 // 详情页全量
+	if preview {
+		limit = 3 // 来源页预览 1-2 首
+	}
+	for _, list := range lists {
+		ui.Text(c, fmt.Sprintf("%s · %s", list.Platform, list.Name)).
+			FontSize(13 * uiScale).Bold().TextColor(clrText).PaddingY(4 * uiScale)
+		n := len(list.Songs)
+		if n > limit {
+			n = limit
+		}
+		for i := 0; i < n; i++ {
+			s := list.Songs[i]
+			if chip(c, fmt.Sprintf("%d. %s — %s", i+1, s.Title, s.Artist)).Clicked() {
+				h.PlayRef(s.Source, s.ID, s.Title, s.Artist, s.Cover)
+			}
+		}
+	}
+}
+
+// 注册两个公共榜单插件（无登录；具体启用/顺序由插件页统一管理）。
+func init() {
+	plugin.RegisterRecommend(&chartRecommend{fetcher: neteaseChart{}})
+	plugin.RegisterRecommend(&chartRecommend{fetcher: kugouChart{}})
+}
+

@@ -174,7 +174,11 @@ func (a *app) pauseLocalForCast() {
 	}
 }
 
-func (a *app) Invalidate()         { a.win.Invalidate() }
+func (a *app) Invalidate() {
+	if a.win != nil { // 测试环境/初始化前 win 为 nil，异步回调不能崩
+		a.win.Invalidate()
+	}
+}
 func (a *app) Resp(a_, b float32) float32 { return a.resp(a_, b) }
 
 // 编译期断言：app 实现 TargetPanelHost。

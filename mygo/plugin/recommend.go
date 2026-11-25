@@ -21,6 +21,9 @@ type Recommend interface {
 type RecommendHost interface {
 	// Play 播放歌曲（songID=音源 id，title=标题；插件调）
 	Play(songID, title, cover string)
+	// PlayRef 按真实来源播放（榜单/跨源插件用；source 是音源 key，id 是该音源内 id）。
+	// 旧 Play 把 songID 塞进 BVID 只适合 B站；榜单是跨源的，必须带 source。
+	PlayRef(source, id, title, artist, cover string)
 	// Invalid 触发重绘（插件异步取数据后调）
 	Invalidate()
 	// Resp 分辨率适配（插件布局用）

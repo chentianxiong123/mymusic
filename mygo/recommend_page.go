@@ -75,5 +75,13 @@ func (a *app) Play(songID, title, cover string) {
 	a.play(bilibili.SearchItem{BVID: songID, Title: title, Pic: cover})
 }
 
+// PlayRef 按真实来源播放（榜单等跨源推荐用）。source 是音源 key，id 是该音源内 id。
+func (a *app) PlayRef(source, id, title, artist, cover string) {
+	if source == "" {
+		source = "bilibili"
+	}
+	a.play(bilibili.SearchItem{BVID: id, Title: title, Author: artist, Pic: cover, Typename: source})
+}
+
 // 编译期断言：app 实现 RecommendHost（Invalidate/Resp 已在 target_panel_host.go 声明）。
 var _ plugin.RecommendHost = (*app)(nil)
