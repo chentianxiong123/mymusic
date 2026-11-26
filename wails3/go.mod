@@ -19,6 +19,7 @@ require (
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
+	github.com/yanmingcao/opencc-go v1.0.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
