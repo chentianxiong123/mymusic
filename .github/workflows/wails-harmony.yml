@@ -39,7 +39,7 @@ env:
 
 jobs:
   build:
-    name: 构建 OpenHarmony HAP (amd64 + arm64)
+    name: 构建 HAP (OpenHarmony + HarmonyOS, amd64 + arm64)
     runs-on: [self-hosted, windows, harmony]
     timeout-minutes: 60
     steps:
@@ -99,6 +99,26 @@ jobs:
           Copy-Item "$env:APP_REPO\.wails\build\default\openharmony-arm64\artifacts\homecast.hap" `
                     "$env:APP_REPO\bin\homecast-openharmony-arm64.hap" -Force
           Pop-Location
+      - name: 构建 harmonyos/arm64 HAP（商用 HarmonyOS）
+        shell: pwsh
+        run: |
+          $env:GOROOT = $env:HMOSTC
+          $env:PATH = "$env:HMOSTC\bin;$env:PATH"
+          Push-Location $env:APP_REPO
+          & "$env:WAILS3_REPO\v3\wails3.exe" build -targets harmonyos/arm64 -formats hos_hap -force
+          if ($LASTEXITCODE -ne 0) { throw "harmonyos arm64 HAP 构建失败" }
+          Pop-Location
+
+      - name: 构建 harmonyos/amd64 HAP（商用 HarmonyOS）
+        shell: pwsh
+        run: |
+          $env:GOROOT = $env:HMOSTC
+          $env:PATH = "$env:HMOSTC\bin;$env:PATH"
+          Push-Location $env:APP_REPO
+          & "$env:WAILS3_REPO\v3\wails3.exe" build -targets harmonyos/amd64 -formats hos_hap -force
+          if ($LASTEXITCODE -ne 0) { throw "harmonyos amd64 HAP 构建失败" }
+          Pop-Location
+
 
       - name: 归集产物（双 ABI + 校验）
         shell: pwsh
@@ -108,6 +128,10 @@ jobs:
                     release\homecast-openharmony-amd64.hap -Force
           Copy-Item "$env:APP_REPO\bin\homecast-openharmony-arm64.hap" `
                     release\homecast-openharmony-arm64.hap -Force
+          Copy-Item "$env:APP_REPO\.wails\build\default\harmonyos-amd64\artifacts\homecast.hap" `
+                    release\homecast-harmonyos-amd64.hap -Force
+          Copy-Item "$env:APP_REPO\.wails\build\default\harmonyos-arm64\artifacts\homecast.hap" `
+                    release\homecast-harmonyos-arm64.hap -Force
           Get-ChildItem release\*.hap | ForEach-Object {
             if ($_.Length -lt 1MB) { throw "HAP 过小: $($_.Name)" }
             Write-Host "$($_.Name)  $([math]::Round($_.Length/1MB,1)) MB"
