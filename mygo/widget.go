@@ -90,13 +90,13 @@ func (a *app) lyricView(c *ui.Context) {
 				if iconButton2(c, icPrev, 26, clrMuted).Clicked() {
 					go a.prev()
 				}
-				if playCircle(c, a.playing, 32*uiScale).Clicked() {
+				if playCircle(c, a.playing, 32).Clicked() {
 					a.togglePlay()
 				}
 				if iconButton2(c, icNext, 26, clrMuted).Clicked() {
 					go a.next()
 				}
-				if heartButton(c, a.isFav(), 26*uiScale, func() {}).Clicked() {
+				if heartButton(c, a.isFav(), 26, func() {}).Clicked() {
 					a.toggleFav()
 				}
 				if iconButton2(c, icClose, 26, clrMuted).Clicked() {

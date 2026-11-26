@@ -138,7 +138,7 @@ func (a *app) cover(c *ui.Context, bvid, url string, size float32) ui.Element {
 
 // coverTagged 圆角封面（hoverLyric=true 时 hover 显示「歌词」标签，对齐主线 d-cover group-hover）。
 func (a *app) coverTagged(c *ui.Context, bvid, url string, size float32, hoverLyric bool) ui.Element {
-	box := ui.Box(c).Size(size, size)
+	box := ui.Box(c).Size(size*uiScale, size*uiScale) // 统一约定：size=逻辑像素，内部乘 uiScale
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Clip(r, 8*uiScale, func() { // 封面小圆角方形（原 size/2=圆形，用户要求改正方形）
 			if img, ok := a.covers[bvid]; ok {
@@ -290,8 +290,9 @@ func (a *app) progressBarSized(c *ui.Context, frac float64, h float32, seek bool
 
 // playCircle 大号圆形播放/暂停按钮。
 func playCircle(c *ui.Context, playing bool, size float32) ui.Element {
-	// 播放按钮 = 圆形（音乐播放器通用语汇，主操作视觉焦点）
-	box := ui.Box(c).Size(size, size).Radius(size / 2)
+	// 统一约定：size=逻辑像素，内部乘 uiScale（调用处别再乘）
+	sz := size * uiScale
+	box := ui.Box(c).Size(sz, sz).Radius(sz / 2)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		p.FillGradient(r, grad(), r.H/2)
 		// 按下：压暗；hover：提亮（播放主按钮反馈）
@@ -516,7 +517,8 @@ func searchBtn(c *ui.Context, label string) ui.Element {
 // playIconButton 列表行内的播放图标按钮（圆形 —— 播放类图标统一圆形，
 // 与主控 playCircle 一致；其它操作按钮如 ♥ ✕ 用方形 iconButton2）。
 func playIconButton(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Element {
-	box := ui.Box(c).Size(size, size).Radius(size / 2)
+	sz := size * uiScale // 统一约定：size=逻辑像素，内部乘 uiScale
+	box := ui.Box(c).Size(sz, sz).Radius(sz / 2)
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		if box.Pressed() {
 			p.Fill(r, clrTrackBar, r.H/2)
