@@ -216,6 +216,8 @@ func (a *app) searchNotFound(c *ui.Context) {
 // 每个源一个独立区块（视觉对齐 pluginGroup 分区：背景 clrField 圆角 + 色条标题 + 数量）。
 // 插件（音源）一注册 → plugin.SourceNames() 多一个 → 搜索页自动多一个分区，UI 零改动。
 func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
+	// 呈现层：过滤+排序只作用于本页（数据/分页仍按 API 原样）
+	shown := presentSongs(grp.songs)
 	// 分区区块容器（背景 clrField，圆角，内边距；对齐 pluginGroup 视觉）
 	section := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
 	section.Children(func() {
@@ -225,10 +227,17 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(pluginColor("source")) // 色条（细，克制）
 				ui.Text(c, sourceShortName(grp.name)).FontSize(13 * uiScale).Bold().TextColor(clrText)
 				ui.Spacer(c).Grow(1)
-				ui.Text(c, fmt.Sprintf("%d 首", len(grp.songs))).FontSize(11 * uiScale).TextColor(clrMuted)
+				if len(shown) < len(grp.songs) {
+					ui.Text(c, fmt.Sprintf("显示 %d / 本页 %d 首", len(shown), len(grp.songs))).FontSize(11 * uiScale).TextColor(clrMuted)
+				} else {
+					ui.Text(c, fmt.Sprintf("%d 首", len(shown))).FontSize(11 * uiScale).TextColor(clrMuted)
+				}
 			})
 			// 该源歌曲行（复用 listRow：双击播放/收藏/播放按钮）
-			for _, r := range grp.songs {
+			if len(shown) == 0 && len(grp.songs) > 0 {
+				ui.Text(c, "本页内容已过滤").FontSize(12*uiScale).TextColor(clrMuted).AlignSelf(ui.Center)
+			}
+			for _, r := range shown {
 				a.listRow(c, bilibili.SearchItem{
 					BVID: r.ID, Title: r.Title, Author: r.Artist, Pic: r.Cover,
 					Duration: r.Duration, Typename: r.Typename, Play: 0, Src: grp.name,

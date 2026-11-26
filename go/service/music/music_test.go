@@ -64,7 +64,7 @@ func searchBodyWith(items []map[string]any) string {
 	return string(b)
 }
 
-// TestMusicServiceSearch 搜索排序：权重升序 + 同权重时长升序 + 无时长滤掉
+// TestMusicServiceSearch 搜索数据契约：纯 API 透传（不过滤、不排序；过滤/排序在 UI 单页）
 func TestMusicServiceSearch(t *testing.T) {
 	client := fakeBili(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -77,28 +77,18 @@ func TestMusicServiceSearch(t *testing.T) {
 		})))
 	})
 	m := &MusicService{Client: client}
-	res, err := m.SearchRaw("周杰伦", 1, 30) // 测排序：用未过滤的 SearchRaw（教程 BV-E 才在结果里）
+	res, err := m.Search("周杰伦", 1, 30) // 纯透传：5 条原样、顺序不变、total=5
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
-	// 干净标题"晴天"(0) 与 "告白气球"(0) 排序：同权重时长升序 → 告白气球150s 晴天150s？
-	// 2:30=150s 3:00=180s → 晴天(150) 在 告白气球(180) 前
 	got := make([]string, len(res.List))
 	for i, it := range res.List {
 		got[i] = it.BVID
 	}
-	// 期望排序（rank 升序，同 rank 时长升序）：
-	// BV-D 晴天 rank0/150s ← BV-B 告白气球 rank0/180s（4:00=240 晴天150 在先）
-	//   —— 等等：BV-B 3:00=180 > 晴天150 → 晴天先
-	// BV-A 【4K】… rank3（符号+包装词）/240s ← BV-E 教学 rank5？
-	//   教学 = 符号0 + 教学+2 = 2？【教程】没有——'零基础教程' 无括号 → 教学+2 → rank2
-	// 重新算：BV-A: 【4K】=【】2符号 + 4k包装词 = 3；BV-E: 音乐教学+2 = 2
-	// 排序：BV-D(0)/BV-B(0) → 晴天(150) 告白气球(180)
-	//      → BV-E(2) → BV-A(3)
-	// 滤掉 BV-C（无时长）
-	want := []string{"BV-D", "BV-B", "BV-E", "BV-A"}
-	if len(got) != len(want) {
-		t.Fatalf("结果=%v, want %v（BV-C 无时长应被滤掉）", got, want)
+	// 接口不碰数据：5 条原样、API 顺序、total=5（含无时长/教学等"非歌"，交给 UI 过滤）
+	want := []string{"BV-A", "BV-B", "BV-C", "BV-D", "BV-E"}
+	if len(got) != len(want) || res.Total != 5 {
+		t.Fatalf("结果=%v total=%d, want %v total=5（接口应原样透传）", got, res.Total, want)
 	}
 	for i := range want {
 		if got[i] != want[i] {

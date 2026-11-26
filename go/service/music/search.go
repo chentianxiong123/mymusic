@@ -1,7 +1,6 @@
 package music
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -48,6 +47,13 @@ func ParseDurationSec(s string) int {
 	return 0
 }
 
+// SongRank 单页排序分（导出供 UI 呈现层用）：越低越靠前。
+// 标题包装度（符号/包装词）越多越沉底；过长(>600s)降权。
+// 注意：这是排序信号不是过滤——过滤在 filter.go（IsSong），两者都在 UI 单页做，不进数据接口。
+func SongRank(typename, title string, durationSec int) int {
+	return searchRank(MusicItem{Title: title, Typename: typename, DurationSec: durationSec})
+}
+
 // searchRank 加权分（对齐 X11 python 版 _rank）：越低越靠前。
 // 标题包装度（符号/包装词）越多越沉底；过长(>600s)降权。
 // 注意：这是"同是歌"内部的排序信号，不是过滤——过滤在 filter.go（IsSong）。
@@ -71,19 +77,16 @@ func searchRank(it MusicItem) int {
 	return pkg
 }
 
-// Search 搜索 → 过滤非歌 + rank 加权排序（同权重内短歌优先）。
-// 默认开启歌曲过滤（cover/伴奏/翻唱/电台/教学/合集等剔除，见 filter.go IsSong）。
-// 要拿未过滤的原始结果，用 SearchRaw。
+// Search 搜索（纯 API 透传）——与 SearchRaw 相同，不过滤、不排序。
+// 过滤/排序是 UI 单页的呈现行为（调用 IsSong / SongRank），不污染数据接口；
+// Total 原样取 API 的 numResults，分页严格按 API。
 func (m *MusicService) Search(keyword string, page, pageSize int) (*MusicSearchResult, error) {
-	res, err := m.SearchRaw(keyword, page, pageSize)
-	if err != nil {
-		return nil, err
-	}
-	res.List = FilterSongs(res.List, true)
-	return res, nil
+	return m.SearchRaw(keyword, page, pageSize)
 }
 
-// SearchRaw 搜索原始结果（不过滤，仅时长解析 + rank 排序）。过滤逻辑见 filter.go。
+// SearchRaw 搜索原始结果——纯 API 透传（类型转换 + 标题清洗），不过滤、不排序。
+// 过滤（filter.go IsSong）和排序（SongRank）都是 UI 单页的呈现行为，不污染数据接口。
+// Total 原样取 API 的 numResults，与 List 同口径；分页严格按 API。
 func (m *MusicService) SearchRaw(keyword string, page, pageSize int) (*MusicSearchResult, error) {
 	res, err := m.Client.Search(keyword, page, pageSize)
 	if err != nil {
@@ -102,20 +105,5 @@ func (m *MusicService) SearchRaw(keyword string, page, pageSize int) (*MusicSear
 			Typename:    it.Typename,
 		})
 	}
-	// 时长解析失败滤掉（对齐 python sec>0）；rank+时长升序
-	filtered := items[:0]
-	for _, it := range items {
-		if it.DurationSec > 0 {
-			filtered = append(filtered, it)
-		}
-	}
-	items = filtered
-	sort.SliceStable(items, func(i, j int) bool {
-		ri, rj := searchRank(items[i]), searchRank(items[j])
-		if ri != rj {
-			return ri < rj
-		}
-		return items[i].DurationSec < items[j].DurationSec
-	})
 	return &MusicSearchResult{Total: res.NumResults, List: items}, nil
 }
