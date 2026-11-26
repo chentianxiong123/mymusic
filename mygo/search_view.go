@@ -243,13 +243,32 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 					Duration: r.Duration, Typename: r.Typename, Play: 0, Src: grp.name,
 				})
 			}
-			// 该源独立分页：sourcePage 返回 1 基（给 API），pagerButtons 收 0 基（UI）→ 传入减 1、回调加 1。
-			if grp.total > srcSearchSize(grp.name) {
-				page := a.sourcePage(grp.name) - 1 // UI 0 基
-				pageCount := (grp.total + srcSearchSize(grp.name) - 1) / srcSearchSize(grp.name)
-				a.pagerButtons(c, page, pageCount, func(p int) {
-					a.searchPages[grp.name] = p // searchPages 存 0 基，sourcePage 会 +1 转 API 1 基
-					go a.search()
+			// 该源独立分页：sourcePage 返回 1 基（给 API），UI 用 0 基 → 传入减 1、回调存 0 基。
+			size := srcSearchSize(grp.name)
+			goPage := func(p int) {
+				a.searchPages[grp.name] = p
+				go a.search()
+			}
+			if grp.total > size {
+				// 有真实 total → 页码按钮（页数 = API total / size，严格按 API）
+				page := a.sourcePage(grp.name) - 1
+				pageCount := (grp.total + size - 1) / size
+				a.pagerButtons(c, page, pageCount, goPage)
+			} else if grp.total == 0 && len(grp.songs) >= size {
+				// total=0 = API 未给总数（如 Audius/ccMixter）→ 只给上一页/下一页，不假装有页码
+				ui.Row(c).AlignSelf(ui.Center).AlignItems(ui.Center).Gap(10 * uiScale).PaddingY(8 * uiScale).Children(func() {
+					page := a.sourcePage(grp.name) - 1
+					if page > 0 {
+						if iconButton2(c, icChevL, 28, clrText).Clicked() {
+							goPage(page - 1)
+						}
+					} else {
+						iconButton2(c, icChevL, 28, clrMuted)
+					}
+					ui.Text(c, fmt.Sprintf("第 %d 页", page+1)).FontSize(11 * uiScale).TextColor(clrMuted)
+					if iconButton2(c, icChevR, 28, clrText).Clicked() {
+						goPage(page + 1)
+					}
 				})
 			}
 		})

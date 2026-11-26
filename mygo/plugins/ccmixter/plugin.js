@@ -35,7 +35,9 @@ function search(ctx) {
       vip: false, // CC 免费
     };
   }).filter(function (s) { return s.id; });
-  return { total: songs.length, songs: songs };
+  // ccMixter API 不返回总数（uploads[] 即全部），offset 分页可用。
+  // total=0 = 未知总数：UI 显示「下一页」不显示页码。
+  return { total: 0, songs: songs };
 }
 
 // 取流：download_url 直链（免登录）。

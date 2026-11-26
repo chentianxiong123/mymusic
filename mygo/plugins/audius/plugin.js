@@ -40,7 +40,9 @@ function search(ctx) {
       vip: false, // 免费
     };
   });
-  return { total: songs.length, songs: songs };
+  // Audius 搜索 API 不返回总数（实测只有 data[]），offset 分页可用。
+  // total=0 = 未知总数：UI 显示「下一页」不显示页码（诚实，不拿本页条数冒充总数）。
+  return { total: 0, songs: songs };
 }
 
 // 取流：/v1/tracks/{id}/stream（免登录直链；直接返回 URL，播放链路下载）。
