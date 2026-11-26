@@ -205,7 +205,9 @@ func TestWebDAVPluginSearch(t *testing.T) {
   <D:response><D:href>/dav/%E6%99%B4%E5%A4%A9.mp3</D:href><D:propstat><D:prop><D:resourcetype/></D:prop></D:propstat></D:response>
   <D:response><D:href>/dav/sub/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>
 </D:multistatus>`
+	var propfindCount int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		propfindCount++
 		if r.Method != "PROPFIND" {
 			t.Errorf("want PROPFIND, got %s", r.Method)
 		}
@@ -254,5 +256,14 @@ func TestWebDAVPluginSearch(t *testing.T) {
 	}
 	if total != 2 || len(songs) != 2 {
 		t.Fatalf("全部: total=%d songs=%d, want 2/2 (递归子目录)", total, len(songs))
+	}
+	// 缓存：第二次搜索不应重新 PROPFIND（第一次 2 次调用 = 根 + 子目录）
+	callsAfterFirst := propfindCount
+	_, _, err = src.Search("晴天", 1, 40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if propfindCount != callsAfterFirst {
+		t.Errorf("缓存未命中：第二次搜索又发了 PROPFIND（%d → %d）", callsAfterFirst, propfindCount)
 	}
 }

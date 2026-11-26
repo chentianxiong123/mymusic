@@ -23,6 +23,12 @@ var meta = {
 
 var AUDIO_EXT = [".mp3", ".m4a", ".flac", ".wav", ".aac", ".ogg", ".opus", ".wma", ".ape", ".mp4"];
 
+// 目录列表缓存（内存，不落盘）：PROPFIND 拉全量很慢，翻页/换关键词都复用。
+// key = 服务器地址 + 音乐目录；TTL 5 分钟（host.now() 毫秒）。
+// 搜索词变化不失效——过滤是本地做的，缓存的是原始文件列表。
+var dirCache = { key: "", files: [], at: 0 };
+var CACHE_TTL = 5 * 60 * 1000;
+
 // search：PROPFIND Depth:1 逐目录递归（WebDAV 标准），拉全量音频 → 关键词匹配 → 本地切片。
 function search(ctx) {
   var base = ctx.config.get("server_url", "").replace(/\/+$/, "");
@@ -30,9 +36,18 @@ function search(ctx) {
   var root = ctx.config.get("music_path", "").replace(/^\/+/, "");
   var kw = (ctx.query || "").toLowerCase();
 
-  // 递归列目录（限深 6 层 + 最多 2000 条，防误配大盘拉爆）
-  var files = [];
-  walk(base, root, ctx, 0, files, { n: 0 });
+  // 目录列表：命中缓存则复用（翻页/换关键词不重拉），否则 PROPFIND 递归全量
+  var cacheKey = base + "|" + root;
+  var files;
+  if (dirCache.key === cacheKey && dirCache.files.length > 0 && (host.now() - dirCache.at) < CACHE_TTL) {
+    files = dirCache.files;
+  } else {
+    files = [];
+    walk(base, root, ctx, 0, files, { n: 0 }); // 限深 6 层 + 2000 条防误配拉爆
+    dirCache.key = cacheKey;
+    dirCache.files = files;
+    dirCache.at = host.now();
+  }
   // 关键词匹配（文件名/路径子串）
   var matched = files.filter(function (f) {
     return !kw || f.path.toLowerCase().indexOf(kw) >= 0;
