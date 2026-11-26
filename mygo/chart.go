@@ -320,7 +320,7 @@ func (r *chartPanel) Render(c *ui.Context, a *app, preview bool) {
 	}
 	for i := 0; i < n; i++ {
 		s := selected.Songs[i]
-		statRow(c, a.resp(520, 340)*uiScale, fmt.Sprintf("%d.", i+1), s.Title+" — "+s.Artist, "", true, func() {
+		statRow(c, fmt.Sprintf("%d.", i+1), s.Title+" — "+s.Artist, "", true, func() {
 			playRef(s.Source, s.ID, s.Title, s.Artist, s.Cover)
 		})
 	}
