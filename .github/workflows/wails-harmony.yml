@@ -1,71 +1,157 @@
-# wails 鸿蒙壳资产检查（端：harmony）—— 永远手动触发。
-# GitHub runner 无 DevEco/HarmonyOS SDK/模拟器，跑不了真 HAP 构建；
-# 这里只守壳工程关键资产与历史根因修复，防回归；真机构建按 build-harmony.md 在本机跑。
-name: wails 鸿蒙检查
+# wails3 原生鸿蒙后端：真机 HAP 构建 + 发布（手动触发）。
+#
+# 与旧的 wails-harmony.yml 不同：这里不再只做 grep 静态检查，而是用我们
+# fork 的 wails3 CLI 真正构建 OpenHarmony HAP（amd64 模拟器 + arm64 真机），
+# 两个 ABI 一次产出并发布到 GitHub Release。
+#
+# 前提：GitHub 托管 runner 没有 DevEco Studio / OHOS SDK / ohos-go 工具链，
+# 所以本 job 跑在自托管 Windows runner 上（labels: [self-hosted, windows, harmony]）。
+# 该机器需具备：
+#   - DevEco Studio 的 OpenHarmony SDK（DEVECO_SDK_HOME，默认见下）
+#   - ohos-go 工具链（GOROOT / GOTOOLCHAIN=local，见 env）
+#   - fork 的 wails3 源码（WAILS3_REPO）与 mymusic 原生桥工程（APP_REPO）
+#
+# 关键点（实测踩坑，勿删）：
+#   - CLI 必须 WAILS_EXP_USE_WAKE=1 才有 openharmony build target 和 deploy/logs
+#   - GOTOOLCHAIN 必须 local，否则 stock go1.26 不支持 openharmony c-shared
+#   - PATH 必须把 hmos toolchain 的 bin 放最前（Windows 用 ';' 分隔）
+#   - hvigor 用 DEVECO_SDK_HOME 下的 sdk/default/openharmony/native
+name: wails3 鸿蒙原生构建与发布
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（release tag = v<version>）'
+        required: true
+        default: '2026.11.26'
+
+permissions:
+  contents: write
+
+env:
+  WAILS_EXP_USE_WAKE: '1'
+  DEVECO_SDK_HOME: 'C:\Program Files\Huawei\DevEco Studio\sdk'
+  WAILS3_REPO: 'C:\Users\a1\wails3'
+  APP_REPO: 'C:\Users\a1\mymusic-wails-oh'
+  HMOSTC: 'C:\Users\a1\sdk\go1.27.4-hmos\toolchains\81bad8b625b9c845961010ea2af776a3cb426b4a-windows-amd64'
+  GOTOOLCHAIN: 'local'
 
 jobs:
-  checks:
-    name: 鸿蒙壳资产检查（防回归）
-    runs-on: ubuntu-latest
+  build:
+    name: 构建 HAP (OpenHarmony + HarmonyOS, amd64 + arm64)
+    runs-on: [self-hosted, windows, harmony]
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - name: 壳工程关键文件齐全
+      - name: 校验本机工具链
+        shell: pwsh
         run: |
-          set -euo pipefail
-          H=wails3/build/harmony
-          for f in \
-            $H/AppScope/app.json5 \
-            $H/build-profile.json5 \
-            $H/entry/build-profile.json5 \
-            $H/entry/src/main/cpp/CMakeLists.txt \
-            $H/entry/src/main/cpp/napi_init.cpp \
-            $H/entry/src/main/cpp/types/libentry/Index.d.ts \
-            $H/entry/src/main/ets/entryability/EntryAbility.ets \
-            $H/entry/src/main/ets/pages/Index.ets \
-            $H/entry/src/main/module.json5 \
-            $H/entry/src/main/resources/base/profile/network_config.json; do
-            test -f "$f" || { echo "MISSING: $f"; exit 1; }
-          done
-          echo "壳工程文件齐全"
-      - name: 防回归：CMake 不带绝对路径（SKIP_RPATH + IMPORTED_NO_SONAME）
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path "$env:DEVECO_SDK_HOME\default\openharmony\native\llvm\bin\clang.exe")) {
+            throw "DEVECO SDK 缺 clang: $env:DEVECO_SDK_HOME"
+          }
+          if (-not (Test-Path "$env:HMOSTC\bin\go.exe")) { throw "hmos toolchain 不存在: $env:HMOSTC" }
+          if (-not (Test-Path "$env:WAILS3_REPO\v3\wails3.exe")) { throw "fork CLI 不存在，请先编译 wails3.exe" }
+          if (-not (Test-Path "$env:APP_REPO\wails.yaml")) { throw "原生桥工程不存在: $env:APP_REPO" }
+          Write-Host "工具链检查通过"
+
+      - name: 同步前端资源修复（Tailwind 本地化）
+        shell: pwsh
         run: |
-          set -euo pipefail
-          C=wails3/build/harmony/entry/src/main/cpp/CMakeLists.txt
-          grep -q 'CMAKE_SKIP_RPATH' "$C" || { echo '缺 CMAKE_SKIP_RPATH'; exit 1; }
-          grep -q 'IMPORTED_NO_SONAME' "$C" || { echo '缺 IMPORTED_NO_SONAME'; exit 1; }
-          echo "CMake 防绝对路径两开关在位"
-      - name: 防回归：NAPI 命名导出 / ArkTS 命名导入对齐
+          # shell.html 引用 /assets/tailwind.js，tailwind.js 须在 core 的 embed 目录里。
+          # 这一步只做存在性校验；资源随 go:embed 编进 libwails_go.so。
+          $core = (Select-String -Path "$env:APP_REPO\go.mod" -Pattern 'replace homecast => (.+)').Matches[0].Groups[1].Value.Trim()
+          if (-not (Test-Path "$core\web\assets\tailwind.js")) { throw "缺 web/assets/tailwind.js（Tailwind 未本地化，鸿蒙端会没 CSS）" }
+          if (-not (Select-String -Path "$core\web\templates\shell.html" -Pattern '/assets/tailwind.js' -Quiet)) {
+            throw "shell.html 仍引用外部 tailwind CDN"
+          }
+          Write-Host "Tailwind 本地资源校验通过: $core"
+
+      - name: 重编译 fork CLI（含最新生成器修复）
+        shell: pwsh
         run: |
-          set -euo pipefail
-          D=wails3/build/harmony/entry/src/main/cpp/types/libentry/Index.d.ts
-          A=wails3/build/harmony/entry/src/main/ets/entryability/EntryAbility.ets
-          grep -q 'export const startServer' "$D" || { echo 'Index.d.ts 须为命名导出'; exit 1; }
-          grep -q "import { startServer } from 'libentry.so'" "$A" || { echo 'EntryAbility 须命名导入'; exit 1; }
-          echo "NAPI 导出/导入对齐"
-      - name: 防回归：INTERNET 权限 + 明文 HTTP 允许（127.0.0.1）
+          $env:GOROOT = $env:HMOSTC
+          $env:PATH = "$env:HMOSTC\bin;$env:PATH"
+          Push-Location "$env:WAILS3_REPO\v3"
+          & go build -o wails3.exe ./cmd/wails3
+          if ($LASTEXITCODE -ne 0) { throw "wails3 CLI 编译失败" }
+          Pop-Location
+
+      - name: 构建 amd64 HAP
+        shell: pwsh
         run: |
-          set -euo pipefail
-          M=wails3/build/harmony/entry/src/main/module.json5
-          N=wails3/build/harmony/entry/src/main/resources/base/profile/network_config.json
-          grep -q 'ohos.permission.INTERNET' "$M" || { echo '缺 INTERNET 权限'; exit 1; }
-          grep -q 'cleartextTrafficPermitted' "$N" || { echo '缺明文 HTTP 配置'; exit 1; }
-          echo "网络权限齐备"
-      - name: Go 鸿蒙入口存在且导出 StartServer
+          $env:GOROOT = $env:HMOSTC
+          $env:PATH = "$env:HMOSTC\bin;$env:PATH"
+          Push-Location $env:APP_REPO
+          & "$env:WAILS3_REPO\v3\wails3.exe" build -targets openharmony/amd64 -formats hap -force
+          if ($LASTEXITCODE -ne 0) { throw "amd64 HAP 构建失败" }
+          Pop-Location
+
+      - name: 构建 arm64 HAP
+        shell: pwsh
         run: |
-          set -euo pipefail
-          G=go/cmd/server/main_harmony.go
-          test -f "$G" || { echo "MISSING: $G"; exit 1; }
-          grep -q '//go:build openharmony' "$G" || { echo '缺 openharmony build tag'; exit 1; }
-          grep -q '//export StartServer' "$G" || { echo '缺 StartServer 导出'; exit 1; }
-          echo "Go 鸿蒙入口在位"
-      - name: 构建文档为复现手册（含根因与步骤）
+          $env:GOROOT = $env:HMOSTC
+          $env:PATH = "$env:HMOSTC\bin;$env:PATH"
+          Push-Location $env:APP_REPO
+          & "$env:WAILS3_REPO\v3\wails3.exe" build -targets openharmony/arm64 -formats hap -force
+          if ($LASTEXITCODE -ne 0) { throw "arm64 HAP 构建失败" }
+          # 两次 build 都写到 bin/homecast.hap，这里立即另存避免互相覆盖
+          Copy-Item "$env:APP_REPO\.wails\build\default\openharmony-arm64\artifacts\homecast.hap" `
+                    "$env:APP_REPO\bin\homecast-openharmony-arm64.hap" -Force
+          Pop-Location
+      - name: 构建 harmonyos/arm64 HAP（商用 HarmonyOS）
+        shell: pwsh
         run: |
-          set -euo pipefail
-          D=wails3/build-harmony.md
-          for k in '复现步骤' 'CMakeLists' 'DT_NEEDED' 'sign-homecast' 'hvigorw'; do
-            grep -q "$k" "$D" || { echo "build-harmony.md 缺关键词: $k"; exit 1; }
-          done
-          echo "复现手册完整"
+          $env:GOROOT = $env:HMOSTC
+          $env:PATH = "$env:HMOSTC\bin;$env:PATH"
+          Push-Location $env:APP_REPO
+          & "$env:WAILS3_REPO\v3\wails3.exe" build -targets harmonyos/arm64 -formats hos_hap -force
+          if ($LASTEXITCODE -ne 0) { throw "harmonyos arm64 HAP 构建失败" }
+          Pop-Location
+
+      - name: 构建 harmonyos/amd64 HAP（商用 HarmonyOS）
+        shell: pwsh
+        run: |
+          $env:GOROOT = $env:HMOSTC
+          $env:PATH = "$env:HMOSTC\bin;$env:PATH"
+          Push-Location $env:APP_REPO
+          & "$env:WAILS3_REPO\v3\wails3.exe" build -targets harmonyos/amd64 -formats hos_hap -force
+          if ($LASTEXITCODE -ne 0) { throw "harmonyos amd64 HAP 构建失败" }
+          Pop-Location
+
+
+      - name: 归集产物（双 ABI + 校验）
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item "$env:APP_REPO\.wails\build\default\openharmony-amd64\artifacts\homecast.hap" `
+                    release\homecast-openharmony-amd64.hap -Force
+          Copy-Item "$env:APP_REPO\bin\homecast-openharmony-arm64.hap" `
+                    release\homecast-openharmony-arm64.hap -Force
+          Copy-Item "$env:APP_REPO\.wails\build\default\harmonyos-amd64\artifacts\homecast.hap" `
+                    release\homecast-harmonyos-amd64.hap -Force
+          Copy-Item "$env:APP_REPO\.wails\build\default\harmonyos-arm64\artifacts\homecast.hap" `
+                    release\homecast-harmonyos-arm64.hap -Force
+          Get-ChildItem release\*.hap | ForEach-Object {
+            if ($_.Length -lt 1MB) { throw "HAP 过小: $($_.Name)" }
+            Write-Host "$($_.Name)  $([math]::Round($_.Length/1MB,1)) MB"
+          }
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: homecast-hap
+          path: release/*.hap
+          if-no-files-found: error
+
+      - name: 发布 Release（create || upload）
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ github.event.inputs.version }}"
+          cd release
+          gh release create "$TAG" *.hap --generate-notes \
+            --title "mymusic OpenHarmony HAP $TAG" 2>/dev/null \
+            || gh release upload "$TAG" *.hap --clobber
+          echo "Release $TAG 已发布"

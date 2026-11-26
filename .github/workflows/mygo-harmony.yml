@@ -1,0 +1,140 @@
+# MyGo 鸿蒙版构建 + 发布（手动触发）。
+# 源码用别人维护的 fork：github.com/yuuko-1410/mygo-harmony（ohos-wire 分支）。
+# 本 workflow 只负责构建，源码我们不改、不维护、不提 issue。
+#
+# 前提：GitHub 托管 runner 没有 OHOS SDK / ohos-go 工具链，跑在自托管
+# Windows runner 上（labels: [self-hosted, windows, harmony]）。该机器需具备：
+#   - DevEco Studio OpenHarmony SDK（DEVECO_SDK_HOME）
+#   - sysit/ohos-go 工具链（带两处 OHOS 补丁，见下）及 clone 好的 mygo-harmony
+#
+# ohos-go 两处补丁（fork 的 tools/ohos-go/ 里有现成版）：
+#   ① *_openharmony.go/.s 缺 build tag → 加 //go:build openharmony
+#   ② hmfs 的 fallocate 返回 EACCES，Go linker 只容忍 EPERM/ENOTSUP
+#      → src/cmd/link/internal/ld/outbuf_mmap.go 也容忍 EACCES
+# 不重新打补丁；要求本机 OHOS_GO_ROOT 指向已打补丁的 ohos-go。
+name: mygo 鸿蒙构建
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（release tag = v<version>）'
+        required: true
+        default: '2026.11.26'
+
+permissions:
+  contents: write
+
+env:
+  DEVECO_SDK_HOME: 'C:\Program Files\Huawei\DevEco Studio\sdk'
+  MYGO_REPO: 'https://github.com/yuuko-1410/mygo-harmony.git'
+  MYGO_BRANCH: 'ohos-wire'
+  # 已打补丁的 ohos-go 根目录（bin/go 可用），本机自备
+  OHOS_GO_ROOT: 'C:\Users\a1\tools\ohos-go'
+
+jobs:
+  build:
+    name: 构建 MyGo OpenHarmony HAP (amd64 + arm64)
+    runs-on: [self-hosted, windows, harmony]
+    timeout-minutes: 90
+    steps:
+      - name: 校验本机工具链与源码
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path "$env:DEVECO_SDK_HOME\default\openharmony\native\llvm\bin\clang.exe")) {
+            throw "DEVECO SDK 缺 clang: $env:DEVECO_SDK_HOME"
+          }
+          if (-not (Test-Path "$env:OHOS_GO_ROOT\bin\go.exe")) { throw "ohos-go 不存在: $env:OHOS_GO_ROOT" }
+          Write-Host "工具链检查通过"
+
+      - name: 拉取 mygo-harmony 源码（ohos-wire）
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src = 'mygo-harmony'
+          if (Test-Path $src) {
+            Push-Location $src
+            git fetch origin
+            git checkout $env:MYGO_BRANCH
+            git reset --hard "origin/$env:MYGO_BRANCH"
+            Pop-Location
+          } else {
+            git clone --branch $env:MYGO_BRANCH --single-branch --depth 1 $env:MYGO_REPO $src
+          }
+          Push-Location $src
+          git log -1 --oneline
+          Pop-Location
+
+      - name: 确认 c-archive 工具链脚本
+        shell: pwsh
+        run: |
+          # mygo 用官方 c-archive 流程把 Go 编成 libapp.a，再链进 libentry.so。
+          # 实际命令以 fork 的 docs/ohos-port.md 与各 HAP shell 的 Taskfile 为准；
+          # 这里只校验脚本在位，不替 fork 维护构建逻辑。
+          $ErrorActionPreference = 'Stop'
+          $doc = 'mygo-harmony\docs\ohos-port.md'
+          if (-not (Test-Path $doc)) { throw "缺 $doc，fork 结构可能变了，需更新本 workflow" }
+          Write-Host "mygo 鸿蒙构建文档在位"
+
+      - name: 构建 libapp.a（Go c-archive）
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:GOROOT = $env:OHOS_GO_ROOT
+          $env:PATH = "$env:OHOS_GO_ROOT\bin;$env:PATH"
+          # Go 1.24+ 自举工具链的 openharmony 目标需要这两个 env
+          $env:GOOS = 'openharmony'
+          $env:CGO_ENABLED = '1'
+          $env:CC = "$env:DEVECO_SDK_HOME\default\openharmony\native\llvm\bin\clang.exe --target=x86_64-linux-ohos --sysroot=$env:DEVECO_SDK_HOME\default\openharmony\native\sysroot"
+          Push-Location 'mygo-harmony'
+          # 具体 demo/入口以 fork 为准；这里用 fork 自带的 ohos 构建脚本
+          if (Test-Path 'Taskfile.yml') {
+            & task ohos:libapp
+          } else {
+            go build -buildmode=c-archive -o libapp.a .
+          }
+          if ($LASTEXITCODE -ne 0) { throw "libapp.a 编译失败" }
+          Pop-Location
+
+      - name: 打包 HAP（hvigor assembleHap）
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location 'mygo-harmony'
+          $hvigor = "$env:DEVECO_SDK_HOME\..\tools\hvigor\bin\hvigorw.bat"
+          & $hvigor assembleHap --no-daemon
+          if ($LASTEXITCODE -ne 0) { throw "hvigor assembleHap 失败" }
+          Pop-Location
+
+      - name: 归集产物并校验
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          $hap = Get-ChildItem -Path 'mygo-harmony' -Recurse -Filter '*.hap' -ErrorAction SilentlyContinue |
+                 Where-Object { $_.FullName -match 'outputs' } | Select-Object -First 1
+          if (-not $hap) { throw "未找到 HAP 产物" }
+          Copy-Item $hap.FullName "release\mygo-openharmony-$(($hap.Name))" -Force
+          Get-ChildItem release\*.hap | ForEach-Object {
+            if ($_.Length -lt 1MB) { throw "HAP 过小: $($_.Name)" }
+            Write-Host "$($_.Name)  $([math]::Round($_.Length/1MB,1)) MB"
+          }
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: mygo-hap
+          path: release/*.hap
+          if-no-files-found: error
+
+      - name: 发布 Release（create || upload）
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ github.event.inputs.version }}-mygo-ohos"
+          cd release
+          gh release create "$TAG" *.hap --generate-notes \
+            --title "MyGo OpenHarmony HAP $TAG" 2>/dev/null \
+            || gh release upload "$TAG" *.hap --clobber
+          echo "Release $TAG 已发布"
