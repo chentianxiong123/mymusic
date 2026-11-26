@@ -45,14 +45,53 @@ func (a *app) statsPage(c *ui.Context) {
 				ui.Text(c, "还没有播放记录").FontSize(13 * uiScale).TextColor(clrMuted)
 			}
 
-			// 清空统计
-			clear := ui.Box(c).AlignSelf(ui.Start).Height(34 * uiScale).PaddingX(14 * uiScale).
-				Radius(8 * uiScale).Background(clrCard)
-			if clear.Clicked() {
-				a.savePlayStats(playStats{})
-			}
-			clear.Children(func() {
-				ui.Text(c, "清空统计").FontSize(12 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center)
+			// 清空统计（固定在列表底部、整行居中；必须二次确认）
+			ui.Row(c).AlignSelf(ui.Stretch).Justify(ui.Center).PaddingY(10 * uiScale).Children(func() {
+				clear := ui.Box(c).Height(34 * uiScale).PaddingX(16 * uiScale).
+					Radius(8 * uiScale).Background(clrCard).Justify(ui.Center)
+				if clear.Clicked() {
+					a.statsConfirmClear = true
+					a.win.Invalidate()
+				}
+				clear.Children(func() {
+					ui.Text(c, "清空统计").FontSize(12 * uiScale).TextColor(clrMuted)
+				})
+			})
+		})
+	})
+	if a.statsConfirmClear {
+		a.statsClearConfirmDialog(c)
+	}
+}
+
+// statsClearConfirmDialog 清空播放统计二次确认（响应式 dialogRect）。
+func (a *app) statsClearConfirmDialog(c *ui.Context) {
+	lx, ly, pw, ph := a.dialogRect(340*uiScale, 180*uiScale)
+	ui.Overlay(c, func() {
+		bg := ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+		bg.Draw(func(p *ui.Painter, r ui.Rect) { p.Fill(r, ui.RGBA(0, 0, 0, 0.45), 0) })
+		if bg.Clicked() {
+			a.statsConfirmClear = false
+			a.win.Invalidate()
+		}
+		box := ui.Box(c).Absolute().Left(lx).Top(ly).Width(pw).Height(ph).Radius(14*uiScale).Background(clrCard)
+		box.Draw(func(p *ui.Painter, r ui.Rect) { p.Fill(r, clrCard, 14) })
+		box.Children(func() {
+			ui.Column(c).Fill().Padding(18*uiScale).Gap(12*uiScale).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "清空播放统计？").FontSize(16*uiScale).Bold().TextColor(clrText)
+				ui.Text(c, "所有播放次数将被清除，不可恢复").FontSize(12*uiScale).TextColor(clrMuted)
+				ui.Spacer(c).Grow(1)
+				ui.Row(c).Gap(12*uiScale).Children(func() {
+					if chip(c, "取消").Clicked() {
+						a.statsConfirmClear = false
+						a.win.Invalidate()
+					}
+					if chip(c, "确认清空").Clicked() {
+						a.savePlayStats(playStats{})
+						a.statsConfirmClear = false
+						a.win.Invalidate()
+					}
+				})
 			})
 		})
 	})

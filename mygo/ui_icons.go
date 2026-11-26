@@ -72,7 +72,7 @@ func lyricToggleButton(c *ui.Context, size float32, on bool) ui.Element {
 		}
 	})
 	box.Children(func() {
-		ui.Text(c, "词").FontSize(size * 0.62).Bold().TextColor(col)
+		ui.Text(c, "词").FontSize(size * 0.65).Bold().TextColor(col)
 	})
 	return box
 }

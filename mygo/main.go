@@ -154,7 +154,8 @@ type app struct {
 	logAutoScroll  bool   // 自动刷新（默认开；仅日志页可见时生效）
 	logDetail      *LogEntry // 点日志行展开全文（nil=关）
 	logLimit       int    // 显示最近 N 条（0=全部；默认 300 防卡顿）
-	logConfirmClear bool  // 清空确认弹窗
+	logConfirmClear   bool  // 清空确认弹窗
+	statsConfirmClear bool  // 清空播放统计确认弹窗
 	logWatching    bool   // 日志页当前是否可见（控制刷新 goroutine 启停）
 	logWatchStop   chan struct{} // 停止刷新信号
 	playlist     []bilibili.SearchItem
