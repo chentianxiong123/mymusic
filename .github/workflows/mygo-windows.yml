@@ -27,6 +27,10 @@ jobs:
         run: |
           VER="$(jq -r .version mygo.json)"
           TAG="v${VER}"
-          gh release create "$TAG" build/windows-amd64/* build/windows-arm64/* --generate-notes \
-            --title "MyMusic $VER" 2>/dev/null \
-            || gh release upload "$TAG" build/windows-amd64/* build/windows-arm64/* --clobber
+          # 只传带架构标识的产物（两目录有 icon.png/install.sh 等同名文件，
+          # 一起传会因重复文件名报错退出、导致 arm64 产物漏传）
+          FILES="$(find build/windows-amd64 build/windows-arm64 -maxdepth 1 -type f \
+            \( -name '*windows-amd64*' -o -name '*windows-arm64*' -o -name '*update-windows*' \
+               -o -name '*.exe' \) | sort -u)"
+          gh release create "$TAG" $FILES --generate-notes --title "MyMusic $VER" 2>/dev/null \
+            || gh release upload "$TAG" $FILES --clobber
