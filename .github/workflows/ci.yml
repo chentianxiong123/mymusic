@@ -32,7 +32,7 @@ jobs:
           export PATH="$PATH:$(go env GOPATH)/bin"
           cd wails3 && wails3 build && cp bin/hcexp ../mymusic-linux && chmod +x ../mymusic-linux && ls -lh ../mymusic-linux
       - uses: actions/upload-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/v')   # 只发版上传；平时手动跑只验证构建不产 artifact
+        # 手动跑也要上传：shell-e2e job 依赖此 artifact（之前 tag-only 导致手动触发时 E2E 必然失败）
         with:
           name: mymusic-linux
           path: mymusic-linux
