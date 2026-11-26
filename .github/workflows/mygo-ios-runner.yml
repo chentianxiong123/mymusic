@@ -78,8 +78,8 @@ jobs:
         working-directory: mygo
         run: |
           set -euo pipefail
-          APP="$(find build/ios -maxdepth 2 -name '*.app' -type d | head -1)"
-          test -n "$APP" || { echo '未产出 .app'; find build/ios -maxdepth 3 || true; exit 1; }
+          APP="$(find build/ios-simulator -maxdepth 2 -name '*.app' -type d | head -1)"
+          test -n "$APP" || { echo '未产出 .app'; find build/ios-simulator -maxdepth 3 || true; exit 1; }
           cd "$(dirname "$APP")"
           zip -qr ../../mymusic-ios-simulator-mygo.app.zip "$(basename "$APP")"
           ls -lh ../../mymusic-ios-simulator-mygo.app.zip
