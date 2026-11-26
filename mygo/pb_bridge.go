@@ -360,7 +360,10 @@ func intToMode(n int) string {
 func toSearchItems(q []playback.Song) []bilibili.SearchItem {
 	out := make([]bilibili.SearchItem, 0, len(q))
 	for _, s := range q {
-		out = append(out, bilibili.SearchItem{BVID: s.BVID, Title: s.Title, Author: s.Artist, Pic: s.Cover})
+		out = append(out, bilibili.SearchItem{
+			BVID: s.BVID, Title: s.Title, Author: s.Artist, Pic: s.Cover,
+			Src: s.Source, Typename: s.Source, Duration: fmt.Sprintf("%.0f", s.Duration),
+		})
 	}
 	return out
 }

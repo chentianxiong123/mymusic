@@ -67,7 +67,7 @@ func (a *app) queuePage(c *ui.Context) {
 								}
 								// 单击播放（最近播放建议单击就放）：封面卡片单击即播
 								if box.Clicked() {
-									go a.play(r)
+									go a.playFrom(a.recent, indexOfBVID(a.recent, r.BVID))
 								}
 								// 标题（主）：hover 变粉（对齐主线 group-hover:text-pink-400）
 								titleCol := clrText

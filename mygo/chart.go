@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"homecast/service/playback"
 )
 
 // ChartSong 榜单一首歌（跨源通用；source+id 真实，不塞进 BVID 撒谎）。
@@ -256,7 +257,6 @@ func (r *chartPanel) snapshot() []chartList {
 
 func (r *chartPanel) Render(c *ui.Context, a *app, preview bool) {
 	r.ensureLoaded(a.Invalidate)
-	playRef := a.PlayRef
 	lists := r.snapshot()
 	if len(lists) == 0 {
 		ui.Text(c, "加载榜单…").FontSize(12 * uiScale).TextColor(clrMuted)
@@ -318,10 +318,20 @@ func (r *chartPanel) Render(c *ui.Context, a *app, preview bool) {
 	if n > limit {
 		n = limit
 	}
-	for i := 0; i < n; i++ {
-		s := selected.Songs[i]
+	list := make([]playback.Song, 0, n)
+	for _, s := range selected.Songs[:n] {
+		src := s.Source
+		if src == "" {
+			src = "bilibili"
+		}
+		list = append(list, playback.Song{
+			BVID: s.ID, Title: s.Title, Artist: s.Artist, Cover: s.Cover, Source: src, ID: s.ID,
+		})
+	}
+	for i, s := range list {
+		sidx := i
 		statRow(c, fmt.Sprintf("%d.", i+1), s.Title+" — "+s.Artist, "", true, func() {
-			playRef(s.Source, s.ID, s.Title, s.Artist, s.Cover)
+			go a.playSongs(list, sidx)
 		})
 	}
 }

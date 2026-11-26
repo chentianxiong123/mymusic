@@ -168,15 +168,41 @@ func (a *app) playRow(item bilibili.SearchItem, playFn func()) {
 	go a.play(item)
 }
 
-// playFrom 带列表上下文点歌：按 pointPlayMode 走替换（SetQueue）或追加（Play）。
+// playFrom 带列表上下文点歌（SearchItem 版）：按 pointPlayMode 走替换或追加。
 func (a *app) playFrom(list []bilibili.SearchItem, idx int) {
-	if a.pointPlayMode == 0 && idx >= 0 && idx < len(list) {
-		a.playAll(list, idx)
+	if idx < 0 || idx >= len(list) {
+		return // 调用方应先定位；找不到时不应点歌（用 play(item) 走单曲兜底）
+	}
+	a.playSongs(toSongList(list), idx)
+}
+
+// playSourceFrom 带列表上下文点歌（source.Song 版，推荐/榜单/统计用）。
+// srcName 是这些歌所属音源 key（source.Song 自身不带来源字段）。
+func (a *app) playSourceFrom(list []source.Song, idx int, srcName string) {
+	songs := make([]playback.Song, 0, len(list))
+	for _, s := range list {
+		songs = append(songs, playback.Song{
+			BVID: s.ID, Title: s.Title, Artist: s.Artist, Cover: s.Cover,
+			Duration: float64(s.DurationSec), Source: srcName, ID: s.ID,
+		})
+	}
+	a.playSongs(songs, idx)
+}
+
+// playSongs 所有点歌入口的唯一语义实现：
+// 替换模式 → 整队 SetQueue(list, idx)；追加模式 → 只把这一首 Play 加到队尾。
+// 一切列表（搜索/歌单/收藏/队列/最近/推荐/榜单/统计）最终都走这里，
+// 因为它们本质都是队列的操作入口，没有例外。
+func (a *app) playSongs(list []playback.Song, idx int) {
+	if idx < 0 || idx >= len(list) {
 		return
 	}
-	if idx >= 0 && idx < len(list) {
-		a.play(list[idx])
+	if a.pointPlayMode == 0 {
+		a.win.Update(func() { a.loading.Store(false) })
+		a.pb.SetQueue(list, idx)
+		return
 	}
+	go a.play(toSearchItems(list[idx:idx+1])[0])
 }
 
 // playAll 播放整个队列（搜索结果/收藏夹）：SetQueue 整队+定位。

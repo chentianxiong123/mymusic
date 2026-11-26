@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/egoist/mygo/ui"
+	"homecast/service/playback"
 )
 
 func (a *app) statsPage(c *ui.Context) {
@@ -34,12 +35,22 @@ func (a *app) statsPage(c *ui.Context) {
 			songs := a.topSongs(20)
 			if len(songs) > 0 {
 				ui.Text(c, "常听歌曲").FontSize(15 * uiScale).Bold().TextColor(clrText).Padding(8*uiScale, 0, 0, 0)
-				for i, x := range songs {
-					x := x
-					statRow(c, fmt.Sprintf("%d.", i+1), x.Title+" — "+x.Artist, fmt.Sprintf("%d 次", x.Count), true, func() {
-						a.PlayRef(x.Source, x.ID, x.Title, x.Artist, x.Cover)
-					})
+			list := make([]playback.Song, 0, len(songs))
+			for _, x := range songs {
+				src := x.Source
+				if src == "" {
+					src = "bilibili"
 				}
+				list = append(list, playback.Song{
+					BVID: x.ID, Title: x.Title, Artist: x.Artist, Cover: x.Cover, Source: src, ID: x.ID,
+				})
+			}
+			for i, x := range list {
+				sidx := i
+				statRow(c, fmt.Sprintf("%d.", i+1), x.Title+" — "+x.Artist, fmt.Sprintf("%d 次", songs[i].Count), true, func() {
+					go a.playSongs(list, sidx)
+				})
+			}
 			}
 			if len(s.Songs) == 0 {
 				ui.Text(c, "还没有播放记录").FontSize(13 * uiScale).TextColor(clrMuted)

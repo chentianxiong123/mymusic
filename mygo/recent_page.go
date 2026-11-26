@@ -89,7 +89,7 @@ func (a *app) recentCard(c *ui.Context, item bilibili.SearchItem) {
 	// 封面（方形，随网格宽度自适应）— 复用 gridCard 共享样式
 	size := a.recentCardSize()
 	a.gridCard(c, item.BVID, item.Pic, bilibili.CleanHTML(item.Title), item.Author, size, func() {
-		go a.play(item)
+		go a.playFrom(a.recent, indexOfBVID(a.recent, item.BVID))
 	})
 }
 

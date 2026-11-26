@@ -83,7 +83,14 @@ func (a *app) ctxMenu(c *ui.Context) {
 			label string
 			fn    func()
 		}{
-			{"播放", func() { go a.play(item); a.ctxItem = nil }},
+			{"播放", func() {
+				if idx := indexOfBVID(a.results, item.BVID); idx >= 0 {
+					go a.playFrom(a.results, idx)
+				} else {
+					go a.play(item)
+				}
+				a.ctxItem = nil
+			}},
 			{"下一首播放", func() { a.playNext(item); a.ctxItem = nil }},
 			{"收藏 / 取消收藏", func() { a.toggleFavItem(item); a.ctxItem = nil }},
 			{"添加到歌单", func() { a.addToPick = true }}, // ctxItem 保留：浮层以它为目标准歌

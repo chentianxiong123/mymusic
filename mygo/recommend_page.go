@@ -10,7 +10,7 @@ package main
 
 import (
 	"github.com/egoist/mygo/ui"
-	"homecast/bilibili"
+	"homecast/service/playback"
 	"mymusic-mygo/plugin"
 )
 
@@ -180,14 +180,29 @@ func (a *app) recommendDetail(c *ui.Context) {
 // ---- RecommendHost 实现（依赖反转：app 提供能力，推荐插件只认接口） ----
 
 func (a *app) Play(songID, title, cover string) {
-	a.play(bilibili.SearchItem{BVID: songID, Title: title, Pic: cover})
+	a.PlayRef("bilibili", songID, title, "", cover)
 }
 
 func (a *app) PlayRef(source, id, title, artist, cover string) {
 	if source == "" {
 		source = "bilibili"
 	}
-	a.play(bilibili.SearchItem{BVID: id, Title: title, Author: artist, Pic: cover, Typename: source})
+	// 当前推荐插件的列表就是点歌上下文；找不到时用单元素列表兜底。
+	list := a.recommendData[a.activeRecommend]
+	idx := -1
+	for i, s := range list {
+		if s.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		go a.playSongs([]playback.Song{{
+			BVID: id, Title: title, Artist: artist, Cover: cover, Source: source, ID: id,
+		}}, 0)
+		return
+	}
+	go a.playSourceFrom(list, idx, source)
 }
 
 var _ plugin.RecommendHost = (*app)(nil)
