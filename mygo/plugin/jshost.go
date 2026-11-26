@@ -24,6 +24,7 @@ import (
 type jsHost struct {
 	vm           *sobek.Runtime
 	allowedHosts []string
+	hostSettings []string // 设置项 key：其值里的 URL host 自动放行（用户自填服务器）
 	client       *http.Client
 	sem          chan struct{}
 
@@ -269,10 +270,9 @@ func (h *jsHost) httpFunc(call sobek.FunctionCall) sobek.Value {
 }
 
 // hostAllowed 校验 host 是否在白名单（全字匹配；支持 *.example.com 前缀通配）。
+// 额外放行 hostSettings 声明的设置项里用户自填的 URL host（WebDAV/自建 NAS 场景）——
+// 沙箱仍有效：只放行用户自己填的那一个 host，不是全放开。
 func (h *jsHost) hostAllowed(host string) bool {
-	if len(h.allowedHosts) == 0 {
-		return false // 未声明 allowedHosts = 全拒
-	}
 	for _, a := range h.allowedHosts {
 		a = strings.TrimSpace(a)
 		if a == "" {
@@ -285,6 +285,16 @@ func (h *jsHost) hostAllowed(host string) bool {
 			continue
 		}
 		if host == a {
+			return true
+		}
+	}
+	// 用户自填服务器：只放行 hostSettings 声明的设置项里的 host
+	for _, key := range h.hostSettings {
+		v := strings.TrimSpace(h.configGet(strings.TrimSpace(key), ""))
+		if v == "" {
+			continue
+		}
+		if u, err := url.Parse(v); err == nil && strings.EqualFold(u.Hostname(), host) {
 			return true
 		}
 	}

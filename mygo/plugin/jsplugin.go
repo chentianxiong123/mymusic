@@ -21,6 +21,9 @@ type jsMeta struct {
 	Version      string   `json:"version"`
 	Capabilities []string `json:"capabilities"`
 	AllowedHosts []string `json:"allowedHosts"`
+	// HostSettings 声明这些设置项里填的 URL 的 host 自动放行（用户自填服务器场景：WebDAV/自建 NAS）。
+	// 沙箱仍有效：只放行用户自己填的那一个 host，不是全放开。
+	HostSettings []string `json:"hostSettings"`
 	RequiresCookie bool `json:"requiresCookie"` // 需 cookie 才激活（无 cookie 不注册）
 	Order        int      `json:"order"`
 	Settings     []jsSetting `json:"settings"`
@@ -136,6 +139,7 @@ func NewJSPlugin(path, code string) (*JSPlugin, error) {
 	}
 	jp.host.withPlugin(ptype, jp.meta.Key)
 	jp.host.allowedHosts = jp.meta.AllowedHosts
+	jp.host.hostSettings = jp.meta.HostSettings
 	jp.bind()
 	// 注册设置声明（meta.settings → 系统统一存储；NewJSPlugin 即注册，不依赖 register 路径）
 	if len(jp.meta.Settings) > 0 {

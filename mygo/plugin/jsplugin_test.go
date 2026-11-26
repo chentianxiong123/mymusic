@@ -1,7 +1,11 @@
 package plugin
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/grafana/sobek"
@@ -134,5 +138,121 @@ func TestJSPluginCtxConfigPersistent(t *testing.T) {
 	}
 	if v.String() != "Hm_lvt_test=123" {
 		t.Fatalf("ctx.config.get(cookie) = %q, want Hm_lvt_test=123", v.String())
+	}
+}
+
+// memSettingStore 测试用内存设置存储。
+type memSettingStore map[string]string
+
+func (m memSettingStore) Set(k, v string) error { m[k] = v; return nil }
+func (m memSettingStore) Get(k string) (string, bool) {
+	v, ok := m[k]
+	return v, ok
+}
+
+// TestHostAllowed_HostSettings 用户自填 URL host 自动放行（WebDAV 场景），其余仍拒绝。
+func TestHostAllowed_HostSettings(t *testing.T) {
+	store := memSettingStore{}
+	SetSettingStore(store)
+	defer SetSettingStore(nil)
+
+	h := &jsHost{
+		allowedHosts: []string{"builtin.example.com"},
+		hostSettings: []string{"server_url"},
+		pluginType:   "source",
+		pluginKey:    "webdav",
+	}
+	// 未填设置 → 只放行静态白名单
+	if h.hostAllowed("nas.local") {
+		t.Error("未填 server_url 时不应放行 nas.local")
+	}
+	// 用户填了 URL → 该 host 放行
+	if err := SetSetting("source", "webdav", "server_url", "http://nas.local:5005/dav/"); err != nil {
+		t.Fatal(err)
+	}
+	if !h.hostAllowed("nas.local") {
+		t.Error("hostSettings 声明的设置项里的 host 应放行")
+	}
+	// 只放行填的那个，其它仍拒
+	if h.hostAllowed("evil.com") {
+		t.Error("只应放行用户填的那一个 host，evil.com 必须拒")
+	}
+	// 静态白名单仍然有效
+	if !h.hostAllowed("builtin.example.com") {
+		t.Error("静态白名单应仍然有效")
+	}
+}
+
+// TestJSPluginLoadWebDAV webdav 插件能加载（hostSettings 声明 + source 能力）。
+func TestJSPluginLoadWebDAV(t *testing.T) {
+	errs, err := LoadFromDir(filepath.Join("..", "plugins"))
+	if err != nil {
+		t.Fatalf("LoadFromDir: %v", err)
+	}
+	if len(errs) > 0 {
+		t.Fatalf("load errs: %v", errs)
+	}
+	if Sources()["webdav"] == nil {
+		t.Fatal("webdav 音源未注册")
+	}
+}
+
+// TestWebDAVPluginSearch 端到端：mock WebDAV PROPFIND → 插件解析 → 过滤/分页。
+func TestWebDAVPluginSearch(t *testing.T) {
+	// mock WebDAV：根目录下 1 个音乐文件 + 1 个子目录
+	const xmlBody = `<?xml version="1.0"?><D:multistatus xmlns:D="DAV:">
+  <D:response><D:href>/dav/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>
+  <D:response><D:href>/dav/%E6%99%B4%E5%A4%A9.mp3</D:href><D:propstat><D:prop><D:resourcetype/></D:prop></D:propstat></D:response>
+  <D:response><D:href>/dav/sub/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>
+</D:multistatus>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "PROPFIND" {
+			t.Errorf("want PROPFIND, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(207)
+		if strings.HasPrefix(r.URL.Path, "/dav/sub") { // 子目录里再来一首
+			w.Write([]byte(`<D:multistatus xmlns:D="DAV:">
+  <D:response><D:href>/dav/sub/song2.flac</D:href><D:propstat><D:prop><D:resourcetype/></D:prop></D:propstat></D:response>
+</D:multistatus>`))
+			return
+		}
+		w.Write([]byte(xmlBody))
+	}))
+	defer srv.Close()
+
+	store := memSettingStore{}
+	SetSettingStore(store)
+	defer SetSettingStore(nil)
+	_ = SetSetting("source", "webdav", "server_url", srv.URL+"/dav/")
+	_ = SetSetting("source", "webdav", "music_path", "")
+	_ = SetSetting("source", "webdav", "searchSize", "40")
+
+	code, err := os.ReadFile(filepath.Join("..", "plugins", "webdav", "plugin.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	jp, err := NewJSPlugin("webdav.js", string(code))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &jsSource{jp: jp}
+	songs, total, err := src.Search("晴天", 1, 40)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if total != 1 || len(songs) != 1 {
+		t.Fatalf("关键词 晴天: total=%d songs=%d, want 1/1", total, len(songs))
+	}
+	if !strings.Contains(songs[0].Title, "晴天") {
+		t.Errorf("标题=%q, want 含晴天", songs[0].Title)
+	}
+	// 空关键词 → 全部 2 首（根目录 mp3 + 子目录 flac），验证递归
+	songs, total, err = src.Search("", 1, 40)
+	if err != nil {
+		t.Fatalf("search all: %v", err)
+	}
+	if total != 2 || len(songs) != 2 {
+		t.Fatalf("全部: total=%d songs=%d, want 2/2 (递归子目录)", total, len(songs))
 	}
 }
