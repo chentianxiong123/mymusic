@@ -61,7 +61,8 @@ func iconButton2(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Elemen
 // lyricToggleButton 歌词挂件开关："词"字方块按钮（国内音乐软件通用语义，
 // 比抽象 SVG 更直观）。颜色区分状态：开=粉，关=灰。
 func lyricToggleButton(c *ui.Context, size float32, on bool) ui.Element {
-	box := ui.Box(c).Size(size, size).Radius(8 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
+	// 与 iconButton2 一致：size 乘 uiScale（否则 HiDPI 下词按钮不放大、比旁边图标小）
+	box := ui.Box(c).Size(size*uiScale, size*uiScale).Radius(8 * uiScale).AlignItems(ui.Center).Justify(ui.Center)
 	col := clrMuted
 	if on {
 		col = clrPink
@@ -72,7 +73,7 @@ func lyricToggleButton(c *ui.Context, size float32, on bool) ui.Element {
 		}
 	})
 	box.Children(func() {
-		ui.Text(c, "词").FontSize(size * 0.65).Bold().TextColor(col)
+		ui.Text(c, "词").FontSize(size * uiScale * 0.65).Bold().TextColor(col)
 	})
 	return box
 }
