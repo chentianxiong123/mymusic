@@ -1,0 +1,39 @@
+# mygo macOS arm64 单架构构建 + 发布（macos runner）—— 永远手动触发。
+# 每个架构独立 workflow（避免双架构同 workflow 上传同名文件冲突）。
+name: mygo macOS arm64
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（release tag = v<version>）'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 darwin/arm64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-mygo
+      - name: 构建 + 签名 manifest
+        working-directory: mygo
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: mygo build -platform darwin/arm64
+      - name: 发布（create || upload）
+        if: inputs.version != ''
+        working-directory: mygo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${{ github.event.inputs.version }}"
+          TAG="v${VER}"
+          FILES="$(find build/darwin-arm64 -maxdepth 1 -type f \
+            \( -name '*darwin-arm64*' -o -name '*update-darwin*' -o -name '*.dmg' \) | sort -u)"
+          test -n "$FILES" || { echo '无产物'; exit 1; }
+          gh release create "$TAG" $FILES --generate-notes --title "MyMusic $VER" 2>/dev/null \
+            || gh release upload "$TAG" $FILES --clobber

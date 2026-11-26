@@ -1,7 +1,6 @@
-# mygo Linux 桌面构建 + 发布（linux/amd64 + linux/arm64）—— 永远手动触发。
-# 版本自动从 mygo.json 读（tag = v<version>，与 manifest URL 一致）。
-# 发布：首次 gh release create（建 tag+release），已存在则 upload —— 任意触发顺序都行。
-name: mygo Linux 构建
+# mygo Linux arm64 单架构构建 + 发布 —— 永远手动触发。
+# 每个架构独立 workflow（避免双架构同 workflow 上传同名文件冲突）。
+name: mygo Linux arm64
 
 on:
   workflow_dispatch:
@@ -11,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: 构建 linux/amd64 + arm64
+    name: 构建 linux/arm64
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +19,7 @@ jobs:
         working-directory: mygo
         env:
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
-        run: mygo build -platform linux/amd64,linux/arm64
+        run: mygo build -platform linux/arm64
       - name: 发布（create || upload）
         working-directory: mygo
         env:
@@ -28,10 +27,9 @@ jobs:
         run: |
           VER="$(jq -r .version mygo.json)"
           TAG="v${VER}"
-          # 只传带架构标识的产物（两目录有 icon.png/install.sh/PKGBUILD 等同名文件，
-          # 一起传会因重复文件名报错退出、导致 arm64 产物漏传）
-          FILES="$(find build/linux-amd64 build/linux-arm64 -maxdepth 1 -type f \
-            \( -name '*linux-amd64*' -o -name '*linux-arm64*' -o -name '*update-linux*' \
+          FILES="$(find build/linux-arm64 -maxdepth 1 -type f \
+            \( -name '*linux-arm64*' -o -name '*update-linux*' \
                -o -name '*.deb' -o -name '*.rpm' \) | sort -u)"
+          test -n "$FILES" || { echo '无产物'; exit 1; }
           gh release create "$TAG" $FILES --generate-notes --title "MyMusic $VER" 2>/dev/null \
             || gh release upload "$TAG" $FILES --clobber
