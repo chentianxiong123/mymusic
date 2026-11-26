@@ -86,7 +86,7 @@ func (a *app) lyricBindOptions() []string {
 }
 
 // lyricBindSection 音源插件详情页的「歌词源」配置区块。
-// 显示当前绑定 + 选择入口：列表为已注册歌词插件（来自插件页歌词分页）。
+// 显示当前绑定 + 选择入口：列表为已注册歌词插件（音源详情页聚合配置）。
 func (a *app) lyricBindSection(c *ui.Context, src string) {
 	bound := a.lyricBoundFor(src)
 	// 下拉绑持久字段：切插件/首次进入时同步一次，之后不再覆盖用户展开态

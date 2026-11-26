@@ -528,26 +528,18 @@ func playIconButton(c *ui.Context, s *ui.SVG, size float32, col ui.Color) ui.Ele
 	return box
 }
 
-// pageSize 每页条数（本地列表与搜索结果展示分页）。
+// pageSize 本地列表每页条数（queue/fav/recent/detail 用 pageSlice 切片）。
 const pageSize = 20
 
-// fetchSize 每次搜索请求条数（>pageSize：先请求 40，FilterSongs 过滤后仍够 20/页展示）。
+// fetchSize 搜索页每次请求条数默认值（插件可用 source/<name>/searchSize 覆盖；口径=每页展示同条数）。
 const fetchSize = 40
 
-// pageCount 总页数（items 条数 / pageSize，向上取整，至少 1 页）。
+// pageCount 本地列表总页数（items 条数 / pageSize，向上取整，至少 1 页）。
 func pageCount(total int) int {
 	if total <= 0 {
 		return 1
 	}
 	return (total + pageSize - 1) / pageSize
-}
-
-// fetchPageCount 搜索结果总页数（按 fetchSize 每页请求算，过滤后每页仍够展示）。
-func fetchPageCount(total int) int {
-	if total <= 0 {
-		return 1
-	}
-	return (total + fetchSize - 1) / fetchSize
 }
 
 // pageSlice 返回 items 的第 page 页（0 基）。

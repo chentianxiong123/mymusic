@@ -234,12 +234,12 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 					Duration: r.Duration, Typename: r.Typename, Play: 0, Src: grp.name,
 				})
 			}
-			// 该源独立分页（用户要求：网易云/bilibili 各自分页显示，页码按钮放该源结果下方）
+			// 该源独立分页：sourcePage 返回 1 基（给 API），pagerButtons 收 0 基（UI）→ 传入减 1、回调加 1。
 			if grp.total > srcSearchSize(grp.name) {
-				page := a.sourcePage(grp.name)
+				page := a.sourcePage(grp.name) - 1 // UI 0 基
 				pageCount := (grp.total + srcSearchSize(grp.name) - 1) / srcSearchSize(grp.name)
 				a.pagerButtons(c, page, pageCount, func(p int) {
-					a.searchPages[grp.name] = p
+					a.searchPages[grp.name] = p // searchPages 存 0 基，sourcePage 会 +1 转 API 1 基
 					go a.search()
 				})
 			}
@@ -411,7 +411,7 @@ func pageList(page, total int) []int {
 		}
 	}
 	out := []int{}
-	last := -2
+	last := -1 // 从第 0 项开始，前面不应插省略号
 	for i := 0; i < total; i++ {
 		if set[i] {
 			if i-last > 1 {

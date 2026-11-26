@@ -139,7 +139,7 @@ func (a *app) lyrCenterCol(c *ui.Context) {
 				// 标题 text-lg(18px) 白 / 歌手 text-sm(14px) gray / 来源 text-xs(12px) gray（对齐主线）
 				ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(a.resp(18, 15)).Bold().TextColor(clrText).MaxLines(1)
 				ui.Text(c, a.current.author).FontSize(14 * uiScale).TextColor(clrMuted).MaxLines(1)
-				// 来源行（显示实际出词插件名；点击跳插件页歌词分页配置源顺序/开关）
+				// 来源行（显示实际出词插件名；点击跳插件页配置歌词源绑定）
 				srcRow := ui.Text(c, a.lyricSourceText()).FontSize(12 * uiScale).TextColor(clrPink).MaxLines(1)
 				if srcRow.Clicked() {
 					a.activeTab = "settings"
