@@ -21,3 +21,24 @@ func TestRegisterInfoMergeCapabilities(t *testing.T) {
 		t.Fatal("按能力过滤应各命中一次")
 	}
 }
+
+func TestAllInfosDeterministic(t *testing.T) {
+	infos = map[string]Info{}
+	orderOverride = map[string]int{}
+	// 多个同 Order 平台（模拟 map 遍历随机）
+	for _, n := range []string{"netease", "local", "cast", "bluetooth", "speaker", "bilibili"} {
+		RegisterInfo(Info{Name: n, Type: "source", Order: 20})
+	}
+	first := AllInfos()
+	for i := 0; i < 50; i++ {
+		got := AllInfos()
+		if len(got) != len(first) {
+			t.Fatalf("长度变了")
+		}
+		for j := range got {
+			if got[j].Name != first[j].Name {
+				t.Fatalf("第 %d 次调用顺序变了: %s != %s", i, got[j].Name, first[j].Name)
+			}
+		}
+	}
+}

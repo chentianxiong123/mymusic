@@ -101,7 +101,13 @@ func sortInfos(list []Info) {
 	less := func(a, b Info) bool {
 		ag, as := rank(a)
 		bg, bs := rank(b)
-		return ag < bg || (ag == bg && as < bs)
+		if ag != bg {
+			return ag < bg
+		}
+		if as != bs {
+			return as < bs
+		}
+		return a.Name < b.Name // tie-break：map 遍历随机，必须按 Name 定序（否则列表每帧晃）
 	}
 	for i := 1; i < len(list); i++ {
 		for j := i; j > 0 && less(list[j], list[j-1]); j-- {
