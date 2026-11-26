@@ -237,11 +237,15 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 			if len(shown) == 0 && len(grp.songs) > 0 {
 				ui.Text(c, "本页内容已过滤").FontSize(12*uiScale).TextColor(clrMuted).AlignSelf(ui.Center)
 			}
+			rowList := make([]bilibili.SearchItem, 0, len(shown))
 			for _, r := range shown {
-				a.listRow(c, bilibili.SearchItem{
+				rowList = append(rowList, bilibili.SearchItem{
 					BVID: r.ID, Title: r.Title, Author: r.Artist, Pic: r.Cover,
 					Duration: r.Duration, Typename: r.Typename, Play: 0, Src: grp.name,
 				})
+			}
+			for i, item := range rowList {
+				a.listRow(c, item, rowList, i)
 			}
 			// 该源独立分页：sourcePage 返回 1 基（给 API），UI 用 0 基 → 传入减 1、回调存 0 基。
 			size := srcSearchSize(grp.name)

@@ -162,7 +162,8 @@ type app struct {
 	playIndex    int
 	posSec       float64 // 当前播放秒（歌词定位用）
 	volume       float64
-	loopMode     int // 0 顺序 1 列表循环 2 单曲 3 随机（对齐主线 4 态）
+	loopMode      int // 0 顺序 1 列表循环 2 单曲 3 随机（对齐主线 4 态）
+	pointPlayMode int // 点单曲方式：0 替换播放列表（网易云默认） 1 仅追加到播放列表
 	favorites    []bilibili.SearchItem
 	favSet       map[string]bool
 	// 歌单（用户自建、可命名、可多份；与 playlist=播放队列 区分）

@@ -84,6 +84,7 @@ func (a *app) favPage(c *ui.Context) {
 // favRow 收藏行（复用 songRow）：♥ 取消收藏；单击播放 + 右键菜单。
 func (a *app) favRow(c *ui.Context, item bilibili.SearchItem) {
 	a.songRow(c, item.BVID, item.Pic, item.Title, item.Author, item.Duration, songRowOpt{
+		playFn: func() { go a.playFrom(a.favorites, indexOfBVID(a.favorites, item.BVID)) },
 		isFav: true,
 		heartFn: func() {
 			a.svc.fav.Remove(item.BVID)

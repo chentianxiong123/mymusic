@@ -219,14 +219,14 @@ func (a *app) rowShell(c *ui.Context, h float32, fn func()) ui.Element {
 
 // listRow 搜索结果列表行：小封面 + 标题/作者 + 收藏 + 播放。点击行播放。
 // listRow 搜索结果行（复用 songRow）：♥ 收藏 + 播放按钮；单击行播放 + 右键菜单。
-func (a *app) listRow(c *ui.Context, item bilibili.SearchItem) {
+func (a *app) listRow(c *ui.Context, item bilibili.SearchItem, list []bilibili.SearchItem, idx int) {
 	a.songRow(c, item.BVID, item.Pic, item.Title, item.Author, item.Duration, songRowOpt{
 		isFav:   a.isFavItem(item),
 		heartFn: func() { a.toggleFavItem(item) },
 		trailing: func() {
 			// 播放按钮（圆形 —— 播放类统一圆形）
 			if playIconButton(c, icPlay, a.resp(34, 30), accent(true)).Clicked() {
-				go a.play(item)
+				go func(l []bilibili.SearchItem, i int) { a.playFrom(l, i) }(list, idx)
 			}
 		},
 	})
@@ -427,6 +427,7 @@ type songRowOpt struct {
 	heartFn  func() // ♥ 点击回调（搜索/收藏）
 	rmFn     func() // ✕ 点击回调（队列/歌单详情）
 	trailing func() // 追加额外控件（搜索行播放按钮）
+	playFn   func() // 非空=点此行播放时调它（带列表上下文，用于替换/追加模式）；空=默认 a.play(item)
 }
 
 func (a *app) songRow(c *ui.Context, bvid, pic, title, author, dur string, opt songRowOpt) {
@@ -467,7 +468,7 @@ func (a *app) songRow(c *ui.Context, bvid, pic, title, author, dur string, opt s
 			})
 			// 双击标题列 → 播放（标题列自身可交互，双击命中即播）
 			if titleBox.DoubleClicked() {
-				go a.play(item)
+				a.playRow(item, opt.playFn)
 			}
 			if opt.isCur {
 				ui.Text(c, "▶ 播放中").FontSize(12 * uiScale).TextColor(clrPink).Bold().PassThrough()
@@ -493,7 +494,7 @@ func (a *app) songRow(c *ui.Context, bvid, pic, title, author, dur string, opt s
 	})
 	// 双击播放（全站统一）：封面/序号等 PassThrough 区域穿透到 box；单击不播（长标题由原生 Tooltip 显示，无浮层）
 	if box.DoubleClicked() {
-		go a.play(item)
+		a.playRow(item, opt.playFn)
 	}
 }
 

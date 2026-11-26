@@ -54,6 +54,13 @@ func (a *app) systemSettings(c *ui.Context) {
 				a.loopMode = i
 				a.pb.SetMode(intToMode(i))
 			})
+			// 点单曲时：替换播放列表（网易云默认）/ 仅追加到播放列表
+			a.setRow(c, "点歌方式")
+			a.setRowSeg(c, []string{"替换列表", "追加列表"}, a.pointPlayMode, func(i int) {
+				a.pointPlayMode = i
+				a.savePref("mygo_pointplay", i)
+				a.win.Invalidate()
+			})
 			// 9 歌曲缓存：主标题 + 已用/首数 + 清空；上限作为次级行（不另起白字主标题）
 			a.setRow(c, "歌曲缓存")
 			a.setRowText(c, "已用 "+a.cacheUsedLabel()+" · "+a.cacheCountLabel()+" 首")

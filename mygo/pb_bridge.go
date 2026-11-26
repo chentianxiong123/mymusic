@@ -262,6 +262,7 @@ func (a *app) restorePrefs() {
 	a.lyricLimit = a.loadPref("mygo_lyriclimit", 2)
 	a.lyricCustom = a.loadPref("mygo_lyriclimit_custom", 800)
 	a.loopMode = a.loadPref("mygo_loopmode", 0)
+	a.pointPlayMode = a.loadPref("mygo_pointplay", 0) // 默认替换列表（对齐网易云）
 	a.lyricSize = a.loadPref("mygo_lyricsize", 2)
 	a.lyricCtrlBottom = a.loadPref("mygo_lyricctrlpos", 1) == 1 // 默认下方
 	a.androidLyricOn = a.loadPref("mygo_androlyric", 0) == 1    // 安卓悬浮歌词持久化

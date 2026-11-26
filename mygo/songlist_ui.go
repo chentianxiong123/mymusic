@@ -227,6 +227,15 @@ func (a *app) songlistRenameRow(c *ui.Context) {
 // songlistRow 歌单详情行（复用 songRow）：✕ 从歌单移除 + 时长；单击播放 + 右键菜单。
 func (a *app) songlistRow(c *ui.Context, it songlist.Item) {
 	a.songRow(c, it.BVID, it.Cover, it.Title, it.Artist, it.Duration, songRowOpt{
+		playFn: func() {
+			list := songlistToSearchItems(a.songlistItems)
+			for i, x := range list {
+				if x.BVID == it.BVID {
+					go a.playFrom(list, i)
+					return
+				}
+			}
+		},
 		rmFn: func() {
 			a.svc.songlist.RemoveSong(a.songlistOpen, it.BVID)
 			a.loadSonglistDetail()

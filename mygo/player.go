@@ -146,6 +146,39 @@ func (a *app) recordRecent(item bilibili.SearchItem) {
 	})
 }
 
+// indexOfBVID 返回 bvid 在列表中的位置，未找到返回 -1。
+func indexOfBVID(list []bilibili.SearchItem, bvid string) int {
+	for i, it := range list {
+		if it.BVID == bvid {
+			return i
+		}
+	}
+	return -1
+}
+
+// playRow 列表行点歌：有列表上下文（playFn）时按全局 pointPlayMode 决定替换/追加；
+// 无上下文（推荐/榜单/最近等单曲）保持 a.play 的追加/定位语义。
+// pointPlayMode=0（默认，对齐网易云）：用当前列表替换播放队列并从点的那首开始；
+// pointPlayMode=1：仅把单曲追加到队尾，不打断当前播放。
+func (a *app) playRow(item bilibili.SearchItem, playFn func()) {
+	if playFn != nil && a.pointPlayMode == 0 {
+		playFn()
+		return
+	}
+	go a.play(item)
+}
+
+// playFrom 带列表上下文点歌：按 pointPlayMode 走替换（SetQueue）或追加（Play）。
+func (a *app) playFrom(list []bilibili.SearchItem, idx int) {
+	if a.pointPlayMode == 0 && idx >= 0 && idx < len(list) {
+		a.playAll(list, idx)
+		return
+	}
+	if idx >= 0 && idx < len(list) {
+		a.play(list[idx])
+	}
+}
+
 // playAll 播放整个队列（搜索结果/收藏夹）：SetQueue 整队+定位。
 func (a *app) playAll(list []bilibili.SearchItem, startIdx int) {
 	songs := make([]playback.Song, 0, len(list))

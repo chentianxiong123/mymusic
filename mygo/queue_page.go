@@ -142,6 +142,7 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 	isCur := a.current != nil && a.current.bvid == item.BVID && i == a.playIndex
 	idx := i
 	a.songRow(c, item.BVID, item.Pic, item.Title, item.Author, "", songRowOpt{
+		playFn: func() { go a.playFrom(a.playlist, i) },
 		idx:   &idx,
 		isCur: isCur,
 		rmFn:  func() { a.pb.RemoveQueue(item.BVID) },
