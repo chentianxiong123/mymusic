@@ -1,6 +1,6 @@
 //go:build native
 
-// stats_page_test.go —— 统计页/榜单行不"爆字体"：固定高度 + 单行截断。
+// stats_page_test.go —— 统计页/榜单气泡：固定高不爆字体 + 内容自适应居中。
 package main
 
 import (
@@ -9,28 +9,31 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestStatRowFixedHeight(t *testing.T) {
-	long := "这是一个非常非常非常非常非常非常非常非常非常非常非常非常非常非常长的歌曲名字测试溢出"
+func TestStatRowCenteredAndFixed(t *testing.T) {
+	short := "1. 晴天 — 周杰伦 · 12 次"
+	long := "1. 这是一个非常非常非常非常非常非常非常非常非常非常非常非常非常非常长的歌曲名字测试溢出 — 一个很长的歌手名字 — 123 次"
 	view := func(c *ui.Context) {
 		ui.Column(c).Gap(4).Children(func() {
-			statRow(c, "1.", long+" — "+long, "123 次", false, nil)
+			statRow(c, 350, "", short, "", false, nil)
+			statRow(c, 350, "", long, "", false, nil)
 		})
 	}
-	// 不同窗口宽度下，文字高度必须固定（单行），不随宽度变窄而 wrap 膨胀
-	var heights []float32
-	for _, w := range []int{1200, 800, 400} {
+	for _, w := range []int{1200, 500} {
 		tt := ui.NewTester(view, w, 800)
 		tt.Frame()
-		r, ok := tt.Find(long + " — " + long)
-		if !ok {
-			t.Fatal("未找到名称文字")
+		for _, label := range []string{short, long} {
+			r, ok := tt.Find(label)
+			if !ok {
+				t.Fatalf("未找到 %q", label)
+			}
+			centerX := r.X + r.W/2
+			want := float32(w) / 2
+			if centerX != want {
+				t.Errorf("win=%d %q 未居中: centerX=%.0f want %.0f", w, label[:6], centerX, want)
+			}
+			if r.H > 30 {
+				t.Errorf("win=%d %q 文字高度爆了: H=%.0f", w, label[:6], r.H)
+			}
 		}
-		heights = append(heights, r.H)
-	}
-	if heights[0] != heights[1] || heights[1] != heights[2] {
-		t.Errorf("名称文字高度随窗口变化（wrap 爆格子）: %v", heights)
-	}
-	if heights[0] > 30 {
-		t.Errorf("单行文字高度过大: %.0f", heights[0])
 	}
 }

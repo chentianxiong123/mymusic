@@ -26,7 +26,7 @@ func (a *app) statsPage(c *ui.Context) {
 			if len(artists) > 0 {
 				ui.Text(c, "常听歌手").FontSize(15 * uiScale).Bold().TextColor(clrText).Padding(8*uiScale, 0, 0, 0)
 				for i, ar := range artists {
-					statRow(c, fmt.Sprintf("%d.", i+1), ar.Name, fmt.Sprintf("%d 次", ar.Count), false, nil)
+					statRow(c, a.resp(520, 340)*uiScale, fmt.Sprintf("%d.", i+1), ar.Name, fmt.Sprintf("%d 次", ar.Count), false, nil)
 				}
 			}
 
@@ -36,7 +36,7 @@ func (a *app) statsPage(c *ui.Context) {
 				ui.Text(c, "常听歌曲").FontSize(15 * uiScale).Bold().TextColor(clrText).Padding(8*uiScale, 0, 0, 0)
 				for i, x := range songs {
 					x := x
-					statRow(c, fmt.Sprintf("%d.", i+1), x.Title+" — "+x.Artist, fmt.Sprintf("%d 次", x.Count), true, func() {
+					statRow(c, a.resp(520, 340)*uiScale, fmt.Sprintf("%d.", i+1), x.Title+" — "+x.Artist, fmt.Sprintf("%d 次", x.Count), true, func() {
 						a.PlayRef(x.Source, x.ID, x.Title, x.Artist, x.Cover)
 					})
 				}
@@ -58,23 +58,39 @@ func (a *app) statsPage(c *ui.Context) {
 	})
 }
 
-// statRow 统计页一行：序号（固定宽）+ 名称（Grow 单行截断）+ 次数（右对齐固定），
-// 整行固定高度（不随文字换行膨胀），可选点击。
-func statRow(c *ui.Context, index, name, count string, clickable bool, onClick func()) bool {
-	row := ui.Box(c).AlignSelf(ui.Stretch).Height(38 * uiScale).Radius(8 * uiScale).
-		Padding(0, 10*uiScale).Background(clrCard)
-	row.Children(func() {
-		ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-			ui.Text(c, index).FontSize(11*uiScale).TextColor(clrMuted).Width(24*uiScale).MaxLines(1)
-			ui.Text(c, name).FontSize(12*uiScale).TextColor(clrText).Grow(1).MaxLines(1)
-			ui.Text(c, count).FontSize(11*uiScale).TextColor(clrMuted).MaxLines(1)
-		})
-	})
-	if clickable && row.Clicked() {
-		if onClick != nil {
-			onClick()
-		}
-		return true
+// statRow 统计页一行：居中气泡（宽度随内容自适应、封顶不超屏），固定高 + 单行截断。
+// 文字整体居中（序号 · 名称 · 次数拼一行），长文本 MaxWidth 封顶 + MaxLines(1) 不爆字体。
+func statRow(c *ui.Context, maxW float32, index, name, count string, clickable bool, onClick func()) bool {
+	label := name
+	if index != "" {
+		label = index + " " + name
 	}
-	return false
+	if count != "" {
+		label += " · " + count
+	}
+	clicked := false
+	// 外层整行居中：内容少时气泡按内容宽居中，内容多时气泡封顶仍居中
+	ui.Row(c).AlignSelf(ui.Stretch).Justify(ui.Center).Children(func() {
+		row := ui.Box(c).Height(34 * uiScale).Radius(8 * uiScale).PaddingX(12 * uiScale).
+			Background(clrCard).AlignItems(ui.Center).Justify(ui.Center)
+		row.Draw(func(p *ui.Painter, r ui.Rect) {
+			bg := clrCard
+			if row.Hovered() {
+				bg = clrCardHov // 可点行 hover 反馈（跟 chip 一致）
+			}
+			p.Fill(r, bg, 8)
+		})
+		row.Children(func() {
+			ui.Text(c, label).FontSize(12*uiScale).TextColor(clrText).
+				MaxLines(1).MaxWidth(maxW)
+		})
+		if clickable && row.Clicked() {
+			clicked = true
+		}
+	})
+	if clicked && onClick != nil {
+		onClick()
+	}
+	return clicked
 }
+
