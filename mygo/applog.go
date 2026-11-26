@@ -290,6 +290,19 @@ func logStats() (cap, n int, lvl LogLevel, wf bool, path string) {
 	return appLog.capacity, len(appLog.entries), appLog.minLevel, appLog.writeFile, appLog.filePath
 }
 
+// logCountByLevel 按级别统计条数（UI 状态行：WARN n / ERROR n）。
+func logCountByLevel() [4]int {
+	appLog.mu.Lock()
+	defer appLog.mu.Unlock()
+	var out [4]int
+	for _, e := range appLog.entries {
+		if e.Level >= logDebug && e.Level <= logError {
+			out[e.Level]++
+		}
+	}
+	return out
+}
+
 // logClear 真清空：清内存环形缓冲 + 截断持久化文件（不是只清 UI）。
 func logClear() error {
 	appLog.mu.Lock()
