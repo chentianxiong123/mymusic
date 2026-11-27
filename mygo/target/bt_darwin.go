@@ -63,10 +63,20 @@ func (b *btDarwin) List() []BtDevice {
 		}
 		list = append(list, BtDevice{
 			MAC: addr, Name: name,
-			Connected: connected[strings.ToLower(addr)], Supported: true,
+			Connected: connected[strings.ToLower(addr)],
+			Supported: b.isAudioDevice(addr, name), // 音频设备过滤（鼠标/键盘不显示）
 		})
 	}
 	return list
+}
+
+// isAudioDevice macOS：blueutil --info 查蓝牙服务 UUID（A2DP/HFP），
+// 失败时退回按名字关键词判断（耳机/音箱/headset/headphone/speaker/airpods）。
+func (b *btDarwin) isAudioDevice(addr, name string) bool {
+	if out, err := b.run("blueutil", "--info", addr); err == nil && hasAudioUUID(out) {
+		return true
+	}
+	return isAudioName(name)
 }
 
 func (b *btDarwin) Connect(id string) error    { _, err := b.run("blueutil", "--connect", id); return err }

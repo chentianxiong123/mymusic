@@ -4,6 +4,7 @@ package main
 
 import (
 	"mymusic-mygo/plugin"
+	"mymusic-mygo/target"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -38,10 +39,17 @@ func init() {
 						})
 					})
 				}
-				if len(h.BtDevices()) == 0 {
-					ui.Text(c, "点「发现蓝牙」搜索已配对设备").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
-				}
+				// 只显示音频设备（鼠标/键盘等配对设备不支持音频输出，不出现在这里）
+				audioDevs := make([]target.BtDevice, 0, len(h.BtDevices()))
 				for _, d := range h.BtDevices() {
+					if d.Supported {
+						audioDevs = append(audioDevs, d)
+					}
+				}
+				if len(audioDevs) == 0 {
+					ui.Text(c, "没有可用的蓝牙音频设备（在系统设置中配对耳机/音箱后点刷新）").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
+				}
+				for _, d := range audioDevs {
 					d := d
 					card := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrCard)
 					if card.Hovered() {
