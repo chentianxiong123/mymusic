@@ -19,36 +19,13 @@ func (a *app) castPage(c *ui.Context) {
 	// 每类目标插件贡献自己的区块（发现/登录/设备列表/投送）。
 	ui.Scroll(c).Grow(1).Scrollbars(false).Children(func() {
 		ui.Column(c).Fill().PaddingX(a.resp(24, 12)).PaddingY(a.resp(16, 10)).Gap(12 * uiScale).Children(func() {
-			// 当前投屏状态（对齐主线 d-stop：投屏中可停止）
-			if a.castOn != "" {
-				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
-						icon(c, icCast, 18, clrPink)
-						ui.Text(c, "正在投屏："+a.castOn).FontSize(14 * uiScale).TextColor(clrText).Bold()
-						ui.Spacer(c).Grow(1)
-						if chip(c, "停止投屏").Clicked() {
-							a.stopCast()
-						}
-					})
-				})
-			}
-			// 蓝牙音频路由状态（恢复本机）
-			if a.btOn != "" {
-				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(12 * uiScale).Children(func() {
-						icon(c, icBluetooth, 18, clrBlue)
-						ui.Text(c, "音频输出到："+a.btOn).FontSize(14 * uiScale).TextColor(clrText).Bold()
-						ui.Spacer(c).Grow(1)
-						if chip(c, "恢复本机").Clicked() {
-							a.StopBluetooth()
-						}
-					})
-				})
-			}
-			// 插件派生：每个目标面板渲染自己的区块
+			// 完全插件派生：每个目标面板自己渲染激活状态 + 设备列表 + 操作。
+			// 页面不再知道 DLNA/蓝牙/音箱/本机任何具体品类（零死编码）。
 			for _, p := range plugin.TargetPanels() {
 				p.Render(c, a)
 			}
+			// 底部留白：避免播放条遮挡最后一个面板卡片
+			ui.Box(c).Fill().Height(a.resp(150, 140)).PassThrough()
 		})
 	})
 }

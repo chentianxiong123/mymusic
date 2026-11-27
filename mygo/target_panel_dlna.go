@@ -18,6 +18,7 @@ func init() {
 		Label: "DLNA 设备",
 		Icon:  "cast",
 		Render: func(c *ui.Context, h plugin.TargetPanelHost) {
+			kind, name := h.ActiveOutput()
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
 				ui.Text(c, "DLNA 设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
 				ui.Spacer(c).Grow(1)
@@ -25,6 +26,18 @@ func init() {
 					h.DiscoverCast()
 				}
 			})
+			// 激活态归插件自己：投屏中显示状态 + 停止（不再写死在页面顶部）
+			if kind == "dlna" {
+				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+						icon(c, icCast, 18, clrPink)
+						ui.Text(c, "正在投屏："+name).FontSize(13 * uiScale).Bold().TextColor(clrText).Grow(1).MaxLines(1)
+						if chip(c, "停止").Clicked() {
+							h.StopCast()
+						}
+					})
+				})
+			}
 			if len(h.CastDevices()) == 0 {
 				ui.Text(c, "点「发现设备」搜索同网段 DLNA 播放器/电视").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 			}

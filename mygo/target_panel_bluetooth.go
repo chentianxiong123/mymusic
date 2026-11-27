@@ -16,6 +16,7 @@ func init() {
 		Label: "蓝牙设备",
 		Icon:  "bluetooth",
 		Render: func(c *ui.Context, h plugin.TargetPanelHost) {
+			kind, name := h.ActiveOutput()
 			ui.Column(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Children(func() {
 				ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
 					ui.Text(c, "蓝牙设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
@@ -25,6 +26,18 @@ func init() {
 						h.DiscoverBluetooth()
 					}
 				})
+				// 激活态归插件自己：蓝牙路由中显示 + 恢复本机
+				if kind == "bluetooth" {
+					ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
+						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+							icon(c, icBluetooth, 18, clrBlue)
+							ui.Text(c, "音频输出到："+name).FontSize(13 * uiScale).Bold().TextColor(clrText).Grow(1).MaxLines(1)
+							if chip(c, "恢复本机").Clicked() {
+								h.StopBluetooth()
+							}
+						})
+					})
+				}
 				if len(h.BtDevices()) == 0 {
 					ui.Text(c, "点「发现蓝牙」搜索已配对设备").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 				}

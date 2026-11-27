@@ -32,6 +32,26 @@ func (a *app) BtDevices() []target.BtDevice     { return a.btDevices }
 func (a *app) CastStatusMap() map[string]string { return a.castStatus }
 func (a *app) SpkDID() string                   { return a.spkDid }
 func (a *app) IsPlaying() bool                  { return a.playing }
+
+// ActiveOutput 当前激活的输出目标（统一状态源：各面板自己渲染激活态）。
+// 优先级：音箱 > DLNA > 蓝牙 > 本机（与 SwitchToLocal 的清理顺序一致）。
+func (a *app) ActiveOutput() (string, string) {
+	if a.spkDid != "" {
+		for _, d := range a.speakers {
+			if d.DID == a.spkDid {
+				return "speaker", d.Name
+			}
+		}
+		return "speaker", "小爱音箱"
+	}
+	if a.castOn != "" {
+		return "dlna", a.castOn
+	}
+	if a.btOn != "" {
+		return "bluetooth", a.btOn
+	}
+	return "local", ""
+}
 func (a *app) NextBVID() string {
 	if a.pb == nil {
 		return ""

@@ -16,6 +16,7 @@ func init() {
 		Label: "小爱音箱",
 		Icon:  "speaker",
 		Render: func(c *ui.Context, h plugin.TargetPanelHost) {
+			kind, name := h.ActiveOutput()
 			// 区块标题「小爱音箱」+ 刷新（对齐 DLNA/蓝牙区块标题样式）
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
 				ui.Text(c, "小爱音箱").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
@@ -24,6 +25,18 @@ func init() {
 					h.RefreshSpeakers()
 				}
 			})
+			// 激活态归插件自己：音箱播放中显示状态 + 停止
+			if kind == "speaker" {
+				ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(10 * uiScale).Background(clrCard).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+						icon(c, icMusic, 18, clrPink)
+						ui.Text(c, "音箱播放："+name).FontSize(13 * uiScale).Bold().TextColor(clrText).Grow(1).MaxLines(1)
+						if chip(c, "停止").Clicked() {
+							h.StopSpeaker(h.SpkDID())
+						}
+					})
+				})
+			}
 			// 登录态在插件页的小爱音箱插件项显示；目标页只留设备投送/停止。
 			if h.SpeakerLoggedIn() {
 				renderSpeakerDevices(c, h)

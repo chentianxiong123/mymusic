@@ -21,6 +21,10 @@ type TargetPanelHost interface {
 	CurrentBVID() string
 	CurrentTitle() string
 
+	// 当前激活输出（kind=local/dlna/bluetooth/speaker，name=设备名；空=本机）
+	// 各输出面板据此渲染自己的激活态（统一性：状态归插件自己，不写死在页面里）
+	ActiveOutput() (kind, name string)
+
 	// 设备列表
 	CastDevices() []cast.DeviceDTO
 	Speakers() []xiaoai.SpeakerDevice
