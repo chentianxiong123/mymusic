@@ -146,7 +146,13 @@ func (a *app) progressReporter() {
 				a.posText = fmtDurMygo(info.Pos)
 				a.durText = fmtDurMygo(info.Dur)
 				a.posSec = info.Pos
-				a.playing = info.Playing
+			
+a.playing = info.Playing
+				// 挂件歌词跟随进度：和 posSec 更新在同一 postMain 回调里触发重绘，
+				// 避免单独在外面 Invalidate 时读到旧 posSec（挂件歌词不更新）。
+				if a.lyricWin != nil {
+					a.lyricWin.Invalidate()
+				}
 			})
 			a.pushWidgetState() // 挂件 SSE 歌词行随进度更新（去重，跨进程）
 		}
@@ -159,9 +165,6 @@ func (a *app) progressReporter() {
 		// 播放中持续重绘（进度条/歌词走 250ms）；暂停静止不重绘 → 0 帧空闲。
 		if info.Playing || info.Playing != lastPlaying {
 			a.win.Invalidate()
-			if a.lyricWin != nil {
-				a.lyricWin.Invalidate()
-			}
 		}
 		lastPlaying = info.Playing
 	}

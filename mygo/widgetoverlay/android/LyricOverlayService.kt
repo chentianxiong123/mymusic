@@ -57,12 +57,12 @@ class LyricOverlayService : Service() {
     private var running = false
     private var pollThread: Thread? = null
     private val ui = Handler(Looper.getMainLooper())
-    private var currentBvid = ""
-    private var currentOffset = 0.0
-    /** 面板收起延时（触摸/点按钮后给足时间看清、连点）。 */
+    // 歌词字号档位（0-4 对应 14/16/18/22/26，×1.5 挂件基线）；−/+ 按钮调它，持久化。
+    private var lyricSize = 2
+    /** 面板收起延时（触摸后给足时间看清/连点）。之前 600ms 太快。 */
     private val hideDelayMs = 3500L
 
-    /** 重置面板收起计时（触摸/点控制按钮都调）。 */
+    /** 重置面板收起计时。 */
     private fun touchPanel() {
         ui.removeCallbacksAndMessages(null)
         rootView?.let { v ->
@@ -71,6 +71,15 @@ class LyricOverlayService : Service() {
                 ctrl?.visibility = View.GONE
             }, hideDelayMs)
         }
+    }
+
+    /** −/+ 调字号档位（不是歌词时间偏移！），更新 TextView 并持久化。 */
+    private fun changeLyricSize(delta: Int) {
+        val sizes = listOf(14f, 16f, 18f, 22f, 26f)
+        lyricSize = (lyricSize + delta).coerceIn(0, sizes.size - 1)
+        prefs?.edit()?.putInt("lyricsize", lyricSize)?.apply()
+        lyricView?.textSize = sizes[lyricSize] * 1.5f
+        touchPanel()
     }
 
     override fun onCreate() {
@@ -94,7 +103,7 @@ class LyricOverlayService : Service() {
     private fun createOverlayView() {
         val lyric = TextView(this).apply {
             text = "MyMusic 歌词"
-            textSize = 22f
+            textSize = 27f // 默认档 18×1.5；onCreate 会按持久化档位覆盖
             setTextColor(Color.WHITE)
             setShadowLayer(3f, 0f, 1f, Color.argb(200, 0, 0, 0))
             typeface = Typeface.DEFAULT_BOLD
@@ -102,6 +111,8 @@ class LyricOverlayService : Service() {
             setPadding(dp(14), dp(8), dp(14), dp(8))
         }
         lyricView = lyric
+        lyricSize = (prefs?.getInt("lyricsize", 2) ?: 2).coerceIn(0, 4)
+        lyric.textSize = listOf(14f, 16f, 18f, 22f, 26f)[lyricSize] * 1.5f
 
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; visibility = View.GONE }
         btnPause = ctrlBtn("⏸").also { b ->
@@ -109,11 +120,11 @@ class LyricOverlayService : Service() {
             bar.addView(b)
         }
         val btnMinus = ctrlBtn("−").also { b ->
-            b.setOnClickListener { touchPanel(); postOffset(-0.5) }
+            b.setOnClickListener { changeLyricSize(-1) } // 缩小歌词字号
             bar.addView(b)
         }
         val btnPlus = ctrlBtn("+").also { b ->
-            b.setOnClickListener { touchPanel(); postOffset(0.5) }
+            b.setOnClickListener { changeLyricSize(1) } // 放大歌词字号
             bar.addView(b)
         }
         ctrlBtn("✕").also { b ->
@@ -187,55 +198,34 @@ class LyricOverlayService : Service() {
         }.start()
     }
 
-    private fun postOffset(d: Double) {
-        if (currentBvid.isEmpty()) return
-        currentOffset += d
-        postJson("/api/v1/lyric/offset", "{\"bvid\":\"$currentBvid\",\"offset\":$currentOffset}")
-    }
-
     private fun attachDrag(target: View) {
         val down = FloatArray(2)
-        var dragging = false
         target.setOnTouchListener { v, ev ->
-            // 控制条区域：不接管触摸，让 −/⏸/+/✕ 的 OnClickListener 正常工作。
-            // （之前父容器一律 return true 吞掉事件 → 所有按钮点击失效。）
-            val onCtrl = ctrl?.visibility == View.VISIBLE && ev.rawY >= (params?.y ?: 0) + lyricBottom()
-            if (onCtrl) return@setOnTouchListener false
-
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     rootBg?.let { v.background = it }
                     ctrl?.visibility = View.VISIBLE
                     down[0] = ev.rawX - (params?.x ?: 0)
                     down[1] = ev.rawY - (params?.y ?: 0)
-                    dragging = false
-                    true // 歌词区域：接管，用于拖动
+                    true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = ev.rawX - down[0]
-                    val dy = ev.rawY - down[1]
-                    if (dragging || kotlin.math.abs(dx) + kotlin.math.abs(dy) > dp(4)) {
-                        dragging = true
-                        params?.let {
-                            it.x = dx.toInt()
-                            it.y = dy.toInt()
-                            rootView?.let { rv -> windowManager.updateViewLayout(rv, it) }
-                        }
+                    params?.let {
+                        it.x = (ev.rawX - down[0]).toInt()
+                        it.y = (ev.rawY - down[1]).toInt()
+                        rootView?.let { rv -> windowManager.updateViewLayout(rv, it) }
                     }
                     true
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_UP -> {
                     params?.let { prefs?.edit()?.putInt("x", it.x)?.putInt("y", it.y)?.apply() }
-                    touchPanel() // 松开后延时收起（可继续点控制条按钮）
+                    touchPanel() // 3.5s 后收起（之前 600ms 太快）
                     true
                 }
                 else -> false
             }
         }
     }
-
-    // 歌词区底部相对窗口 y 的位置（控制条在其下方）。
-    private fun lyricBottom(): Int = dp(40)
 
     private fun startForegroundCompat() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -313,8 +303,6 @@ class LyricOverlayService : Service() {
         var line = d.optString("line", "")
         val title = d.optString("title", "")
         val artist = d.optString("artist", "")
-        currentBvid = d.optString("bvid", "")
-        currentOffset = d.optDouble("offset", currentOffset)
         if (line.isEmpty()) line = if (title.isEmpty()) "MyMusic 歌词" else "$title - $artist"
         val finalLine = line
         val playing = d.optBoolean("playing", true)
