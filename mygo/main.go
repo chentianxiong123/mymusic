@@ -521,9 +521,8 @@ func main() {
 	plugin.RegisterSettings("source", "local", []plugin.Setting{
 		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav）"},
 	})
-	// 本地音源与本机输出是两个独立插件：一个读文件系统路径，一个选系统输出声卡，不混用。
+	// 本地音源：读文件系统路径（本机输出声卡选择已删除，蓝牙/声卡都走系统通道）。
 	plugin.RegisterInfo(plugin.Info{Name: "local", DisplayName: "本地音乐", Capabilities: []string{"source"}, Icon: "local", Version: "1.0", Desc: "本地文件 · 扫描目录播放", Order: 20})
-	plugin.RegisterInfo(plugin.Info{Name: "localout", DisplayName: "本机声卡", Capabilities: []string{"target"}, Icon: "vol", Version: "1.0", Desc: "本机输出 · 选择系统输出声卡", Order: 30})
 	plugin.RegisterInfo(plugin.Info{Name: "cast", DisplayName: "投屏", Capabilities: []string{"target"}, Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
 	plugin.RegisterInfo(plugin.Info{Name: "speaker", DisplayName: "小爱音箱", Capabilities: []string{"target"}, Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
 	// JS 沙箱插件：扫描可执行文件旁的 plugins/（相对路径会随 cwd 变化导致插件时多时少）。
