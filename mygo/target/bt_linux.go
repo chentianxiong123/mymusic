@@ -62,10 +62,14 @@ func (b *btLinux) List() []BtDevice {
 			continue
 		}
 		mac := f[1]
+		audio := b.isAudioDevice(mac)
+		conn := connected[strings.ToLower(mac)]
 		list = append(list, BtDevice{
 			MAC: mac, Name: strings.Join(f[2:], " "),
-			Connected: connected[strings.ToLower(mac)],
-			Supported: b.isAudioDevice(mac), // 音频设备过滤（鼠标/键盘不显示投送）
+			Connected: conn,
+			Supported: audio,
+			// 只有真有 bluez_output sink 才能投（设备连上但没注册音频端点时不可投）
+			Ready: audio && conn && sinkForMAC(mac) != "",
 		})
 	}
 	return list

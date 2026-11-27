@@ -23,7 +23,7 @@ func init() {
 					ui.Text(c, "蓝牙设备").FontSize(14 * uiScale).Bold().TextColor(clrText).PaddingX(4 * uiScale)
 					ui.Spacer(c).Grow(1)
 					ui.Text(c, h.BtBackendName()).FontSize(11 * uiScale).TextColor(clrMuted)
-					if chip(c, "发现蓝牙").Clicked() {
+					if chip(c, "刷新").Clicked() {
 						h.DiscoverBluetooth()
 					}
 				})
@@ -63,23 +63,23 @@ func init() {
 									ui.Text(c, d.Name).FontSize(14 * uiScale).Bold().TextColor(clrText).MaxLines(1)
 									ui.Text(c, d.MAC).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
 								})
-								state := "未连接"
-								col := clrMuted
-								if d.Connected {
-									state = "已连接"
-									col = clrGreen
+								switch {
+								case d.Ready:
+									statusBadge(c, "可投送", clrGreen)
+								case d.Connected:
+									statusBadge(c, "已连接·无音频", clrMuted)
+								default:
+									statusBadge(c, "未连接", clrMuted)
 								}
-								statusBadge(c, state, col)
 							})
-							ui.Row(c).AlignSelf(ui.Stretch).Gap(8 * uiScale).Children(func() {
-								if chip(c, "连接").Clicked() {
-									h.ConnectBluetooth(d.MAC)
-								}
-								if d.Connected && chip(c, "断开").Clicked() {
-									h.DisconnectBluetooth(d.MAC)
-								}
-								if chip(c, "音频到此").Clicked() {
-									h.PlayBluetooth(d.MAC, d.Name)
+							// 只有真能投的设备才给按钮；连接/断开是系统蓝牙设置的事，不在 app 里做
+							ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+								if d.Ready {
+									if chip(c, "音频到此").Clicked() {
+										h.PlayBluetooth(d.MAC, d.Name)
+									}
+								} else {
+									ui.Text(c, "在系统蓝牙设置中连接后点刷新").FontSize(11 * uiScale).TextColor(clrMuted).Grow(1)
 								}
 							})
 						})

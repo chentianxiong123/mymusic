@@ -94,21 +94,24 @@ func (a *app) findBtTarget(id string) target.Target {
 	return nil
 }
 
+// ConnectBluetooth 保留为 host 能力（UI 已不调用：连接请在系统蓝牙设置里做）。
+// bluetoothctl connect 会阻塞到超时，绝不能在 UI 线程同步跑——放 goroutine。
 func (a *app) ConnectBluetooth(id string) {
-	t := a.findBtTarget(id)
-	if t == nil {
-		return
-	}
-	if b, ok := t.(*target.Bluetooth); ok {
-		err := b.Connect()
-		if err != nil {
-			a.status = "连接失败：" + err.Error()
-		} else {
-			a.status = "已连接 " + b.DeviceName()
+	go func() {
+		t := a.findBtTarget(id)
+		if t == nil {
+			return
 		}
-	}
-	a.discoverBluetooth()
-	a.win.Invalidate()
+		if b, ok := t.(*target.Bluetooth); ok {
+			err := b.Connect()
+			if err != nil {
+				a.win.Update(func() { a.status = "连接失败：" + err.Error() })
+			} else {
+				a.win.Update(func() { a.status = "已连接 " + b.DeviceName() })
+				a.discoverBluetooth()
+			}
+		}
+	}()
 }
 
 func (a *app) DisconnectBluetooth(id string) {

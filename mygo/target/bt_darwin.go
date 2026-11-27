@@ -61,10 +61,13 @@ func (b *btDarwin) List() []BtDevice {
 		if i := strings.Index(name, " ("); i > 0 {
 			name = name[:i]
 		}
+		conn := connected[strings.ToLower(addr)]
+		audio := b.isAudioDevice(addr, name)
 		list = append(list, BtDevice{
 			MAC: addr, Name: name,
-			Connected: connected[strings.ToLower(addr)],
-			Supported: b.isAudioDevice(addr, name), // 音频设备过滤（鼠标/键盘不显示）
+			Connected: conn,
+			Supported: audio,
+			Ready:     conn && audio, // macOS 路由按设备名字，连上即可投
 		})
 	}
 	return list

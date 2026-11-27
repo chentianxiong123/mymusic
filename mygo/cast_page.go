@@ -164,9 +164,14 @@ func (a *app) discoverBluetooth() {
 		if len(list) == 0 && !target.BtAvailable() {
 			a.status = "当前平台不支持蓝牙输出"
 		} else {
-			a.status = fmt.Sprintf("发现 %d 个蓝牙设备", len(list))
+			ready := 0
+			for _, d := range list {
+				if d.Ready {
+					ready++
+				}
+			}
+			a.status = fmt.Sprintf("%d 台已配对音频设备，%d 台可投送", len(list), ready)
 		}
-		a.win.Invalidate()
 	})
 }
 

@@ -44,10 +44,13 @@ func (b *btWindows) List() []BtDevice {
 		if len(f) < 3 || f[0] == "" {
 			continue
 		}
+		conn := strings.EqualFold(f[2], "OK")
+		audio := isAudioName(f[1])
 		list = append(list, BtDevice{
 			MAC: f[0], Name: f[1],
-			Connected: strings.EqualFold(f[2], "OK"),
-			Supported: isAudioName(f[1]), // Windows PnP 无 UUID API：按名称关键词判断音频设备
+			Connected: conn,
+			Supported: audio,
+			Ready:     conn && audio, // Windows 路由按端点名字，连上即可投
 		})
 	}
 	return list

@@ -12,7 +12,8 @@ type BtDevice struct {
 	MAC        string // 设备唯一 id（Linux=MAC，macOS=地址，Windows=InstanceId，Android=地址）
 	Name       string // 设备名
 	Connected  bool   // 是否已连接
-	Supported  bool   // 后端是否支持该设备（ incapable 平台为 false）
+	Supported  bool   // 是否是音频设备（过滤鼠标/键盘）
+	Ready      bool   // 是否真的可投（已连接 + 系统有音频输出端点）——只有这个才显示"音频到此"
 }
 
 // BtBackend 蓝牙平台后端：封装各端蓝牙栈 + 音频路由 API。
