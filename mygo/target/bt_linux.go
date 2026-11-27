@@ -116,9 +116,63 @@ func (b *btLinux) RouteTo(id string) error {
 	if sink == "" {
 		return fmt.Errorf("蓝牙设备未连接（无 bluez_output sink）")
 	}
-	return exec.Command("pactl", "set-default-sink", sink).Run()
+	// 1. 默认 sink 切到蓝牙（影响之后新建的音频流，比如切歌后重新建流）
+	if err := exec.Command("pactl", "set-default-sink", sink).Run(); err != nil {
+		return err
+	}
+	// 2. 把当前正在播放的流也迁过去。set-default-sink 不会迁移已存在的流，
+	//    不迁移的话当前这首歌还是从扬声器出 —— 就是"点了音频到此没反应"。
+	out, err := exec.Command("pactl", "list", "short", "sink-inputs").Output()
+	if err != nil {
+		return nil // 默认 sink 已切，迁流失败不致命
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		f := strings.Fields(line)
+		if len(f) < 2 {
+			continue
+		}
+		if f[1] == sink {
+			continue // 已在这个 sink 上
+		}
+		_ = exec.Command("pactl", "move-sink-input", f[0], sink).Run()
+	}
+	return nil
 }
 
 func (b *btLinux) RouteToLocal() error {
-	return exec.Command("pactl", "set-default-sink", "@DEFAULT_SINK@").Run()
+	// 切回本机（内置扬声器）。@DEFAULT_SINK@ 是占位符，不能当 set-default-sink 参数。
+	local := localSink()
+	if local == "" {
+		return fmt.Errorf("找不到本机音频输出")
+	}
+	if err := exec.Command("pactl", "set-default-sink", local).Run(); err != nil {
+		return err
+	}
+	// 把还在蓝牙 sink 上的流迁回本机
+	out, err := exec.Command("pactl", "list", "short", "sink-inputs").Output()
+	if err != nil {
+		return nil
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && strings.HasPrefix(f[1], "bluez_output.") {
+			_ = exec.Command("pactl", "move-sink-input", f[0], local).Run()
+		}
+	}
+	return nil
+}
+
+// localSink 找非蓝牙的本机 sink（内置扬声器/声卡）。
+func localSink() string {
+	out, err := exec.Command("pactl", "list", "short", "sinks").Output()
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && !strings.HasPrefix(f[1], "bluez_output.") {
+			return f[1]
+		}
+	}
+	return ""
 }

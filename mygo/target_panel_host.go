@@ -135,7 +135,9 @@ func (a *app) PlayBluetooth(id, name string) {
 	if err := t.Play(a.currentRef, target.PlayOpts{Title: a.CurrentTitle()}); err != nil {
 		a.status = "蓝牙投送失败：" + err.Error()
 	} else {
-		a.pauseLocalForCast()
+		// 蓝牙是系统音频路由（声音从本机经蓝牙 sink 出），不是 DLNA/音箱那种
+		// 把 URL 推给远端设备。绝不能 pauseLocalForCast——那会把本机播放停掉，
+		// 反而没声音。保持本机继续播放即可（已有音频流会自动跟着默认 sink 走）。
 		a.btOn = name
 		a.status = "音频已路由到 " + name
 	}
