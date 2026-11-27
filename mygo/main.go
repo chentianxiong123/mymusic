@@ -577,9 +577,11 @@ func main() {
 	a.refreshFavs()      // 收藏恢复自 fav 域包（SQLite 持久化）
 	a.refreshSonglists() // 歌单列表恢复自 songlist 域包（SQLite 持久化）
 	a.restorePrefs()     // 恢复主题/音质/缓存上限（settings 表）
-	// 安卓悬浮歌词：恢复上次开启状态（进程重启后 Service 不自动恢复）
+	// 安卓悬浮歌词：恢复上次开启状态（进程重启后 Service 不自动恢复）。
+	// 必须在 App.WhenReady 里调：mygo.Native().Call 在 App.Run 之前会直接 panic
+	// （实测一启动就 SIGABRT：NativePlugin.Call called before App.Run）。
 	if runtime.GOOS == "android" && a.androidLyricOn {
-		widgetoverlay.Start()
+		mygo.App.WhenReady(func() { _, _ = widgetoverlay.Start() })
 	}
 	if a.restoreCfg.Recent {
 		a.restoreRecent()
