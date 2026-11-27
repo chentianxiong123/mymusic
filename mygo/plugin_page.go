@@ -8,7 +8,6 @@ import (
 	"mymusic-mygo/plugin"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -505,17 +504,7 @@ func (a *app) neteaseSourceConfig(c *ui.Context) {
 	})
 }
 
-// copySpeakerQRImage 把音箱二维码 PNG 写入剪贴板（图片格式），
-// 可粘贴到聊天窗口用手机米家 App 扫，不必凑近屏幕。
+// copySpeakerQRImage 复制音箱扫码登录的二维码（共用统一 PNG 复制实现）。
 func (a *app) copySpeakerQRImage() {
-	if len(a.qrSpeakerPNG) == 0 {
-		a.status = "二维码尚未生成"
-		return
-	}
-	d := transfer.New(transfer.NewItem(transfer.Bytes(transfer.PNG, a.qrSpeakerPNG)))
-	if err := mygo.Clipboard.Write(d); err != nil {
-		a.status = "复制失败：" + err.Error()
-		return
-	}
-	a.status = "已复制音箱二维码（可粘贴到聊天窗口用手机扫）"
+	a.copyPNGToClipboard(a.qrSpeakerPNG, "已复制音箱二维码（可粘贴到聊天窗口用手机扫）")
 }

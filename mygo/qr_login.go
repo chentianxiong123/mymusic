@@ -522,23 +522,30 @@ func (a *app) qrLoginDialog(c *ui.Context) {
 	})
 }
 
-// copyQRImage 把当前二维码 PNG 写入剪贴板（图片格式），
-// 用户可粘贴到微信/QQ/备忘录，用手机扫码，不必凑近电脑屏幕。
+// copyPNGToClipboard 统一的「复制二维码图片」实现：
+// 把 PNG 写进系统剪贴板（image/png），可粘贴到微信/QQ/备忘录，
+// 用手机扫码，不必凑近电脑屏幕。所有 QR 场景共用这一处。
+func (a *app) copyPNGToClipboard(png []byte, okMsg string) bool {
+	if len(png) == 0 {
+		a.status = "二维码尚未生成"
+		return false
+	}
+	data := transfer.New(transfer.NewItem(transfer.Bytes(transfer.PNG, png)))
+	if err := mygo.Clipboard.Write(data); err != nil {
+		a.status = "复制失败：" + err.Error()
+		return false
+	}
+	a.status = okMsg
+	return true
+}
+
+// copyQRImage 复制当前音源扫码登录的二维码。
 func (a *app) copyQRImage() {
 	var png []byte
 	if a.qrLoginSession != nil {
 		png = a.qrLoginPNG
 	}
-	if len(png) == 0 {
-		a.status = "二维码尚未生成"
-		return
-	}
-	data := transfer.New(transfer.NewItem(transfer.Bytes(transfer.PNG, png)))
-	if err := mygo.Clipboard.Write(data); err != nil {
-		a.status = "复制失败：" + err.Error()
-		return
-	}
-	a.status = "已复制二维码（可粘贴到聊天窗口用手机扫）"
+	a.copyPNGToClipboard(png, "已复制二维码（可粘贴到聊天窗口用手机扫）")
 }
 
 // stopQRLogin 关闭弹窗 + 停止轮询。
