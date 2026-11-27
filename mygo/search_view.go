@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 	"homecast/bilibili"
@@ -108,7 +107,7 @@ func (a *app) searchChips(c *ui.Context) {
 					lbtn := ui.Box(c).Absolute().Left(-18 * uiScale).Top(-1 * uiScale).Width(28 * uiScale).Height(36 * uiScale).
 						Radius(14 * uiScale).Background(ui.RGBA(0, 0, 0, 0.7)).AlignItems(ui.Center).Justify(ui.Center)
 					if lbtn.Clicked() {
-						a.historyScroll.ScrollTo(a.historyScroll.X-step, 0, ui.Animation{Duration: 180 * time.Millisecond})
+						scrollStep(&a.historyScroll, &a.historyTarget, step, -1)
 					}
 					lbtn.Children(func() { icon(c, icChevL, 16, clrText) })
 				}
@@ -116,7 +115,7 @@ func (a *app) searchChips(c *ui.Context) {
 					rbtn := ui.Box(c).Absolute().Right(-18 * uiScale).Top(-1 * uiScale).Width(28 * uiScale).Height(36 * uiScale).
 						Radius(14 * uiScale).Background(ui.RGBA(0, 0, 0, 0.7)).AlignItems(ui.Center).Justify(ui.Center)
 					if rbtn.Clicked() {
-						a.historyScroll.ScrollTo(a.historyScroll.X+step, 0, ui.Animation{Duration: 180 * time.Millisecond})
+						scrollStep(&a.historyScroll, &a.historyTarget, step, 1)
 					}
 					rbtn.Children(func() { icon(c, icChevR, 16, clrText) })
 				}
@@ -235,7 +234,7 @@ func (a *app) searchSourceGroup(c *ui.Context, grp srcResult) {
 			})
 			// 该源歌曲行（复用 listRow：双击播放/收藏/播放按钮）
 			if len(shown) == 0 && len(grp.songs) > 0 {
-				ui.Text(c, "本页内容已过滤").FontSize(12*uiScale).TextColor(clrMuted).AlignSelf(ui.Center)
+				ui.Text(c, "本页内容已过滤").FontSize(12 * uiScale).TextColor(clrMuted).AlignSelf(ui.Center)
 			}
 			rowList := make([]bilibili.SearchItem, 0, len(shown))
 			for _, r := range shown {
@@ -316,7 +315,7 @@ func (a *app) sourceSelector(c *ui.Context) {
 	// 下拉弹层：深色卡片圆角 + 限高可滚动（插件多时不会超出屏幕看不到）。
 	// Scroll.Grow(1) 要求父容器有确定高度；父若只有 MaxHeight（content-sized），
 	// 每帧在「内容高度 vs 上限」间重算 → 列表上下跳动。给 panel 确定高度消除。
-	popupH := len(names) * 44 + 12 // 每项 44 + 上下 padding 6*2
+	popupH := len(names)*44 + 12 // 每项 44 + 上下 padding 6*2
 	if popupH > 412 {
 		popupH = 412
 	}
