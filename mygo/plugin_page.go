@@ -11,7 +11,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// pluginPage 插件页：一体化列表——一个平台一个条目（能力是标签，不再按类型分页）。
+// pluginPage 插件页：两页分页（音源 / 输出）。
+// 一个平台一个条目（能力是标签），按主能力分页；歌词/推荐/登录等附属配置在详情页里。
 // 设置页子 tab（settingsTab==1）进入。
 func (a *app) pluginPage(c *ui.Context) {
 	if a.pluginDetail != "" {
@@ -19,19 +20,28 @@ func (a *app) pluginPage(c *ui.Context) {
 		return
 	}
 	ui.Column(c).Grow(1).Fill().Gap(10 * uiScale).Children(func() {
-		a.pluginAllGroup(c)
+		a.setRowSeg(c, []string{"音源", "输出"}, a.pluginTab, func(i int) {
+			a.pluginTab = i
+			a.win.Invalidate()
+		})
+		kind, title := "source", "音源插件"
+		if a.pluginTab == 1 {
+			kind, title = "target", "输出插件"
+		}
+		a.pluginAllGroup(c, kind, title)
 	})
 }
 
-// pluginAllGroup 全部平台一个列表（拖拽排序 + 能力标签 + 启用开关）。
-func (a *app) pluginAllGroup(c *ui.Context) {
-	infos := plugin.AllInfos()
+// pluginAllGroup 某类平台一个列表（拖拽排序 + 能力标签 + 启用开关）。
+// kind=source/target；启用态按平台 key（一体化），不用旧 type 字段。
+func (a *app) pluginAllGroup(c *ui.Context, kind, title string) {
+	infos := plugin.InfoNames(kind)
 	section := ui.Box(c).Fill().Grow(1).Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrField)
 	section.Children(func() {
 		ui.Column(c).Fill().Gap(10 * uiScale).Children(func() {
 			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
-				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(clrPink)
-				ui.Text(c, "插件").FontSize(13 * uiScale).Bold().TextColor(clrText)
+				ui.Box(c).Size(3*uiScale, 14*uiScale).Background(pluginColor(kind))
+				ui.Text(c, title).FontSize(13 * uiScale).Bold().TextColor(clrText)
 				ui.Spacer(c).Grow(1)
 				ui.Text(c, "拖动排序").FontSize(10 * uiScale).TextColor(clrMuted)
 				ui.Text(c, fmt.Sprintf("%d 个", len(infos))).FontSize(11 * uiScale).TextColor(clrMuted)
@@ -40,7 +50,7 @@ func (a *app) pluginAllGroup(c *ui.Context) {
 				ui.Text(c, "无").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 				return
 			}
-			st := a.pluginListState("all", len(infos))
+			st := a.pluginListState(kind, len(infos))
 			ui.List(c, st, len(infos), func(idx int) {
 				in := infos[idx]
 				row := ui.Box(c).Fill().Radius(8 * uiScale).PaddingX(10 * uiScale).PaddingY(10 * uiScale)
@@ -49,7 +59,7 @@ func (a *app) pluginAllGroup(c *ui.Context) {
 						ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
 							ui.Text(c, fmt.Sprintf("%d", idx+1)).FontSize(11 * uiScale).TextColor(clrMuted).Width(16)
 							ui.Text(c, "⠿").FontSize(14 * uiScale).TextColor(clrMuted)
-							icon(c, pluginIcon(in.Icon), 18, clrBlue)
+							icon(c, pluginIcon(in.Icon), 18, pluginColor(kind))
 							ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
 								name := in.DisplayName
 								if name == "" {
@@ -63,10 +73,10 @@ func (a *app) pluginAllGroup(c *ui.Context) {
 								a.pluginDetail = in.Name // 一体化：直接用平台 key
 								a.win.Invalidate()
 							}
-							on := plugin.IsEnabled("", in.Name)
+							on := plugin.IsEnabled(kind, in.Name)
 							if switchToggle(c, on).Clicked() {
-								plugin.SetEnabled("", in.Name, !on)
-								a.savePref("plugin_"+in.Name, map[bool]int{true: 1, false: 0}[!on])
+								plugin.SetEnabled(kind, in.Name, !on)
+								a.savePref("plugin_"+in.Name, map[bool]int{true: 1, false: 0}[!on]) // 一体化：只按平台 key（plugin_order.go 同口径）
 								a.win.Invalidate()
 							}
 						})
@@ -349,12 +359,13 @@ func (a *app) speakerConfig(c *ui.Context) {
 	}
 	if a.svc.speakerLoggedIn() {
 		// 已登录：账户头 + 刷新/复制 token
-		ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+		ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(a.resp(16, 12)).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+			// Wrap：窄屏放不下两个按钮时自动换行，不再撑爆卡片
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Wrap().Children(func() {
 				icon(c, icMsg, 18, clrPurple)
-				ui.Column(c).Grow(1).Gap(2 * uiScale).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(120 * uiScale).Gap(2 * uiScale).Children(func() {
 					ui.Text(c, "小爱音箱").FontSize(14 * uiScale).Bold().TextColor(clrText)
-					ui.Text(c, "已登录 · "+a.svc.speakerUserID()).FontSize(11 * uiScale).TextColor(clrMuted)
+					ui.Text(c, "已登录 · "+a.svc.speakerUserID()).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
 				})
 				if chip(c, "刷新设备").Clicked() {
 					go a.refreshSpeakers()
@@ -377,9 +388,10 @@ func (a *app) speakerConfig(c *ui.Context) {
 	}
 	// 未登录：QR + token 输入
 	if a.qrImage != "" {
-		ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(16 * uiScale).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(16 * uiScale).Children(func() {
-				ui.Box(c).Size(120*uiScale, 120*uiScale).Draw(func(p *ui.Painter, r ui.Rect) {
+		ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(a.resp(16, 12)).PaddingY(12 * uiScale).Background(clrCard).Children(func() {
+			// Wrap：窄屏二维码与文字上下排，不再左右挤压
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(a.resp(16, 10)).Wrap().Children(func() {
+				ui.Box(c).Size(a.resp(120, 96), a.resp(120, 96)).Draw(func(p *ui.Painter, r ui.Rect) {
 					p.FillRadii(r, [4]float32{8, 8, 8, 8}, clrCard)
 					if img, ok := a.covers["__qr__"]; ok {
 						p.Clip(r, 8, func() { p.Image(img, r, ui.Cover) })
@@ -405,7 +417,7 @@ func (a *app) speakerConfig(c *ui.Context) {
 			ui.TextInput(c, &a.tokenInput).Grow(1).Height(60 * uiScale).
 				Placeholder("粘贴音箱 token（其他设备导出）…").
 				FontSize(12 * uiScale).TextColor(clrText)
-			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(10 * uiScale).Children(func() {
+			ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Wrap().Children(func() {
 				ui.Spacer(c).Grow(1)
 				if chip(c, "粘贴剪贴板").Clicked() {
 					go a.fillTokenFromClipboard()

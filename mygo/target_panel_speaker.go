@@ -52,7 +52,13 @@ func renderSpeakerDevices(c *ui.Context, h plugin.TargetPanelHost) {
 	if len(h.Speakers()) == 0 {
 		ui.Text(c, "音箱：点「刷新设备」获取设备列表").FontSize(12 * uiScale).TextColor(clrMuted).PaddingX(4 * uiScale)
 	}
-	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1)).Gap(10 * uiScale).Fill().Children(func() {
+	// 宽屏两列、窄屏一列：固定 2 列在手机上会把卡片里的图标/名字/状态徽章/按钮挤爆。
+	// TargetPanelHost 的实际实现是 *app；断言失败（第三方实现）时按宽屏两列。
+	tracks := []ui.Track{ui.Fr(1), ui.Fr(1)}
+	if aa, ok := h.(*app); ok && aa.narrow() {
+		tracks = []ui.Track{ui.Fr(1)}
+	}
+	ui.Grid(c).ColumnTracks(tracks...).Gap(10 * uiScale).Fill().Children(func() {
 		for _, sp := range h.Speakers() {
 			sp := sp
 			card := ui.Box(c).Fill().Radius(12 * uiScale).PaddingX(14 * uiScale).PaddingY(12 * uiScale).Background(clrCard)
@@ -70,7 +76,7 @@ func renderSpeakerDevices(c *ui.Context, h plugin.TargetPanelHost) {
 							statusBadge(c, "离线", clrMuted)
 						}
 					})
-					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Children(func() {
+					ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Center).Gap(8 * uiScale).Wrap().Children(func() {
 						if chip(c, "投送").Clicked() {
 							h.PlayToSpeaker(sp.DID, sp.Name)
 						}
