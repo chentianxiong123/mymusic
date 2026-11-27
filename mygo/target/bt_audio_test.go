@@ -22,6 +22,21 @@ func TestAudioUUIDDetection(t *testing.T) {
 	}
 }
 
+// bluetoothctl devices Connected 输出的名字可能有空格也可能没有，
+// 解析只看 f[1]（MAC），len>=3 就够。回归：小爱音箱-5846 无空格被误判未连接。
+func TestParseConnectedDevices(t *testing.T) {
+	out := `Device 40:31:3C:63:5D:FC 小爱音箱-5846
+Device 13:05:AA:00:0D:DD BT5.2 Mouse
+`
+	got := parseConnectedDevices(out)
+	if !got["40:31:3c:63:5d:fc"] {
+		t.Fatal("无空格名字的小爱音箱应识别为已连接")
+	}
+	if !got["13:05:aa:00:0d:dd"] {
+		t.Fatal("有空格名字的鼠标应识别为已连接")
+	}
+}
+
 func TestIsAudioName(t *testing.T) {
 	for _, name := range []string{"AirPods Pro", "JBL Speaker", "小米耳机", "WH-1000XM5 Headphones"} {
 		if !isAudioName(name) {

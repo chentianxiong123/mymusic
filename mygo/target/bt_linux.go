@@ -28,6 +28,19 @@ func (b *btLinux) run(args ...string) (string, error) {
 	return string(out), nil
 }
 
+// parseConnectedDevices 解析 "bluetoothctl devices Connected" 输出。
+// 格式 "Device <MAC> <名字>"，名字可能有空格也可能没有。
+func parseConnectedDevices(out string) map[string]bool {
+	res := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 3 && f[0] == "Device" {
+			res[strings.ToLower(f[1])] = true
+		}
+	}
+	return res
+}
+
 // isAudioDevice 查 bluetoothctl info 的 UUID 判断是不是音频设备。
 // 查询失败时保守返回 false（宁可不显示，也不让用户点了没反应）。
 func (b *btLinux) isAudioDevice(mac string) bool {
@@ -48,12 +61,7 @@ func (b *btLinux) List() []BtDevice {
 	// 连接集合（info 输出 Connected: yes）
 	connected := map[string]bool{}
 	if co, e := b.run("bluetoothctl", "devices", "Connected"); e == nil {
-		for _, line := range strings.Split(co, "\n") {
-			f := strings.Fields(line)
-			if len(f) >= 4 && f[0] == "Device" {
-				connected[strings.ToLower(f[1])] = true
-			}
-		}
+		connected = parseConnectedDevices(co)
 	}
 	var list []BtDevice
 	for _, line := range strings.Split(out, "\n") {
