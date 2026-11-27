@@ -59,6 +59,19 @@ class LyricOverlayService : Service() {
     private val ui = Handler(Looper.getMainLooper())
     private var currentBvid = ""
     private var currentOffset = 0.0
+    /** 面板收起延时（触摸/点按钮后给足时间看清、连点）。 */
+    private val hideDelayMs = 3500L
+
+    /** 重置面板收起计时（触摸/点控制按钮都调）。 */
+    private fun touchPanel() {
+        ui.removeCallbacksAndMessages(null)
+        rootView?.let { v ->
+            ui.postDelayed({
+                v.background = null
+                ctrl?.visibility = View.GONE
+            }, hideDelayMs)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -92,15 +105,15 @@ class LyricOverlayService : Service() {
 
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; visibility = View.GONE }
         btnPause = ctrlBtn("⏸").also { b ->
-            b.setOnClickListener { postJson("/api/v1/widget/toggle", "{}") }
+            b.setOnClickListener { touchPanel(); postJson("/api/v1/widget/toggle", "{}") }
             bar.addView(b)
         }
         val btnMinus = ctrlBtn("−").also { b ->
-            b.setOnClickListener { postOffset(-0.5) }
+            b.setOnClickListener { touchPanel(); postOffset(-0.5) }
             bar.addView(b)
         }
         val btnPlus = ctrlBtn("+").also { b ->
-            b.setOnClickListener { postOffset(0.5) }
+            b.setOnClickListener { touchPanel(); postOffset(0.5) }
             bar.addView(b)
         }
         ctrlBtn("✕").also { b ->
@@ -182,35 +195,47 @@ class LyricOverlayService : Service() {
 
     private fun attachDrag(target: View) {
         val down = FloatArray(2)
+        var dragging = false
         target.setOnTouchListener { v, ev ->
+            // 控制条区域：不接管触摸，让 −/⏸/+/✕ 的 OnClickListener 正常工作。
+            // （之前父容器一律 return true 吞掉事件 → 所有按钮点击失效。）
+            val onCtrl = ctrl?.visibility == View.VISIBLE && ev.rawY >= (params?.y ?: 0) + lyricBottom()
+            if (onCtrl) return@setOnTouchListener false
+
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     rootBg?.let { v.background = it }
                     ctrl?.visibility = View.VISIBLE
                     down[0] = ev.rawX - (params?.x ?: 0)
                     down[1] = ev.rawY - (params?.y ?: 0)
-                    true
+                    dragging = false
+                    true // 歌词区域：接管，用于拖动
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params?.let {
-                        it.x = (ev.rawX - down[0]).toInt()
-                        it.y = (ev.rawY - down[1]).toInt()
-                        rootView?.let { rv -> windowManager.updateViewLayout(rv, it) }
+                    val dx = ev.rawX - down[0]
+                    val dy = ev.rawY - down[1]
+                    if (dragging || kotlin.math.abs(dx) + kotlin.math.abs(dy) > dp(4)) {
+                        dragging = true
+                        params?.let {
+                            it.x = dx.toInt()
+                            it.y = dy.toInt()
+                            rootView?.let { rv -> windowManager.updateViewLayout(rv, it) }
+                        }
                     }
                     true
                 }
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     params?.let { prefs?.edit()?.putInt("x", it.x)?.putInt("y", it.y)?.apply() }
-                    ui.postDelayed({
-                        v.background = null
-                        ctrl?.visibility = View.GONE
-                    }, 600)
+                    touchPanel() // 松开后延时收起（可继续点控制条按钮）
                     true
                 }
                 else -> false
             }
         }
     }
+
+    // 歌词区底部相对窗口 y 的位置（控制条在其下方）。
+    private fun lyricBottom(): Int = dp(40)
 
     private fun startForegroundCompat() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
