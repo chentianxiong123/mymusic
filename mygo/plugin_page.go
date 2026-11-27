@@ -192,6 +192,8 @@ func pluginIcon(name string) *ui.SVG {
 	case "netease":
 		return icMusic
 	case "local":
+		return icLocal
+	case "localout":
 		return icVol
 	case "speaker":
 		return icMsg
@@ -271,9 +273,10 @@ func (a *app) pluginConfigForm(c *ui.Context) {
 		a.neteaseLyricConfig(c) // 网易云既是音源又是歌词源，两个配置都显示
 	case "speaker":
 		a.speakerConfig(c)
-	case "local":
-		a.localConfig(c)
+	case "localout":
+		a.localConfig(c) // 本机输出：只管声卡选择，与本地音源的文件系统路径无关
 	default:
+		// local（本地音乐）走这里：meta.settings 声明的「本地音乐目录」路径设置
 		// JS 插件（meta.settings 声明）：按平台 key 找设置声明
 		found := false
 		for _, tp := range []string{"source", "lyric", "target", "recommend"} {

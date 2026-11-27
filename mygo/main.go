@@ -49,32 +49,32 @@ type app struct {
 	bili     *bilibili.Client
 
 	// 主线 SSOT 接入：业务状态/队列/模式/持久化全在 playback 域包（MyGo 只渲染+发命令）
-	pb           *playback.PlaybackState
-	mygoOut      *MyGoOutput
-	link         plugin.Link // 稳定链路 API（搜索→播放→歌词统一入口，多端复用核心）
-	db           *sql.DB
-	svc          *services              // 主线域包句柄（fav/lyric/cast/speaker）
-	src          source.MusicSource     // 当前音源（阶段 2 解耦：UI 只认接口，不认具体源）
-	neteaseSrc   *source.Netease        // Go 内置网易云源（登录态热更新用）
-	castOn       string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
-	currentRef   model.SongRef          // 1.2.5 当前歌曲的跨源引用（输出层统一传它）
-	supplier     *Supplier              // 统一取流供给（本机播放/HTTP/DLNA 共用）
-	localPausedByCast bool              // 投送远程时本机被暂停（切回本机时恢复）
-	castDevices  []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
-	castStatus   map[string]string      // udn → 设备状态（点「查状态」后填，默认「在线」，对齐主线 cast-status span）
-	speakers     []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
-	recent       []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
-	lastVolSave  time.Time              // 音量落库节流时间戳
-	qrStatus     string                 // 音箱扫码登录状态文案
-	lastLyricIdx int                    // 上次高亮歌词行（KTV 滚动跟随去重）
-	lyrDrawer    int                    // 窄档歌词抽屉：0 关 1 候选 2 工具（对齐主线 ly-drawer-*）
-	searched     bool                   // 是否已执行过搜索（区分空结果态）
-	eqPhase      int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
-	qrImage      string                 // 二维码 data URI（渲染用）
-	tokenInput   string                 // 音箱 token 输入框值（粘贴 token 登录）
-	ctxItem      *bilibili.SearchItem   // 右键菜单目标（非空=显示）
-	ctxX, ctxY   float32                // 菜单弹出位置（窗口坐标）
-	clipboard    string                 // 待复制链接（mygo 暂无线程安全 clipboard API，先字段+状态提示）
+	pb                *playback.PlaybackState
+	mygoOut           *MyGoOutput
+	link              plugin.Link // 稳定链路 API（搜索→播放→歌词统一入口，多端复用核心）
+	db                *sql.DB
+	svc               *services              // 主线域包句柄（fav/lyric/cast/speaker）
+	src               source.MusicSource     // 当前音源（阶段 2 解耦：UI 只认接口，不认具体源）
+	neteaseSrc        *source.Netease        // Go 内置网易云源（登录态热更新用）
+	castOn            string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
+	currentRef        model.SongRef          // 1.2.5 当前歌曲的跨源引用（输出层统一传它）
+	supplier          *Supplier              // 统一取流供给（本机播放/HTTP/DLNA 共用）
+	localPausedByCast bool                   // 投送远程时本机被暂停（切回本机时恢复）
+	castDevices       []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
+	castStatus        map[string]string      // udn → 设备状态（点「查状态」后填，默认「在线」，对齐主线 cast-status span）
+	speakers          []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
+	recent            []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
+	lastVolSave       time.Time              // 音量落库节流时间戳
+	qrStatus          string                 // 音箱扫码登录状态文案
+	lastLyricIdx      int                    // 上次高亮歌词行（KTV 滚动跟随去重）
+	lyrDrawer         int                    // 窄档歌词抽屉：0 关 1 候选 2 工具（对齐主线 ly-drawer-*）
+	searched          bool                   // 是否已执行过搜索（区分空结果态）
+	eqPhase           int                    // dock 封面 EQ 频谱相位（播放中推进，对齐主线 d-eq 动画）
+	qrImage           string                 // 二维码 data URI（渲染用）
+	tokenInput        string                 // 音箱 token 输入框值（粘贴 token 登录）
+	ctxItem           *bilibili.SearchItem   // 右键菜单目标（非空=显示）
+	ctxX, ctxY        float32                // 菜单弹出位置（窗口坐标）
+	clipboard         string                 // 待复制链接（mygo 暂无线程安全 clipboard API，先字段+状态提示）
 
 	// 搜索
 	query   string
@@ -91,9 +91,9 @@ type app struct {
 	// 推荐页（内容靠插件实现）：每插件缓存推荐歌曲 + 加载态 + 详情页开关
 	recommendData       map[string][]source.Song
 	recommendLoaded     map[string]bool
-	recommendDetailOpen bool // 推荐详情页是否打开（来源页预览 → 点击进详情）
-	activeRecommend   string // 当前选中的推荐插件名（一次只显示一个，对齐搜索栏音源下拉）
-	activeChart       string // 当前选中的排行平台（网易云/酷狗）
+	recommendDetailOpen bool   // 推荐详情页是否打开（来源页预览 → 点击进详情）
+	activeRecommend     string // 当前选中的推荐插件名（一次只显示一个，对齐搜索栏音源下拉）
+	activeChart         string // 当前选中的排行平台（网易云/酷狗）
 
 	// 分页（各列表页当前页，每页 20 条；搜索结果每源独立分页）
 	pg          map[string]int // 列表页当前页：queue/recent/fav/detail（本地切片分页）
@@ -124,48 +124,48 @@ type app struct {
 	blurCovers   map[string]ui.ImageSource // 模糊版封面（降采样 12px 放大铺满=背景模糊）
 
 	// 播放控制面板 / 队列 / 收藏
-	showPlayer   bool
-	activeTab    string // search|queue|fav|cast|settings
-	restoreCfg     restoreConfig // 启动恢复配置（所有退出记忆开关）
-	showRestoreCfg  bool          // 启动恢复配置弹窗
-	showLimitDlg   bool          // 上限确认弹窗（所有档位都走它）
-	limitKind      string        // "cache"/"lyric"：当前改哪个上限
-	limitPendingIdx int          // 待确认档位（0-3 预置，4=自定义）
-	limitPendingVal int          // 待确认/输入数值
-	limitBuf       string        // 弹窗输入框 buffer
-	lyricBindSel    string       // 歌词源下拉选中值（持久，避免每帧重建抖动）
-	lyricBindOwn    string       // 当前下拉归属的音源（切换时重新同步）
-	qrLoginSession  *qrSession    // 音源扫码登录会话（非空=弹窗显示）
+	showPlayer      bool
+	activeTab       string         // search|queue|fav|cast|settings
+	restoreCfg      restoreConfig  // 启动恢复配置（所有退出记忆开关）
+	showRestoreCfg  bool           // 启动恢复配置弹窗
+	showLimitDlg    bool           // 上限确认弹窗（所有档位都走它）
+	limitKind       string         // "cache"/"lyric"：当前改哪个上限
+	limitPendingIdx int            // 待确认档位（0-3 预置，4=自定义）
+	limitPendingVal int            // 待确认/输入数值
+	limitBuf        string         // 弹窗输入框 buffer
+	lyricBindSel    string         // 歌词源下拉选中值（持久，避免每帧重建抖动）
+	lyricBindOwn    string         // 当前下拉归属的音源（切换时重新同步）
+	qrLoginSession  *qrSession     // 音源扫码登录会话（非空=弹窗显示）
 	qrLoginImg      ui.ImageSource // 二维码图片（解码后）
-	qrLoginPNG      []byte        // 二维码原始 PNG（复制用：粘贴到微信/QQ发手机扫）
-	qrSpeakerPNG    []byte        // 音箱二维码原始 PNG（复制用）
-	qrLoginStop     chan struct{} // 停止扫码轮询
-	showLoginDialog bool          // 登录方式弹窗
-	loginDialogSrc  string        // 登录方式弹窗对应的音源
-	loginCookieBuf  string        // 登录方式弹窗 Cookie 输入框
-	lastSavedSource string      // 音源下拉保存去重（避免每帧写盘）
-	settingsTab  int    // 设置页子 tab：0=系统设置 1=插件 2=日志
-	pluginTab    int    // 插件页子 tab：0=音源 1=歌词 2=输出
-	pluginDetail string // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
+	qrLoginPNG      []byte         // 二维码原始 PNG（复制用：粘贴到微信/QQ发手机扫）
+	qrSpeakerPNG    []byte         // 音箱二维码原始 PNG（复制用）
+	qrLoginStop     chan struct{}  // 停止扫码轮询
+	showLoginDialog bool           // 登录方式弹窗
+	loginDialogSrc  string         // 登录方式弹窗对应的音源
+	loginCookieBuf  string         // 登录方式弹窗 Cookie 输入框
+	lastSavedSource string         // 音源下拉保存去重（避免每帧写盘）
+	settingsTab     int            // 设置页子 tab：0=系统设置 1=插件 2=日志
+	pluginTab       int            // 插件页子 tab：0=音源 1=歌词 2=输出
+	pluginDetail    string         // 插件配置子页：当前编辑的插件 "type/name"（空=插件列表页）
 	// 日志页筛选/交互状态
-	logLevelFilter int    // 0=全部 1=DEBUG 2=INFO 3=WARN 4=ERROR
-	logCatFilter   string // 分类筛选（""=全部）
-	logSearch      string // 关键词搜索
-	logAutoScroll  bool   // 自动刷新（默认开；仅日志页可见时生效）
-	logDetail      *LogEntry // 点日志行展开全文（nil=关）
-	logLimit       int    // 显示最近 N 条（0=全部；默认 300 防卡顿）
-	logConfirmClear   bool  // 清空确认弹窗
-	statsConfirmClear bool  // 清空播放统计确认弹窗
-	logWatching    bool   // 日志页当前是否可见（控制刷新 goroutine 启停）
-	logWatchStop   chan struct{} // 停止刷新信号
-	playlist     []bilibili.SearchItem
-	playIndex    int
-	posSec       float64 // 当前播放秒（歌词定位用）
-	volume       float64
-	loopMode      int // 0 顺序 1 列表循环 2 单曲 3 随机（对齐主线 4 态）
-	pointPlayMode int // 点单曲方式：0 替换播放列表（网易云默认） 1 仅追加到播放列表
-	favorites    []bilibili.SearchItem
-	favSet       map[string]bool
+	logLevelFilter    int           // 0=全部 1=DEBUG 2=INFO 3=WARN 4=ERROR
+	logCatFilter      string        // 分类筛选（""=全部）
+	logSearch         string        // 关键词搜索
+	logAutoScroll     bool          // 自动刷新（默认开；仅日志页可见时生效）
+	logDetail         *LogEntry     // 点日志行展开全文（nil=关）
+	logLimit          int           // 显示最近 N 条（0=全部；默认 300 防卡顿）
+	logConfirmClear   bool          // 清空确认弹窗
+	statsConfirmClear bool          // 清空播放统计确认弹窗
+	logWatching       bool          // 日志页当前是否可见（控制刷新 goroutine 启停）
+	logWatchStop      chan struct{} // 停止刷新信号
+	playlist          []bilibili.SearchItem
+	playIndex         int
+	posSec            float64 // 当前播放秒（歌词定位用）
+	volume            float64
+	loopMode          int // 0 顺序 1 列表循环 2 单曲 3 随机（对齐主线 4 态）
+	pointPlayMode     int // 点单曲方式：0 替换播放列表（网易云默认） 1 仅追加到播放列表
+	favorites         []bilibili.SearchItem
+	favSet            map[string]bool
 	// 歌单（用户自建、可命名、可多份；与 playlist=播放队列 区分）
 	songlists           []songlist.Songlist // 歌单列表（卡片用）
 	songlistOpen        int64               // 当前打开的歌单 id（0=列表页）
@@ -197,7 +197,7 @@ type app struct {
 	lyricWords    [][]lyric.WordSpan // 逐字时间片（YRC 才有；与 lyricLines 一一对应）
 	lyricCands    []lyric.LyricResult
 	lyricSID      int
-	lyricSrcName  string             // 实际出词的歌词插件名（来源行显示）
+	lyricSrcName  string // 实际出词的歌词插件名（来源行显示）
 	lyricOffset   float64
 	lyricLoading  bool
 	expandedTitle string // 搜索结果标题展开态 bvid（对齐主线 hx-title）
@@ -521,7 +521,9 @@ func main() {
 	plugin.RegisterSettings("source", "local", []plugin.Setting{
 		{Key: "dir", Name: "本地音乐目录", Type: plugin.SettingText, Default: "", Desc: "本机歌曲目录（mp3/flac/m4a/ogg/wav）"},
 	})
-	plugin.RegisterInfo(plugin.Info{Name: "local", DisplayName: "本地", Capabilities: []string{"source", "target"}, Icon: "local", Version: "1.0", Desc: "本地文件 · 扫描目录播放 + 本机输出", Order: 20})
+	// 本地音源与本机输出是两个独立插件：一个读文件系统路径，一个选系统输出声卡，不混用。
+	plugin.RegisterInfo(plugin.Info{Name: "local", DisplayName: "本地音乐", Capabilities: []string{"source"}, Icon: "local", Version: "1.0", Desc: "本地文件 · 扫描目录播放", Order: 20})
+	plugin.RegisterInfo(plugin.Info{Name: "localout", DisplayName: "本机声卡", Capabilities: []string{"target"}, Icon: "vol", Version: "1.0", Desc: "本机输出 · 选择系统输出声卡", Order: 30})
 	plugin.RegisterInfo(plugin.Info{Name: "cast", DisplayName: "投屏", Capabilities: []string{"target"}, Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
 	plugin.RegisterInfo(plugin.Info{Name: "speaker", DisplayName: "小爱音箱", Capabilities: []string{"target"}, Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
 	// JS 沙箱插件：扫描可执行文件旁的 plugins/（相对路径会随 cwd 变化导致插件时多时少）。
