@@ -109,7 +109,7 @@ func TestSystemCapabilityKeys(t *testing.T) {
 	want := map[string][]string{
 		"source": {"bilibili", "local", "netease"},
 		"lyric":  {"netease"},
-		"target": {"bluetooth", "cast", "local", "speaker"},
+		"target": {"cast", "local", "speaker"},
 	}
 	got := SystemCapabilityKeys()
 	for kind, keys := range want {

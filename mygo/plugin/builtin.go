@@ -21,7 +21,7 @@ import (
 var systemCapabilities = map[string][]string{
 	"source": {"bilibili", "local", "netease"},            // Go 音源
 	"lyric":  {"netease"},                               // Go 词源（兜底匹配）
-	"target": {"local", "cast", "bluetooth", "speaker"}, // Go 播放目标
+	"target": {"local", "cast", "speaker"},         // Go 播放目标
 }
 
 // IsBuiltinKey 该 (kind,key) 是否为系统级能力（JS 插件不可占用）。

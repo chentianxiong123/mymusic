@@ -187,8 +187,6 @@ func pluginIcon(name string) *ui.SVG {
 		return icMsg
 	case "cast":
 		return icCast
-	case "bluetooth":
-		return icBluetooth
 	}
 	return icFav
 }

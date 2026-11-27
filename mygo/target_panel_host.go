@@ -6,8 +6,6 @@ import (
 	"homecast/service/cast"
 	"homecast/xiaoai"
 	"mymusic-mygo/plugin"
-	"mymusic-mygo/target"
-
 )
 
 // ── app 实现 plugin.TargetPanelHost（目标面板只认接口，不认 app 具体类型）──
@@ -28,13 +26,12 @@ func (a *app) CurrentTitle() string {
 
 func (a *app) CastDevices() []cast.DeviceDTO    { return a.castDevices }
 func (a *app) Speakers() []xiaoai.SpeakerDevice { return a.speakers }
-func (a *app) BtDevices() []target.BtDevice     { return a.btDevices }
 func (a *app) CastStatusMap() map[string]string { return a.castStatus }
 func (a *app) SpkDID() string                   { return a.spkDid }
 func (a *app) IsPlaying() bool                  { return a.playing }
 
 // ActiveOutput 当前激活的输出目标（统一状态源：各面板自己渲染激活态）。
-// 优先级：音箱 > DLNA > 蓝牙 > 本机（与 SwitchToLocal 的清理顺序一致）。
+// 优先级：音箱 > DLNA > 本机（与 SwitchToLocal 的清理顺序一致）。
 func (a *app) ActiveOutput() (string, string) {
 	if a.spkDid != "" {
 		for _, d := range a.speakers {
@@ -46,9 +43,6 @@ func (a *app) ActiveOutput() (string, string) {
 	}
 	if a.castOn != "" {
 		return "dlna", a.castOn
-	}
-	if a.btOn != "" {
-		return "bluetooth", a.btOn
 	}
 	return "local", ""
 }
@@ -71,7 +65,6 @@ func (a *app) QRStatus() string       { return a.qrStatus }
 func (a *app) TokenInputPtr() *string { return &a.tokenInput }
 
 func (a *app) DiscoverCast()           { a.discoverCast() }
-func (a *app) DiscoverBluetooth()      { a.discoverBluetooth() }
 func (a *app) RefreshSpeakers()        { a.refreshSpeakers() }
 func (a *app) StartSpeakerLogin()      { a.startSpeakerLogin() }
 func (a *app) LoginWithToken(t string) { a.loginWithToken(t) }
@@ -83,86 +76,6 @@ func (a *app) PlayToSpeaker(did, name string) { a.playToSpeaker(did, name) }
 func (a *app) StopSpeaker(did string)         { a.stopSpeaker(did) }
 func (a *app) QueryCastStatus(udn string)     { a.queryCastStatus(udn) }
 
-// ── 蓝牙设备操作（走 target.Target 插件表，不硬编码后端）──
-
-func (a *app) findBtTarget(id string) target.Target {
-	for _, t := range plugin.Targets() {
-		if t.Name() == "bluetooth" && t.DeviceID() == id {
-			return t
-		}
-	}
-	return nil
-}
-
-// ConnectBluetooth 保留为 host 能力（UI 已不调用：连接请在系统蓝牙设置里做）。
-// bluetoothctl connect 会阻塞到超时，绝不能在 UI 线程同步跑——放 goroutine。
-func (a *app) ConnectBluetooth(id string) {
-	go func() {
-		t := a.findBtTarget(id)
-		if t == nil {
-			return
-		}
-		if b, ok := t.(*target.Bluetooth); ok {
-			err := b.Connect()
-			if err != nil {
-				a.win.Update(func() { a.status = "连接失败：" + err.Error() })
-			} else {
-				a.win.Update(func() { a.status = "已连接 " + b.DeviceName() })
-				a.discoverBluetooth()
-			}
-		}
-	}()
-}
-
-func (a *app) DisconnectBluetooth(id string) {
-	t := a.findBtTarget(id)
-	if t == nil {
-		return
-	}
-	if b, ok := t.(*target.Bluetooth); ok {
-		_ = b.Disconnect()
-		a.status = "已断开 " + b.DeviceName()
-	}
-	a.discoverBluetooth()
-	a.win.Invalidate()
-}
-
-func (a *app) PlayBluetooth(id, name string) {
-	t := a.findBtTarget(id)
-	if t == nil {
-		return
-	}
-	if err := t.Play(a.currentRef, target.PlayOpts{Title: a.CurrentTitle()}); err != nil {
-		a.status = "蓝牙投送失败：" + err.Error()
-	} else {
-		// 蓝牙是系统音频路由（声音从本机经蓝牙 sink 出），不是 DLNA/音箱那种
-		// 把 URL 推给远端设备。绝不能 pauseLocalForCast——那会把本机播放停掉，
-		// 反而没声音。保持本机继续播放即可（已有音频流会自动跟着默认 sink 走）。
-		a.btOn = name
-		a.status = "音频已路由到 " + name
-	}
-	a.win.Invalidate()
-}
-
-func (a *app) StopBluetooth() {
-	for _, t := range plugin.Targets() {
-		if t.Name() == "bluetooth" {
-			_ = t.Stop()
-		}
-	}
-	a.btOn = ""
-	a.status = "已恢复本机输出"
-	a.win.Invalidate()
-}
-
-func (a *app) BtBackendName() string {
-	b := target.Bt()
-	if b == nil {
-		return "当前平台不支持蓝牙输出"
-	}
-	return "蓝牙后端：" + b.Name()
-}
-
 func (a *app) Status() string { return a.status }
 
 func (a *app) ToggleLocal() { a.togglePlay() }
@@ -171,9 +84,6 @@ func (a *app) ToggleLocal() { a.togglePlay() }
 func (a *app) SwitchToLocal() {
 	if a.castOn != "" {
 		a.StopCast()
-	}
-	if a.btOn != "" {
-		a.StopBluetooth()
 	}
 	for _, d := range a.speakers {
 		if a.spkDid == d.DID {

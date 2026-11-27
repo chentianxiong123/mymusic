@@ -26,7 +26,7 @@ func TestAllInfosDeterministic(t *testing.T) {
 	infos = map[string]Info{}
 	orderOverride = map[string]int{}
 	// 多个同 Order 平台（模拟 map 遍历随机）
-	for _, n := range []string{"netease", "local", "cast", "bluetooth", "speaker", "bilibili"} {
+	for _, n := range []string{"netease", "local", "cast", "speaker", "bilibili"} {
 		RegisterInfo(Info{Name: n, Type: "source", Order: 20})
 	}
 	first := AllInfos()

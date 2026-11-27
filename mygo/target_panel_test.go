@@ -15,10 +15,10 @@ import (
 func TestTargetPanelHostSlim(t *testing.T) {
 	typ := reflect.TypeOf((*plugin.TargetPanelHost)(nil)).Elem()
 	n := typ.NumMethod()
-	if n > 25 {
-		t.Fatalf("TargetPanelHost 膨胀到 %d 个方法（上限 25）：接口应收口，只留面板渲染真正用到的能力", n)
+	if n > 16 {
+		t.Fatalf("TargetPanelHost 膨胀到 %d 个方法（上限 16）：接口应收口，只留面板渲染真正用到的能力", n)
 	}
-	t.Logf("TargetPanelHost 方法数 = %d（上限 25）", n)
+	t.Logf("TargetPanelHost 方法数 = %d（上限 16）", n)
 }
 
 // 面板注册表非空且 Order 有稳定排序（注册顺序 + 排序不抖动）。

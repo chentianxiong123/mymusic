@@ -4,7 +4,6 @@ package main
 
 import (
 	"encoding/base64"
-	"fmt"
 	"mymusic-mygo/plugin"
 	"mymusic-mygo/target"
 	"strings"
@@ -150,28 +149,6 @@ func (a *app) refreshSpeakers() {
 			plugin.RegisterSystemTarget(target.NewXiaoai(a.svc.speaker, a.pb, sp.DID, sp.Name))
 		}
 		a.win.Invalidate()
-	})
-}
-
-// discoverBluetooth 扫描蓝牙设备（bluetoothctl devices），注册 target 插件。
-func (a *app) discoverBluetooth() {
-	list := target.ScanBluetooth()
-	a.win.Update(func() {
-		a.btDevices = list
-		for _, d := range list {
-			plugin.RegisterSystemTarget(target.NewBluetooth(d.MAC, d.Name))
-		}
-		if len(list) == 0 && !target.BtAvailable() {
-			a.status = "当前平台不支持蓝牙输出"
-		} else {
-			ready := 0
-			for _, d := range list {
-				if d.Ready {
-					ready++
-				}
-			}
-			a.status = fmt.Sprintf("%d 台已配对音频设备，%d 台可投送", len(list), ready)
-		}
 	})
 }
 

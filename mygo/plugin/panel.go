@@ -1,6 +1,6 @@
 // Package plugin 目标页派生：目标页完全由插件系统派生。
 //
-// 每个目标种类（DLNA/蓝牙/小爱音箱/未来第三方）注册一个 TargetPanel，
+// 每个目标种类（DLNA/小爱音箱/未来第三方）注册一个 TargetPanel，
 // 目标页只是枚举渲染各面板。渲染回调只认 TargetPanelHost 接口
 // （依赖反转：面板不依赖具体 app，未来第三方插件可独立实现/复用）。
 //
@@ -11,7 +11,6 @@ package plugin
 import (
 	"homecast/service/cast"
 	"homecast/xiaoai"
-	"mymusic-mygo/target"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -19,26 +18,23 @@ import (
 // TargetPanelHost 目标页宿主能力（由主程序 app 实现，注入面板渲染）。
 // 面板只通过这个接口访问 app，不认具体类型（第三方插件可复用）。
 //
-// 共 23 个方法，按用途分组：当前输出 / 设备列表 / 发现 / 投送 / 蓝牙 / 本机。
+// 共 16 个方法，按用途分组：当前输出 / 设备列表 / 发现 / 投送 / 本机。
 type TargetPanelHost interface {
-	// 当前激活输出（kind=local/dlna/bluetooth/speaker，name=设备名；空=本机）
+	// 当前激活输出（kind=local/dlna/speaker，name=设备名；空=本机）
 	// 各输出面板据此渲染自己的激活态（统一性：状态归插件自己，不写死在页面里）
 	ActiveOutput() (kind, name string)
 
 	// 设备列表与状态
 	CastDevices() []cast.DeviceDTO
 	Speakers() []xiaoai.SpeakerDevice
-	BtDevices() []target.BtDevice
 	CastStatusMap() map[string]string
 	SpkDID() string
 	IsPlaying() bool
 	NextBVID() string
 	SpeakerLoggedIn() bool
-	BtBackendName() string
 
 	// 发现 / 刷新
 	DiscoverCast()
-	DiscoverBluetooth()
 	RefreshSpeakers()
 
 	// DLNA 投送 / 停止 / 查询
@@ -50,19 +46,13 @@ type TargetPanelHost interface {
 	PlayToSpeaker(did, name string)
 	StopSpeaker(did string)
 
-	// 蓝牙设备操作
-	ConnectBluetooth(id string)
-	DisconnectBluetooth(id string)
-	PlayBluetooth(id, name string)
-	StopBluetooth()
-
 	// 本机输出
 	SwitchToLocal()
 }
 
 // TargetPanel 一个目标种类的页面区块（DLNA/蓝牙/音箱/...）。
 type TargetPanel struct {
-	Kind  string // 目标种类 id（"dlna"/"bluetooth"/"speaker"/...）
+	Kind  string // 目标种类 id（"dlna"/"speaker"/...）
 	Order int    // 页面内排序（小在前）
 	Label string // 区块标题
 	Icon  string // 图标标识（UI 层映射 SVG）

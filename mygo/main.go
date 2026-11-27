@@ -57,12 +57,10 @@ type app struct {
 	src          source.MusicSource     // 当前音源（阶段 2 解耦：UI 只认接口，不认具体源）
 	neteaseSrc   *source.Netease        // Go 内置网易云源（登录态热更新用）
 	castOn       string                 // 正在投屏的设备名（空=未投屏，对齐主线 d-stop 显示）
-	btOn         string                 // 蓝牙音频当前路由到的设备名（空=本机）
 	currentRef   model.SongRef          // 1.2.5 当前歌曲的跨源引用（输出层统一传它）
 	supplier     *Supplier              // 统一取流供给（本机播放/HTTP/DLNA 共用）
 	localPausedByCast bool              // 投送远程时本机被暂停（切回本机时恢复）
 	castDevices  []cast.DeviceDTO       // DLNA 设备列表（cast 域包）
-	btDevices    []target.BtDevice      // 蓝牙设备列表（bluetoothctl 扫描）
 	castStatus   map[string]string      // udn → 设备状态（点「查状态」后填，默认「在线」，对齐主线 cast-status span）
 	speakers     []xiaoai.SpeakerDevice // 小米音箱设备（speaker 域包）
 	recent       []bilibili.SearchItem  // 最近播放（对齐主线 hc:recent，最多 30）
@@ -525,7 +523,6 @@ func main() {
 	})
 	plugin.RegisterInfo(plugin.Info{Name: "local", DisplayName: "本地", Capabilities: []string{"source", "target"}, Icon: "local", Version: "1.0", Desc: "本地文件 · 扫描目录播放 + 本机输出", Order: 20})
 	plugin.RegisterInfo(plugin.Info{Name: "cast", DisplayName: "投屏", Capabilities: []string{"target"}, Icon: "cast", Version: "1.0", Desc: "DLNA 投屏目标（同网段发现播放器/电视）", Order: 40})
-	plugin.RegisterInfo(plugin.Info{Name: "bluetooth", DisplayName: "蓝牙", Capabilities: []string{"target"}, Icon: "bluetooth", Version: "1.0", Desc: "蓝牙设备 · 无线播放", Order: 50})
 	plugin.RegisterInfo(plugin.Info{Name: "speaker", DisplayName: "小爱音箱", Capabilities: []string{"target"}, Icon: "speaker", Version: "1.0", Desc: "小爱音箱目标（米家扫码登录，投送当前歌）", Order: 60})
 	// JS 沙箱插件：扫描可执行文件旁的 plugins/（相对路径会随 cwd 变化导致插件时多时少）。
 	// 单个插件失败不拖垮启动（errs 收集，日志列出原因）。

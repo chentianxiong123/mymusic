@@ -5,7 +5,7 @@ package main
 // 本地播放插件配置子页：选择输出声卡。
 // mygo audio.Player（Linux）走 PulseAudio 默认 sink（pa_simple_new dev=nil），
 // 所以"选声卡"= pactl set-default-sink 切换系统默认输出（本地播放跟随默认）。
-// 不塞 mygo 源码、不改库——用系统命令（同蓝牙 bluetoothctl 模式）。
+// 不塞 mygo 源码、不改库——用系统命令（走 pactl）。
 
 import (
 	"os/exec"
