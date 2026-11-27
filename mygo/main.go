@@ -379,8 +379,8 @@ func (a *app) playerBar(c *ui.Context) {
 			if heartButton(c, a.isFav(), a.resp(24, 20), func() {}).Clicked() {
 				a.toggleFav()
 			}
-			// 外部歌词开关（歌词图标，控制桌面挂件外部歌词）
-			if lyricToggleButton(c, a.resp(24, 20), a.lyricShown).Clicked() {
+			// 外部歌词开关（桌面=桌面挂件，安卓=悬浮歌词 Service）
+			if lyricToggleButton(c, a.resp(24, 20), a.lyricOn()).Clicked() {
 				a.toggleLyric()
 			}
 			if iconButton2(c, icRepeat, a.resp(24, 20), accent(a.loopMode > 0)).Clicked() {

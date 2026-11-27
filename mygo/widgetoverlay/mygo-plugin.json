@@ -4,7 +4,7 @@
     "android": {
       "sources": ["android/*.kt"],
       "class": "LyricOverlayPlugin",
-      "permissions": ["SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE", "POST_NOTIFICATIONS", "WAKE_LOCK"],
+      "permissions": ["SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC", "POST_NOTIFICATIONS", "WAKE_LOCK"],
       "application": [
         "        <service android:name=\"dev.mygo.LyricOverlayService\" android:exported=\"false\" android:foregroundServiceType=\"dataSync\" />"
       ]

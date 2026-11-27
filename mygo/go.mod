@@ -19,7 +19,6 @@ require (
 	github.com/ncruces/go-sqlite3 v0.35.6 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
-	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	github.com/tphakala/go-aac v0.7.1 // indirect
 	github.com/tphakala/simd v1.11.0 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
@@ -36,6 +35,7 @@ require (
 	github.com/egoist/mygo v0.10.0
 	github.com/grafana/sobek v0.0.0-20261116133901-d070e0f1f200
 	github.com/lsongdev/miservice-go v0.0.0-20260317060819-b3e39634cd06
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	golang.org/x/image v0.46.0
 	homecast v0.0.0-00010101000000-000000000000
 )

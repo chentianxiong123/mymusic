@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # 官方 mygo mobile 安卓模板「环境适配」补丁（sed 版，按字符串匹配，不依赖行号）
 #
-# 适配 3 处环境差（官方硬编码 JDK17/mavenCentral/联网 wrapper → 本机环境）：
+# 适配 4 处（官方硬编码 JDK17/mavenCentral/联网 wrapper/禁明文 → 本机需要）：
 #   ① JDK 17 → 21      （根/mygo/app 三个 build.gradle.kts：VERSION_17 + jvmToolchain(17)）
 #   ② Maven 源         （settings.gradle.kts：FAIL_ON_PROJECT_REPOS→PREFER_SETTINGS + mavenCentral→阿里云）
 #   ③ Gradle wrapper   （gradle-wrapper.properties：联网 8.14.3 → 本机 9.3.1 + validateDistributionUrl=false）
+#   ④ 明文 HTTP 放行   （cmd/mygo/android.go 的 <application> 加 android:usesCleartextTraffic="true"）
+#      —— 安卓悬浮歌词 Service（Kotlin HttpURLConnection）连本机 Go 后端 http://127.0.0.1:28977，
+#         Android 9+ 默认禁明文；wails3 早已踩过此坑（domain-config 不匹配 IP 字面量，
+#         必须用 base-config 或 usesCleartextTraffic）。不加则歌词挂件连不上、永远默认文字。
 #
 # 用法：patch-template.sh <官方源码根>   （对 <根>/internal/mobile/android 就地修改）
 # 幂等：可重复执行（sed 替换已是目标值则无副作用）。
@@ -36,7 +40,14 @@ if [ -f "$A/gradle/wrapper/gradle-wrapper.properties" ]; then
   sed -i 's/validateDistributionUrl=true/validateDistributionUrl=false/' "$A/gradle/wrapper/gradle-wrapper.properties"
 fi
 
+echo "[patch-template] ④ 明文 HTTP 放行（悬浮歌词 SSE 连 127.0.0.1:28977）"
+ANDROID_GO="$ROOT/cmd/mygo/android.go"
+if [ -f "$ANDROID_GO" ] && ! grep -q 'usesCleartextTraffic' "$ANDROID_GO"; then
+  sed -i 's|android:enableOnBackInvokedCallback="true"|android:enableOnBackInvokedCallback="true"\n        android:usesCleartextTraffic="true"|' "$ANDROID_GO"
+fi
+
 echo "[patch-template] ✓ 完成。验证："
 grep -rn "jvmToolchain(21)" "$A/build.gradle.kts" "$A/mygo/build.gradle.kts" "$A/app/build.gradle.kts" 2>/dev/null | head -3
 grep -n "PREFER_SETTINGS\|aliyun" "$A/settings.gradle.kts" 2>/dev/null | head -2
 grep -n "distributionUrl\|validateDistributionUrl" "$A/gradle/wrapper/gradle-wrapper.properties" 2>/dev/null
+grep -n "usesCleartextTraffic" "$ANDROID_GO" 2>/dev/null

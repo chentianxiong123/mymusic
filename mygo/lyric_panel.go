@@ -327,7 +327,7 @@ func (a *app) narrowLyricPanel(c *ui.Context) {
 					ui.Text(c, bilibili.CleanHTML(a.current.title)).FontSize(15 * uiScale).Bold().TextColor(clrText).MaxLines(1)
 					ui.Text(c, a.current.author).FontSize(11 * uiScale).TextColor(clrMuted).MaxLines(1)
 				})
-				if lyricToggleButton(c, 32, a.lyricShown).Clicked() {
+				if lyricToggleButton(c, 32, a.lyricOn()).Clicked() {
 					a.toggleLyric()
 				}
 				// 工具抽屉按钮（对齐主线 ly-drawer-tool）
