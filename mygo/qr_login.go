@@ -20,6 +20,8 @@ import (
 
 	qrcode "github.com/skip2/go-qrcode"
 
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 
 	"mymusic-mygo/plugin"
@@ -384,6 +386,10 @@ func (a *app) loginMethodDialog(c *ui.Context) {
 						a.win.Invalidate()
 					}
 					logged := plugin.GetCookie(src) != ""
+					if logged && chip(c, "复制 Cookie").Clicked() {
+						mygo.Clipboard.WriteText(plugin.GetCookie(src))
+						a.status = "已复制 " + sourceShortName(src) + " Cookie（多端免扫码复用）"
+					}
 					if logged && chip(c, "退出登录").Clicked() {
 						a.logoutSource(src)
 					}
@@ -406,12 +412,15 @@ func (a *app) startQRLogin(src string) {
 	}
 	a.qrLoginSession = s
 	a.qrLoginImg = nil
+	a.qrLoginPNG = nil
 	if len(s.Image) > 0 {
-		// QQ：二维码图片由 ptqrshow 直接返回
+		// QQ/咪咕：二维码图片由服务器直接返回
+		a.qrLoginPNG = s.Image
 		a.qrLoginImg = qqQRImage(s.Image)
 	} else if s.URL != "" {
 		png, err := qrPNG(s.URL, 256)
 		if err == nil {
+			a.qrLoginPNG = png // 原始 PNG：一键复制给别的设备扫
 			if img, derr := ui.DecodeImage(png); derr == nil {
 				a.qrLoginImg = img
 			}
@@ -488,6 +497,16 @@ func (a *app) qrLoginDialog(c *ui.Context) {
 				} else {
 					ui.Text(c, "二维码生成中…").FontSize(12 * uiScale).TextColor(clrMuted)
 				}
+				// 一键复制：二维码图片粘到微信/QQ 发给手机扫；链接粘到浏览器打开。
+				ui.Row(c).Gap(8 * uiScale).Children(func() {
+					if chip(c, "复制二维码").Clicked() {
+						a.copyQRImage()
+					}
+					if s.URL != "" && chip(c, "复制链接").Clicked() {
+						mygo.Clipboard.WriteText(s.URL)
+						a.status = "已复制登录链接"
+					}
+				})
 				ui.Text(c, s.Status.text()).FontSize(13 * uiScale).TextColor(clrPink)
 				if s.Status == qrSuccess {
 					if chip(c, "完成").Clicked() {
@@ -501,6 +520,25 @@ func (a *app) qrLoginDialog(c *ui.Context) {
 			})
 		})
 	})
+}
+
+// copyQRImage 把当前二维码 PNG 写入剪贴板（图片格式），
+// 用户可粘贴到微信/QQ/备忘录，用手机扫码，不必凑近电脑屏幕。
+func (a *app) copyQRImage() {
+	var png []byte
+	if a.qrLoginSession != nil {
+		png = a.qrLoginPNG
+	}
+	if len(png) == 0 {
+		a.status = "二维码尚未生成"
+		return
+	}
+	data := transfer.New(transfer.NewItem(transfer.Bytes(transfer.PNG, png)))
+	if err := mygo.Clipboard.Write(data); err != nil {
+		a.status = "复制失败：" + err.Error()
+		return
+	}
+	a.status = "已复制二维码（可粘贴到聊天窗口用手机扫）"
 }
 
 // stopQRLogin 关闭弹窗 + 停止轮询。

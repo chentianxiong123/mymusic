@@ -139,6 +139,8 @@ type app struct {
 	lyricBindOwn    string       // 当前下拉归属的音源（切换时重新同步）
 	qrLoginSession  *qrSession    // 音源扫码登录会话（非空=弹窗显示）
 	qrLoginImg      ui.ImageSource // 二维码图片（解码后）
+	qrLoginPNG      []byte        // 二维码原始 PNG（复制用：粘贴到微信/QQ发手机扫）
+	qrSpeakerPNG    []byte        // 音箱二维码原始 PNG（复制用）
 	qrLoginStop     chan struct{} // 停止扫码轮询
 	showLoginDialog bool          // 登录方式弹窗
 	loginDialogSrc  string        // 登录方式弹窗对应的音源

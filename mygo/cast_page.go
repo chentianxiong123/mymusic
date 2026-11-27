@@ -54,6 +54,7 @@ func (a *app) startSpeakerLogin() {
 					raw = b
 				}
 			}
+			a.qrSpeakerPNG = raw // 原始 PNG：一键复制给别的设备扫
 			if img, derr := ui.DecodeImage(raw); derr == nil {
 				a.covers["__qr__"] = img
 			} else {

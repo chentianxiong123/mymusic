@@ -8,6 +8,7 @@ import (
 	"mymusic-mygo/plugin"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -391,6 +392,9 @@ func (a *app) speakerConfig(c *ui.Context) {
 					ui.Text(c, "小米音箱扫码登录").FontSize(14 * uiScale).Bold().TextColor(clrText)
 					ui.Text(c, "用米家 App 扫描二维码登录").FontSize(12 * uiScale).TextColor(clrMuted)
 					ui.Text(c, a.qrStatus).FontSize(12 * uiScale).TextColor(clrPink)
+					if chip(c, "复制二维码").Clicked() {
+						a.copySpeakerQRImage()
+					}
 				})
 			})
 		})
@@ -499,4 +503,19 @@ func (a *app) neteaseSourceConfig(c *ui.Context) {
 		_ = plugin.SetSetting("source", "netease", "searchSize", []string{"20", "40", "60"}[i])
 		a.win.Invalidate()
 	})
+}
+
+// copySpeakerQRImage 把音箱二维码 PNG 写入剪贴板（图片格式），
+// 可粘贴到聊天窗口用手机米家 App 扫，不必凑近屏幕。
+func (a *app) copySpeakerQRImage() {
+	if len(a.qrSpeakerPNG) == 0 {
+		a.status = "二维码尚未生成"
+		return
+	}
+	d := transfer.New(transfer.NewItem(transfer.Bytes(transfer.PNG, a.qrSpeakerPNG)))
+	if err := mygo.Clipboard.Write(d); err != nil {
+		a.status = "复制失败：" + err.Error()
+		return
+	}
+	a.status = "已复制音箱二维码（可粘贴到聊天窗口用手机扫）"
 }
