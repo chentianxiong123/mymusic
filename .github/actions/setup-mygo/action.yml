@@ -13,7 +13,7 @@ inputs:
     required: false
     default: 'true'
   android-cleartext:
-    description: '安卓构建专用：给 mygo CLI 的 manifest 生成器打明文 HTTP 补丁（悬浮歌词 SSE 连 127.0.0.1 必须）'
+    description: '安卓构建专用：给 mygo CLI 打补丁（①明文 HTTP 放行 ②fling 中手指不再被吞，快速往返滑动不滞后）'
     required: false
     default: 'false'
 
@@ -36,22 +36,46 @@ runs:
       shell: bash
       run: go install github.com/egoist/mygo/cmd/mygo@v0.10.0
 
-    # 安卓悬浮歌词 Service 用 HttpURLConnection 连 http://127.0.0.1:28977 明文 HTTP，
-    # Android 9+ 默认禁明文。mygo 官方 CLI 生成的 manifest 没放行 → 歌词永远默认文字。
-    # 本地 build-android.sh 由 patch-template.sh 第④处处理；CI 走 go install v0.10.0，
-    # 这里对 module cache 里的 CLI 源码打同样补丁后重装。
-    - name: 安卓明文 HTTP 补丁（悬浮歌词 SSE）
+    # mygo CLI 补丁（本地 patch-template.sh 第④⑤处对应）：
+    # ①安卓悬浮歌词 Service 连 http://127.0.0.1:28977 明文，Android 9+ 默认禁 → manifest 放行；
+    # ②ui/touch.go：fling 中按下新手指被 swallow 吞掉，快速往返滑动第二下无效 → 不吞。
+    # CI 走 go install v0.10.0，对 module cache 源码打同样补丁后重装。
+    - name: 安卓 mygo CLI 补丁（明文 HTTP + 触摸滑动）
       if: inputs.android-cleartext == 'true'
       shell: bash
       run: |
         set -euo pipefail
         SRC="$(go env GOMODCACHE)/github.com/egoist/mygo@v0.10.0"
         test -f "$SRC/cmd/mygo/android.go" || { echo "找不到 mygo CLI 源码: $SRC"; exit 1; }
+        chmod -R u+w "$SRC"
         if ! grep -q 'usesCleartextTraffic' "$SRC/cmd/mygo/android.go"; then
-          chmod -R u+w "$SRC"
           sed -i 's|android:enableOnBackInvokedCallback="true"|android:enableOnBackInvokedCallback="true"\n        android:usesCleartextTraffic="true"|' "$SRC/cmd/mygo/android.go"
         fi
         grep -n 'usesCleartextTraffic' "$SRC/cmd/mygo/android.go"
+        if ! grep -q 'do not swallow the finger' "$SRC/ui/touch.go"; then
+          python3 - "$SRC/ui/touch.go" <<'PY'
+import sys
+p=sys.argv[1]
+s=open(p).read()
+old='''		if rt.flinging.on {
+			// A finger stops content flinging, and taps nothing.
+			rt.flinging.on = false
+			t.swallow = true
+			return true
+		}'''
+new='''		if rt.flinging.on {
+			// Stop the fling, but do not swallow the finger: let it pan at once
+			// (upstream swallowed it, making quick back-and-forth swipes lag).
+			// Leave waiting false so a pure tap stays inert — taps nothing.
+			rt.flinging.on = false
+			rt.requestFrame()
+			return true // swallow a new finger: no click, but pan works
+		}'''
+assert old in s, 'touch.go fling block not found'
+open(p,'w').write(s.replace(old,new))
+PY
+        fi
+        grep -n 'do not swallow the finger' "$SRC/ui/touch.go"
         cd "$SRC"
         go build -o "$(go env GOPATH)/bin/mygo" ./cmd/mygo
-        echo "✓ mygo CLI 已带明文放行补丁重建"
+        echo "✓ mygo CLI 已带（明文放行 + 触摸滑动）补丁重建"

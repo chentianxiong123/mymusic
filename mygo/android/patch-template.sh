@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 官方 mygo mobile 安卓模板「环境适配」补丁（sed 版，按字符串匹配，不依赖行号）
 #
-# 适配 4 处（官方硬编码 JDK17/mavenCentral/联网 wrapper/禁明文 → 本机需要）：
+# 适配 5 处（官方硬编码 JDK17/mavenCentral/联网 wrapper/禁明文/fling 吞手指 → 本机需要）：
 #   ① JDK 17 → 21      （根/mygo/app 三个 build.gradle.kts：VERSION_17 + jvmToolchain(17)）
 #   ② Maven 源         （settings.gradle.kts：FAIL_ON_PROJECT_REPOS→PREFER_SETTINGS + mavenCentral→阿里云）
 #   ③ Gradle wrapper   （gradle-wrapper.properties：联网 8.14.3 → 本机 9.3.1 + validateDistributionUrl=false）
@@ -9,6 +9,10 @@
 #      —— 安卓悬浮歌词 Service（Kotlin HttpURLConnection）连本机 Go 后端 http://127.0.0.1:28977，
 #         Android 9+ 默认禁明文；wails3 早已踩过此坑（domain-config 不匹配 IP 字面量，
 #         必须用 base-config 或 usesCleartextTraffic）。不加则歌词挂件连不上、永远默认文字。
+#   ⑤ 触摸滑动惯性   （ui/touch.go：fling 中按下新手指不再 swallow 整根手指）
+#      —— mygo 官方设计：手指按下停止 fling 后 swallow=true 吞掉该手指全部 move/up，
+#         快速往返滑动时第二下手指只"刹车"不滚动，要抬手再按，滞后感明显。
+#         改法：停止 fling 后不 swallow，继续走正常按压/滚动路径，新手指立即接管 pan。
 #
 # 用法：patch-template.sh <官方源码根>   （对 <根>/internal/mobile/android 就地修改）
 # 幂等：可重复执行（sed 替换已是目标值则无副作用）。
@@ -46,8 +50,35 @@ if [ -f "$ANDROID_GO" ] && ! grep -q 'usesCleartextTraffic' "$ANDROID_GO"; then
   sed -i 's|android:enableOnBackInvokedCallback="true"|android:enableOnBackInvokedCallback="true"\n        android:usesCleartextTraffic="true"|' "$ANDROID_GO"
 fi
 
+echo "[patch-template] ⑤ 触摸滑动：fling 中按下新手指不再 swallow"
+TOUCH_GO="$ROOT/ui/touch.go"
+if [ -f "$TOUCH_GO" ] && ! grep -q 'do not swallow the finger' "$TOUCH_GO"; then
+  python3 - "$TOUCH_GO" <<'PY'
+import sys
+p=sys.argv[1]
+s=open(p).read()
+old='''		if rt.flinging.on {
+			// A finger stops content flinging, and taps nothing.
+			rt.flinging.on = false
+			t.swallow = true
+			return true
+		}'''
+new='''		if rt.flinging.on {
+			// Stop the fling, but do not swallow the finger: let it pan at once
+			// (upstream swallowed it, making quick back-and-forth swipes lag).
+			// Leave waiting false so a pure tap stays inert — taps nothing.
+			rt.flinging.on = false
+			rt.requestFrame()
+			return true // swallow a new finger: no click, but pan works
+		}'''
+assert old in s, 'touch.go fling block not found'
+open(p,'w').write(s.replace(old,new))
+PY
+fi
+
 echo "[patch-template] ✓ 完成。验证："
 grep -rn "jvmToolchain(21)" "$A/build.gradle.kts" "$A/mygo/build.gradle.kts" "$A/app/build.gradle.kts" 2>/dev/null | head -3
 grep -n "PREFER_SETTINGS\|aliyun" "$A/settings.gradle.kts" 2>/dev/null | head -2
 grep -n "distributionUrl\|validateDistributionUrl" "$A/gradle/wrapper/gradle-wrapper.properties" 2>/dev/null
 grep -n "usesCleartextTraffic" "$ANDROID_GO" 2>/dev/null
+grep -n "do not swallow the finger" "$TOUCH_GO" 2>/dev/null
