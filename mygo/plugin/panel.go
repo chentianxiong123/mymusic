@@ -3,6 +3,9 @@
 // 每个目标种类（DLNA/蓝牙/小爱音箱/未来第三方）注册一个 TargetPanel，
 // 目标页只是枚举渲染各面板。渲染回调只认 TargetPanelHost 接口
 // （依赖反转：面板不依赖具体 app，未来第三方插件可独立实现/复用）。
+//
+// 接口收口原则：只放面板渲染**真正用到**的能力。内部状态（QR/token/登录弹窗）
+// 归插件页自己，不放进 Host；否则第三方实现一个面板要被迫实现几十个无关方法。
 package plugin
 
 import (
@@ -15,17 +18,14 @@ import (
 
 // TargetPanelHost 目标页宿主能力（由主程序 app 实现，注入面板渲染）。
 // 面板只通过这个接口访问 app，不认具体类型（第三方插件可复用）。
+//
+// 共 23 个方法，按用途分组：当前输出 / 设备列表 / 发现 / 投送 / 蓝牙 / 本机。
 type TargetPanelHost interface {
-	// 当前播放
-	HasCurrent() bool
-	CurrentBVID() string
-	CurrentTitle() string
-
 	// 当前激活输出（kind=local/dlna/bluetooth/speaker，name=设备名；空=本机）
 	// 各输出面板据此渲染自己的激活态（统一性：状态归插件自己，不写死在页面里）
 	ActiveOutput() (kind, name string)
 
-	// 设备列表
+	// 设备列表与状态
 	CastDevices() []cast.DeviceDTO
 	Speakers() []xiaoai.SpeakerDevice
 	BtDevices() []target.BtDevice
@@ -33,44 +33,31 @@ type TargetPanelHost interface {
 	SpkDID() string
 	IsPlaying() bool
 	NextBVID() string
-
-	// 音箱登录态
 	SpeakerLoggedIn() bool
-	SpeakerUserID() string
-	QRImage() string
-	QRStatus() string
-	TokenInputPtr() *string
+	BtBackendName() string
 
 	// 发现 / 刷新
 	DiscoverCast()
 	DiscoverBluetooth()
 	RefreshSpeakers()
-	StartSpeakerLogin()
-	LoginWithToken(tok string)
-	FillTokenFromClipboard()
 
-	// 投送 / 停止 / 查询
+	// DLNA 投送 / 停止 / 查询
 	CastTo(udn, name string)
 	StopCast()
+	QueryCastStatus(udn string)
+
+	// 音箱投送 / 停止
 	PlayToSpeaker(did, name string)
 	StopSpeaker(did string)
-	QueryCastStatus(udn string)
 
 	// 蓝牙设备操作
 	ConnectBluetooth(id string)
 	DisconnectBluetooth(id string)
 	PlayBluetooth(id, name string)
 	StopBluetooth()
-	BtBackendName() string
 
 	// 本机输出
 	SwitchToLocal()
-	ToggleLocal()
-
-	// UI 辅助
-	Invalidate()
-	Resp(a, b float32) float32
-	Status() string
 }
 
 // TargetPanel 一个目标种类的页面区块（DLNA/蓝牙/音箱/...）。
