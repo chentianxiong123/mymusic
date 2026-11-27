@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"homecast/bilibili"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -84,7 +85,7 @@ func (a *app) queuePage(c *ui.Context) {
 							lbtn := ui.Box(c).Absolute().Left(0).Top(rowH/2 - 18*uiScale).Width(36 * uiScale).Height(36 * uiScale).
 								Radius(18 * uiScale).Background(ui.RGBA(0, 0, 0, 0.65)).AlignItems(ui.Center).Justify(ui.Center)
 							if lbtn.Clicked() {
-								scrollStep(&a.recentScroll, &a.recentTarget, step, -1)
+								a.recentScroll.ScrollTo(a.recentScroll.X-step, 0, ui.Animation{Duration: 180 * time.Millisecond})
 							}
 							lbtn.Children(func() { icon(c, icChevL, 18, clrText) })
 						}
@@ -92,7 +93,7 @@ func (a *app) queuePage(c *ui.Context) {
 							rbtn := ui.Box(c).Absolute().Right(0).Top(rowH/2 - 18*uiScale).Width(36 * uiScale).Height(36 * uiScale).
 								Radius(18 * uiScale).Background(ui.RGBA(0, 0, 0, 0.65)).AlignItems(ui.Center).Justify(ui.Center)
 							if rbtn.Clicked() {
-								scrollStep(&a.recentScroll, &a.recentTarget, step, 1)
+								a.recentScroll.ScrollTo(a.recentScroll.X+step, 0, ui.Animation{Duration: 180 * time.Millisecond})
 							}
 							rbtn.Children(func() { icon(c, icChevR, 18, clrText) })
 						}
@@ -142,9 +143,9 @@ func (a *app) queueRow(c *ui.Context, i int, item bilibili.SearchItem) {
 	idx := i
 	a.songRow(c, item.BVID, item.Pic, item.Title, item.Author, "", songRowOpt{
 		playFn: func() { go a.playFrom(a.playlist, i) },
-		idx:    &idx,
-		isCur:  isCur,
-		rmFn:   func() { a.pb.RemoveQueue(item.BVID) },
+		idx:   &idx,
+		isCur: isCur,
+		rmFn:  func() { a.pb.RemoveQueue(item.BVID) },
 	})
 }
 
