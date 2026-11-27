@@ -21,6 +21,7 @@ jobs:
       - uses: ./.github/actions/setup-mygo
         with:
           go-cache: 'false' # 自带缓存 key 不带 ABI，3 个 CI 会抢 → 下面自建带 ABI 的
+          android-cleartext: 'true' # 悬浮歌词 SSE 连 127.0.0.1 明文 HTTP 必须
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

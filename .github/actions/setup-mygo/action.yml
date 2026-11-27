@@ -12,6 +12,10 @@ inputs:
     description: 'setup-go 自带缓存（安卓多 ABI 并发时关掉，改用各 workflow 带 ABI 后缀的 actions/cache，避免抢同一 key）'
     required: false
     default: 'true'
+  android-cleartext:
+    description: '安卓构建专用：给 mygo CLI 的 manifest 生成器打明文 HTTP 补丁（悬浮歌词 SSE 连 127.0.0.1 必须）'
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -31,3 +35,23 @@ runs:
       if: inputs.install-cli == 'true'
       shell: bash
       run: go install github.com/egoist/mygo/cmd/mygo@v0.10.0
+
+    # 安卓悬浮歌词 Service 用 HttpURLConnection 连 http://127.0.0.1:28977 明文 HTTP，
+    # Android 9+ 默认禁明文。mygo 官方 CLI 生成的 manifest 没放行 → 歌词永远默认文字。
+    # 本地 build-android.sh 由 patch-template.sh 第④处处理；CI 走 go install v0.10.0，
+    # 这里对 module cache 里的 CLI 源码打同样补丁后重装。
+    - name: 安卓明文 HTTP 补丁（悬浮歌词 SSE）
+      if: inputs.android-cleartext == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        SRC="$(go env GOMODCACHE)/github.com/egoist/mygo@v0.10.0"
+        test -f "$SRC/cmd/mygo/android.go" || { echo "找不到 mygo CLI 源码: $SRC"; exit 1; }
+        if ! grep -q 'usesCleartextTraffic' "$SRC/cmd/mygo/android.go"; then
+          chmod -R u+w "$SRC"
+          sed -i 's|android:enableOnBackInvokedCallback="true"|android:enableOnBackInvokedCallback="true"\n        android:usesCleartextTraffic="true"|' "$SRC/cmd/mygo/android.go"
+        fi
+        grep -n 'usesCleartextTraffic' "$SRC/cmd/mygo/android.go"
+        cd "$SRC"
+        go build -o "$(go env GOPATH)/bin/mygo" ./cmd/mygo
+        echo "✓ mygo CLI 已带明文放行补丁重建"
